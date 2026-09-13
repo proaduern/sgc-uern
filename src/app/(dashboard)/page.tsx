@@ -13,18 +13,56 @@ import {
   FileSpreadsheet,
   ArrowUpRight,
   BookOpen,
-  DollarSign
+  DollarSign,
+  CheckCircle2,
+  Inbox
 } from 'lucide-react';
 
+interface DashboardStats {
+  contratosAtivos: number;
+  valorGlobalTotal: number;
+  atasVigentes: number;
+  alertasVigencia: number;
+  alertasSaldoMedio: number;
+  terceirizadosAtivos: number;
+}
+
+interface AlertaItem {
+  id: string;
+  tipo: string;
+  titulo: string;
+  badge: string;
+  descricao: string;
+  nivel: 'CRITICO' | 'ATENCAO' | 'INFORMATIVO';
+  link?: string;
+}
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    contratosAtivos: 14,
-    valorGlobalTotal: 18450200.0,
-    atasVigentes: 8,
-    alertasVigencia: 3,
-    alertasSaldoMedio: 2,
-    terceirizadosAtivos: 182,
+  const [stats, setStats] = useState<DashboardStats>({
+    contratosAtivos: 0,
+    valorGlobalTotal: 0,
+    atasVigentes: 0,
+    alertasVigencia: 0,
+    alertasSaldoMedio: 0,
+    terceirizadosAtivos: 0,
   });
+  const [alertas, setAlertas] = useState<AlertaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.stats) setStats(data.stats);
+        if (data.alertas) setAlertas(data.alertas);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar dados reais do dashboard:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -75,7 +113,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-2xl font-extrabold text-slate-800">{stats.contratosAtivos}</div>
+            <div className="text-2xl font-extrabold text-slate-800">
+              {loading ? '-' : stats.contratosAtivos}
+            </div>
             <div className="text-xs text-slate-400 mt-1 flex items-center space-x-1">
               <span>Continuados e entrega única</span>
             </div>
@@ -92,9 +132,11 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="text-2xl font-extrabold text-slate-800">
-              {stats.valorGlobalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {loading
+                ? '-'
+                : stats.valorGlobalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </div>
-            <div className="text-xs text-slate-400 mt-1">Exercício 2026</div>
+            <div className="text-xs text-slate-400 mt-1">Exercício Corrente</div>
           </div>
         </div>
 
@@ -107,7 +149,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-2xl font-extrabold text-amber-600">{stats.alertasVigencia}</div>
+            <div className="text-2xl font-extrabold text-amber-600">
+              {loading ? '-' : stats.alertasVigencia}
+            </div>
             <div className="text-xs text-amber-600/80 mt-1 font-medium">
               Vencendo em menos de 90 dias
             </div>
@@ -123,7 +167,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-2xl font-extrabold text-rose-600">{stats.alertasSaldoMedio}</div>
+            <div className="text-2xl font-extrabold text-rose-600">
+              {loading ? '-' : stats.alertasSaldoMedio}
+            </div>
             <div className="text-xs text-rose-600/80 mt-1 font-medium">
               Consumo superior a (Total / 12)
             </div>
@@ -146,65 +192,124 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {/* Alerta 1: Vigência */}
-            <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start space-x-3.5">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-lg mt-0.5">
-                <Clock className="w-4 h-4" />
+            {loading ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                Carregando indicadores em tempo real...
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-amber-900">
-                    Contrato nº 14/2024 - Locação de Imóvel (Campus Natal)
-                  </h4>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
-                    Faltam 42 dias
-                  </span>
+            ) : alertas.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
-                  Vigência expira em 24/10/2026. Abertura tempestiva de processo SEI para termo aditivo ou prorrogação conforme Art. 8º da IN 01/2026.
-                </p>
-              </div>
-            </div>
-
-            {/* Alerta 2: Saldo Linear */}
-            <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-200/80 flex items-start space-x-3.5">
-              <div className="p-2 bg-rose-100 text-rose-800 rounded-lg mt-0.5">
-                <TrendingUp className="w-4 h-4" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-rose-900">
-                    Contrato nº 08/2025 - Fornecimento de Combustíveis
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    {stats.contratosAtivos === 0
+                      ? 'Nenhum contrato cadastrado no momento'
+                      : 'Nenhum alerta ou pendência crítica no momento'}
                   </h4>
-                  <span className="text-[10px] font-bold text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md">
-                    Consumo +35% da média
-                  </span>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                    {stats.contratosAtivos === 0
+                      ? 'Sua base de dados está limpa e pronta para os cadastros oficiais. Você pode cadastrar os contratos manualmente ou fazer upload de planilha em lote.'
+                      : 'Todos os contratos ativos estão com suas vigências e saldos dentro dos parâmetros normativos regulares da IN nº 01/2026.'}
+                  </p>
                 </div>
-                <p className="text-xs text-rose-800/90 mt-1 leading-relaxed">
-                  O ritmo mensal de medições ultrapassou a taxa linear estimada (Valor Global / 12). Risco de esgotamento prematuro do saldo antes do 10º mês.
-                </p>
+                {stats.contratosAtivos === 0 && (
+                  <div className="flex justify-center gap-2 pt-2">
+                    <Link
+                      href="/contratos/novo"
+                      className="px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-sm transition-all"
+                    >
+                      + Cadastrar Primeiro Contrato
+                    </Link>
+                    <Link
+                      href="/contratos"
+                      className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-xl transition-all"
+                    >
+                      Importar Planilha
+                    </Link>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Alerta 3: Repactuação CCT */}
-            <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 flex items-start space-x-3.5">
-              <div className="p-2 bg-blue-100 text-blue-800 rounded-lg mt-0.5">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-blue-900">
-                    Convenção Coletiva SINDESP/RN - Prazo Decadencial
-                  </h4>
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md">
-                    Regra 90 dias
-                  </span>
+            ) : (
+              alertas.map((alerta) => (
+                <div
+                  key={alerta.id}
+                  className={`p-4 rounded-xl border flex items-start space-x-3.5 transition-colors ${
+                    alerta.nivel === 'CRITICO'
+                      ? 'bg-rose-50/80 border-rose-200/90'
+                      : alerta.nivel === 'ATENCAO'
+                      ? 'bg-amber-50/80 border-amber-200/90'
+                      : 'bg-blue-50/80 border-blue-200/90'
+                  }`}
+                >
+                  <div
+                    className={`p-2 rounded-lg mt-0.5 ${
+                      alerta.nivel === 'CRITICO'
+                        ? 'bg-rose-100 text-rose-800'
+                        : alerta.nivel === 'ATENCAO'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}
+                  >
+                    {alerta.tipo === 'VIGENCIA' ? (
+                      <Clock className="w-4 h-4" />
+                    ) : alerta.tipo === 'SALDO' ? (
+                      <TrendingUp className="w-4 h-4" />
+                    ) : (
+                      <BookOpen className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h4
+                        className={`text-xs font-bold ${
+                          alerta.nivel === 'CRITICO'
+                            ? 'text-rose-900'
+                            : alerta.nivel === 'ATENCAO'
+                            ? 'text-amber-900'
+                            : 'text-blue-900'
+                        }`}
+                      >
+                        {alerta.titulo}
+                      </h4>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          alerta.nivel === 'CRITICO'
+                            ? 'bg-rose-100 text-rose-800'
+                            : alerta.nivel === 'ATENCAO'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {alerta.badge}
+                      </span>
+                    </div>
+                    <p
+                      className={`text-xs mt-1 leading-relaxed ${
+                        alerta.nivel === 'CRITICO'
+                          ? 'text-rose-800/90'
+                          : alerta.nivel === 'ATENCAO'
+                          ? 'text-amber-800/90'
+                          : 'text-blue-800/90'
+                      }`}
+                    >
+                      {alerta.descricao}
+                    </p>
+                    {alerta.link && (
+                      <div className="mt-2">
+                        <Link
+                          href={alerta.link}
+                          className="text-[11px] font-bold text-blue-700 hover:underline inline-flex items-center space-x-1"
+                        >
+                          <span>Ver detalhes</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-blue-800/90 mt-1 leading-relaxed">
-                  Conforme Art. 64, §2º da IN 01/2026, a empresa contratada tem até 90 dias para protocolar pedido de repactuação com retroativos da nova CCT.
-                </p>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
 

@@ -23,6 +23,9 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;
 
   if (!token) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirect', pathname);
@@ -35,6 +38,10 @@ export async function middleware(request: NextRequest) {
 
     // Se o usuário precisa trocar a senha e ainda não está na tela de troca
     if (user.deveTrocarSenha && pathname !== '/trocar-senha' && !pathname.startsWith('/api/auth')) {
+      if (pathname.startsWith('/api/')) {
+        // Permitir chamadas de API necessárias
+        return NextResponse.next();
+      }
       const url = request.nextUrl.clone();
       url.pathname = '/trocar-senha';
       return NextResponse.redirect(url);
@@ -57,6 +64,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   } catch (err) {
     // Token inválido ou expirado
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Sessão inválida ou expirada' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const response = NextResponse.redirect(url);

@@ -18,12 +18,15 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  UploadCloud
+  UploadCloud,
+  Bookmark,
+  ArrowRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ContratosPage() {
   const [contratos, setContratos] = useState<any[]>([]);
+  const [rascunhos, setRascunhos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -31,6 +34,28 @@ export default function ContratosPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+
+  const carregarRascunhos = async () => {
+    try {
+      const res = await fetch('/api/contratos/rascunhos');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setRascunhos(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar rascunhos:', err);
+    }
+  };
+
+  const excluirRascunho = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este rascunho de contrato?')) return;
+    try {
+      await fetch(`/api/contratos/rascunhos/${id}`, { method: 'DELETE' });
+      carregarRascunhos();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const carregarContratos = async () => {
     setLoading(true);
@@ -52,6 +77,7 @@ export default function ContratosPage() {
 
   useEffect(() => {
     carregarContratos();
+    carregarRascunhos();
   }, [statusFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -182,6 +208,74 @@ export default function ContratosPage() {
           </Link>
         </div>
       </div>
+
+      {/* SEÇÃO DE RASCUNHOS EM ANDAMENTO */}
+      {rascunhos.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-50/90 border border-amber-300 rounded-2xl p-5 shadow-sm space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-1.5 bg-amber-200/80 text-amber-800 rounded-lg">
+                <Bookmark className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Rascunhos em Andamento ({rascunhos.length})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Cadastros parciais salvos no banco de dados. Você pode continuar o preenchimento a qualquer momento.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {rascunhos.map((r) => (
+              <div
+                key={r.id}
+                className="bg-white/95 border border-amber-200 rounded-xl p-3.5 flex flex-col justify-between space-y-2.5 shadow-sm hover:border-amber-400 transition-all"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800 line-clamp-1">
+                      {r.tituloIdentificador || 'Rascunho de Contrato'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(r.updatedAt).toLocaleDateString('pt-BR')} {new Date(r.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  {r.objeto && (
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">
+                      {r.objeto}
+                    </p>
+                  )}
+                  {r.processoSei && (
+                    <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                      SEI: {r.processoSei}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => excluirRascunho(r.id)}
+                    className="px-2.5 py-1 text-[11px] text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Excluir
+                  </button>
+                  <Link
+                    href={`/contratos/novo?rascunhoId=${r.id}`}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold rounded-lg shadow-sm transition-colors cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>Continuar Preenchimento</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">

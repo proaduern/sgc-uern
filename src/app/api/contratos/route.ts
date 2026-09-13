@@ -183,34 +183,38 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Cadastrar Itens do Contrato com limite de acréscimo legal
+      // Cadastrar Itens do Contrato com limite de acréscimo legal usando inserção em lote (createMany)
       if (itens && Array.isArray(itens) && itens.length > 0) {
-        for (let i = 0; i < itens.length; i++) {
-          const item = itens[i];
+        const itensParaInserir = itens.map((item: any, i: number) => {
           const qtd = parseFloat(item.quantidade) || 0;
           const vUnit = parseFloat(item.valorUnitario) || 0;
           const totalItem = qtd * vUnit;
 
-          await tx.contratoItem.create({
-            data: {
-              contratoId: c.id,
-              numeroItem: item.numeroItem || (i + 1),
-              descricao: item.descricao,
-              tipoGrupo: item.tipoGrupo || 'ITEM_INDIVIDUAL',
-              unidade: item.unidade || 'UN',
-              quantidadeOriginal: qtd,
-              quantidadeAtual: qtd,
-              valorUnitarioOriginal: vUnit,
-              valorUnitarioAtual: vUnit,
-              valorTotalOriginal: totalItem,
-              valorTotalAtual: totalItem,
-              limiteAcrescimoPercent: limiteLegalPadrao,
-            },
-          });
-        }
+          return {
+            contratoId: c.id,
+            numeroItem: item.numeroItem || (i + 1),
+            descricao: item.descricao || `Item ${i + 1}`,
+            tipoGrupo: item.tipoGrupo || 'ITEM_INDIVIDUAL',
+            unidade: item.unidade || 'UN',
+            quantidadeOriginal: qtd,
+            quantidadeAtual: qtd,
+            valorUnitarioOriginal: vUnit,
+            valorUnitarioAtual: vUnit,
+            valorTotalOriginal: totalItem,
+            valorTotalAtual: totalItem,
+            limiteAcrescimoPercent: limiteLegalPadrao,
+          };
+        });
+
+        await tx.contratoItem.createMany({
+          data: itensParaInserir,
+        });
       }
 
       return c;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     return NextResponse.json({ success: true, contrato: novoContrato }, { status: 201 });

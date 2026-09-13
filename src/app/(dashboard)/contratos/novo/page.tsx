@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
@@ -26,7 +26,10 @@ import {
   RefreshCw,
   Sparkles,
   Search,
-  ArrowRight
+  ArrowRight,
+  Save,
+  Bookmark,
+  Clock
 } from 'lucide-react';
 
 function parseBrazilianNumber(val: any): number {
@@ -43,8 +46,10 @@ function parseBrazilianNumber(val: any): number {
   return isNaN(num) ? 0 : num;
 }
 
-export default function NovoContratoPage() {
+function NovoContratoForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rascunhoParam = searchParams.get('rascunhoId');
   const [fornecedores, setFornecedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +108,132 @@ export default function NovoContratoPage() {
     { numeroItem: 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
   ]);
 
+  // Estados de Gerenciamento de Rascunho
+  const [rascunhoId, setRascunhoId] = useState<string | null>(null);
+  const [rascunhoSalvoEm, setRascunhoSalvoEm] = useState<string | null>(null);
+  const [salvandoRascunho, setSalvandoRascunho] = useState(false);
+  const [rascunhoDetectado, setRascunhoDetectado] = useState<any | null>(null);
+  const [feedbackRascunho, setFeedbackRascunho] = useState<string | null>(null);
+
+  const aplicarDadosRascunho = (dados: any, id?: string) => {
+    if (!dados) return;
+    if (id) setRascunhoId(id);
+    if (dados.fornecedorId !== undefined) setFornecedorId(dados.fornecedorId || '');
+    if (dados.isNovoFornecedor !== undefined) setIsNovoFornecedor(!!dados.isNovoFornecedor);
+    if (dados.fornecedorNovo) setFornecedorNovo(dados.fornecedorNovo);
+    if (dados.numeroContrato !== undefined) setNumeroContrato(dados.numeroContrato || '');
+    if (dados.numeroEmpenho !== undefined) setNumeroEmpenho(dados.numeroEmpenho || '');
+    if (dados.empenhoSubstituiContrato !== undefined) setEmpenhoSubstituiContrato(!!dados.empenhoSubstituiContrato);
+    if (dados.processoSeiMae !== undefined) setProcessoSeiMae(dados.processoSeiMae || '');
+    if (dados.licitacaoProcedimento !== undefined) setLicitacaoProcedimento(dados.licitacaoProcedimento || '');
+    if (dados.objeto !== undefined) setObjeto(dados.objeto || '');
+    if (dados.vigenciaInicio !== undefined) setVigenciaInicio(dados.vigenciaInicio || '');
+    if (dados.vigenciaFim !== undefined) setVigenciaFim(dados.vigenciaFim || '');
+    if (dados.valorGlobal !== undefined) setValorGlobal(dados.valorGlobal || '');
+    if (dados.tipoVigencia !== undefined) setTipoVigencia(dados.tipoVigencia || 'NAO_CONTINUADO');
+    if (dados.portariaContinuadosRef !== undefined) setPortariaContinuadosRef(dados.portariaContinuadosRef || '');
+    if (dados.portariaContinuadosIdSei !== undefined) setPortariaContinuadosIdSei(dados.portariaContinuadosIdSei || '');
+    if (dados.portariaContinuadosUrl !== undefined) setPortariaContinuadosUrl(dados.portariaContinuadosUrl || '');
+    if (dados.tipoContrato !== undefined) setTipoContrato(dados.tipoContrato || 'FORNECIMENTO_SIMPLES');
+    if (dados.tipoEmpreitada !== undefined) setTipoEmpreitada(dados.tipoEmpreitada || 'PRECO_UNITARIO');
+    if (dados.tipoMedicao !== undefined) setTipoMedicao(dados.tipoMedicao || 'MENSAL');
+    if (dados.indiceIpca !== undefined) setIndiceIpca(!!dados.indiceIpca);
+    if (dados.indiceSetorial !== undefined) setIndiceSetorial(!!dados.indiceSetorial);
+    if (dados.nomeIndiceSetorial !== undefined) setNomeIndiceSetorial(dados.nomeIndiceSetorial || '');
+    if (dados.justificativaSetorial !== undefined) setJustificativaSetorial(dados.justificativaSetorial || '');
+    if (dados.indiceCct !== undefined) setIndiceCct(!!dados.indiceCct);
+    if (dados.dataOrcamentoEstimado !== undefined) setDataOrcamentoEstimado(dados.dataOrcamentoEstimado || '');
+    if (dados.tipoAgrupamento !== undefined) setTipoAgrupamento(dados.tipoAgrupamento || 'ITEM_INDIVIDUAL');
+    if (dados.itens && Array.isArray(dados.itens) && dados.itens.length > 0) {
+      setItens(dados.itens);
+    }
+  };
+
+  const handleSalvarRascunho = async () => {
+    setSalvandoRascunho(true);
+    setFeedbackRascunho(null);
+    try {
+      const payload = {
+        id: rascunhoId || undefined,
+        tituloIdentificador: numeroContrato
+          ? `Contrato nº ${numeroContrato}`
+          : (objeto ? (objeto.length > 40 ? objeto.substring(0, 37) + '...' : objeto) : 'Rascunho em Andamento'),
+        numeroContrato: numeroContrato || null,
+        processoSei: processoSeiMae || null,
+        objeto: objeto || null,
+        dados: {
+          fornecedorId,
+          isNovoFornecedor,
+          fornecedorNovo,
+          numeroContrato,
+          numeroEmpenho,
+          empenhoSubstituiContrato,
+          processoSeiMae,
+          licitacaoProcedimento,
+          objeto,
+          vigenciaInicio,
+          vigenciaFim,
+          valorGlobal,
+          tipoVigencia,
+          portariaContinuadosRef,
+          portariaContinuadosIdSei,
+          portariaContinuadosUrl,
+          tipoContrato,
+          tipoEmpreitada,
+          tipoMedicao,
+          indiceIpca,
+          indiceSetorial,
+          nomeIndiceSetorial,
+          justificativaSetorial,
+          indiceCct,
+          dataOrcamentoEstimado,
+          tipoAgrupamento,
+          itens,
+        },
+      };
+
+      const res = await fetch('/api/contratos/rascunhos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao salvar rascunho.');
+
+      setRascunhoId(data.id);
+      const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setRascunhoSalvoEm(hora);
+      setFeedbackRascunho(`Rascunho salvo com sucesso às ${hora}! Fica armazenado no sistema mesmo que você deslogue.`);
+      setRascunhoDetectado(null);
+    } catch (err: any) {
+      setError('Erro ao salvar rascunho: ' + err.message);
+    } finally {
+      setSalvandoRascunho(false);
+    }
+  };
+
+  const handleDescartarRascunho = async (idParaDescartar?: string) => {
+    const targetId = idParaDescartar || rascunhoId || rascunhoDetectado?.id;
+    if (!targetId) {
+      setRascunhoDetectado(null);
+      return;
+    }
+    if (!confirm('Deseja realmente descartar este rascunho? Os dados preenchidos serão perdidos.')) return;
+
+    try {
+      await fetch(`/api/contratos/rascunhos/${targetId}`, { method: 'DELETE' });
+      if (rascunhoId === targetId) {
+        setRascunhoId(null);
+        setRascunhoSalvoEm(null);
+      }
+      setRascunhoDetectado(null);
+      setFeedbackRascunho('Rascunho descartado com sucesso.');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetch('/api/fornecedores')
       .then((r) => r.json())
@@ -110,7 +241,30 @@ export default function NovoContratoPage() {
         if (d.fornecedores) setFornecedores(d.fornecedores);
       })
       .catch(console.error);
-  }, []);
+
+    // Verificar se há rascunho específico solicitado na URL
+    if (rascunhoParam) {
+      fetch(`/api/contratos/rascunhos/${rascunhoParam}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && data.dados) {
+            aplicarDadosRascunho(data.dados, data.id);
+            setFeedbackRascunho(`Rascunho carregado (${data.tituloIdentificador || 'Contrato'}). Você pode continuar o preenchimento.`);
+          }
+        })
+        .catch(console.error);
+    } else {
+      // Verificar se o usuário possui algum rascunho salvo anteriormente
+      fetch('/api/contratos/rascunhos')
+        .then((r) => r.json())
+        .then((list) => {
+          if (Array.isArray(list) && list.length > 0) {
+            setRascunhoDetectado(list[0]);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [rascunhoParam]);
 
   const handleAddItem = () => {
     setItens([
@@ -445,6 +599,15 @@ export default function NovoContratoPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao cadastrar contrato.');
 
+      // Se havia um rascunho ativo, excluir após criação bem-sucedida do contrato
+      if (rascunhoId) {
+        try {
+          await fetch(`/api/contratos/rascunhos/${rascunhoId}`, { method: 'DELETE' });
+        } catch (e) {
+          console.error('Falha ao limpar rascunho:', e);
+        }
+      }
+
       router.push('/contratos');
       router.refresh();
     } catch (err: any) {
@@ -460,20 +623,99 @@ export default function NovoContratoPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* Top Breadcrumb & Header */}
-      <div className="flex items-center space-x-3">
-        <Link
-          href="/contratos"
-          className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">Cadastro de Contrato Administrativo</h1>
-          <p className="text-xs text-slate-500">
-            Conforme IN nº 01/2026 - PROAD/UERN e Lei Federal nº 14.133/2021
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <Link
+            href="/contratos"
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">Cadastro de Contrato Administrativo</h1>
+            <p className="text-xs text-slate-500">
+              Conforme IN nº 01/2026 - PROAD/UERN e Lei Federal nº 14.133/2021
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={handleSalvarRascunho}
+            disabled={salvandoRascunho}
+            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl transition-all flex items-center space-x-1.5 shadow-sm cursor-pointer disabled:opacity-60"
+            title="Salvar rascunho parcial para continuar depois, mesmo após logout"
+          >
+            {salvandoRascunho ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+            ) : (
+              <Save className="w-3.5 h-3.5 text-amber-700" />
+            )}
+            <span>{salvandoRascunho ? 'Salvando...' : 'Salvar Rascunho'}</span>
+          </button>
         </div>
       </div>
+
+      {/* Banner de Feedback de Rascunho */}
+      {feedbackRascunho && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>{feedbackRascunho}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedbackRascunho(null)}
+            className="text-emerald-700 hover:text-emerald-900 p-1 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Banner de Rascunho Detectado */}
+      {rascunhoDetectado && !rascunhoId && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+          <div className="flex items-start space-x-3">
+            <Bookmark className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-slate-800">
+                Você possui um rascunho em andamento salvo no banco:
+              </p>
+              <p className="text-slate-600 mt-0.5">
+                <strong>{rascunhoDetectado.tituloIdentificador || 'Rascunho'}</strong>
+                {rascunhoDetectado.numeroContrato ? ` • Contrato nº ${rascunhoDetectado.numeroContrato}` : ''}
+                {rascunhoDetectado.objeto ? ` • ${rascunhoDetectado.objeto.substring(0, 60)}...` : ''}
+                <span className="text-slate-500 block text-[11px] mt-0.5">
+                  Salvo em: {new Date(rascunhoDetectado.updatedAt).toLocaleString('pt-BR')}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 self-end sm:self-center">
+            <button
+              type="button"
+              onClick={() => handleDescartarRascunho(rascunhoDetectado.id)}
+              className="px-3 py-1.5 border border-slate-300 hover:bg-white text-slate-600 rounded-lg font-medium transition-colors cursor-pointer"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                aplicarDadosRascunho(rascunhoDetectado.dados, rascunhoDetectado.id);
+                setRascunhoDetectado(null);
+                setFeedbackRascunho('Rascunho restaurado com sucesso! Você pode continuar o preenchimento de onde parou.');
+              }}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow transition-colors flex items-center space-x-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Restaurar Rascunho</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start space-x-3">
@@ -1265,28 +1507,53 @@ export default function NovoContratoPage() {
         </div>
 
         {/* BOTOES DE AÇÃO */}
-        <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
-          <Link
-            href="/contratos"
-            className="px-5 py-2.5 border border-slate-300 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </Link>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2.5 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center space-x-2 disabled:opacity-60 cursor-pointer"
-          >
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Salvar Contrato e Itens</span>
-              </>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-slate-200">
+          <div className="text-xs text-slate-500 flex items-center space-x-2">
+            {rascunhoSalvoEm && (
+              <span className="flex items-center space-x-1.5 text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Último rascunho salvo às <strong>{rascunhoSalvoEm}</strong></span>
+              </span>
             )}
-          </button>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3">
+            <button
+              type="button"
+              onClick={handleSalvarRascunho}
+              disabled={salvandoRascunho}
+              className="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
+            >
+              {salvandoRascunho ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-amber-700" />
+              ) : (
+                <Save className="w-4 h-4 text-amber-700" />
+              )}
+              <span>{salvandoRascunho ? 'Salvando...' : 'Salvar como Rascunho'}</span>
+            </button>
+
+            <Link
+              href="/contratos"
+              className="px-5 py-2.5 border border-slate-300 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </Link>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2.5 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center space-x-2 disabled:opacity-60 cursor-pointer"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Salvar Contrato e Itens</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -1515,5 +1782,20 @@ export default function NovoContratoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NovoContratoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto p-12 text-center text-slate-500 flex items-center justify-center space-x-3">
+          <div className="w-5 h-5 border-2 border-[#003366] border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-medium">Carregando formulário...</span>
+        </div>
+      }
+    >
+      <NovoContratoForm />
+    </Suspense>
   );
 }

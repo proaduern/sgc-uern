@@ -132,6 +132,7 @@ model User {
   alertas             AlertaSistema[]
   atasGerenciadas     AtaRegistroPreco[]
   fornecedor          Fornecedor?
+  rascunhosContrato   ContratoRascunho[]
 
   @@map("usuarios")
 }
@@ -489,3 +490,20 @@ model AlertaSistema {
 
   @@map("alertas_sistema")
 }
+
+// 15. Rascunhos de Contratos (Persistência segura no banco Neon)
+model ContratoRascunho {
+  id                  String   @id @default(uuid())
+  usuarioId           String
+  usuario             User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tituloIdentificador String?
+  numeroContrato      String?
+  processoSei         String?
+  objeto              String?
+  dados               Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("contrato_rascunhos")
+}
+

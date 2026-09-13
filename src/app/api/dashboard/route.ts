@@ -67,25 +67,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 6. Alertas de CCT (Convenções Coletivas com prazo preclusivo de 90 dias)
-    const ccts = await prisma.convencaoColetiva.findMany({
-      where: { status: 'VIGENTE' },
+    // 6. Alertas de CCT (Convenções Coletivas com prazo de repactuação)
+    const ccts = await prisma.convenioColetivo.findMany({
+      where: {
+        vigenciaFim: { gte: now },
+      },
       include: { contrato: { include: { fornecedor: true } } },
       take: 3,
     });
 
     for (const cct of ccts) {
-      if (cct.dataHomologacaoMte) {
-        const dataLimite = new Date(cct.dataHomologacaoMte);
+      if (cct.dataAssinatura) {
+        const dataLimite = new Date(cct.dataAssinatura);
         dataLimite.setDate(dataLimite.getDate() + 90);
         if (dataLimite >= now) {
           const dias = Math.ceil((dataLimite.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           alertas.push({
             id: `cct-${cct.id}`,
             tipo: 'CCT',
-            titulo: `CCT ${cct.sindicatoLaboral} - Prazo Decadencial de Repactuação`,
+            titulo: `CCT ${cct.sindicatoLaboral || 'Categoria'} - Prazo Decadencial de Repactuação`,
             badge: `${dias} dias restantes`,
-            descricao: `Conforme Art. 64, §2º da IN 01/2026, a contratada tem até 90 dias da homologação para protocolar o pedido de repactuação com efeitos retroativos.`,
+            descricao: `Conforme Art. 64, §2º da IN 01/2026, a contratada tem até 90 dias da assinatura para protocolar o pedido de repactuação com efeitos retroativos.`,
             nivel: 'INFORMATIVO',
             link: `/terceirizacao`,
           });

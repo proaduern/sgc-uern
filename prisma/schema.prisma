@@ -1,0 +1,490 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN_PROAD
+  ADMIN_PARCIAL
+  GESTOR
+  SUPLENTE
+  FISCAL_ADMINISTRATIVO
+  FISCAL_TECNICO
+  FISCAL_SETORIAL
+  FORNECEDOR
+}
+
+enum TipoVigencia {
+  CONTINUADO
+  NAO_CONTINUADO
+  LOCACAO_IMOVEL
+}
+
+enum TipoContrato {
+  FORNECIMENTO_CONTINUADO
+  FORNECIMENTO_SIMPLES
+  SERVICO_SEM_DEDICACAO
+  SERVICO_COM_DEDICACAO_TERCEIRIZACAO
+  LOCACAO_IMOVEL
+  SERVICOS_TECNICOS_PROFISSIONAIS
+  OBRA
+}
+
+enum TipoEmpreitada {
+  PRECO_UNITARIO
+  PRECO_GLOBAL
+  EMPREITADA_INTEGRAL
+  ESCOPO
+  TAREFA
+  CONTRATACAO_INTEGRADA
+  CONTRATACAO_SEMI_INTEGRADA
+  FORNECIMENTO_SERVICO_ASSOCIADO
+}
+
+enum TipoMedicao {
+  ENTREGA_UNICA
+  MENSAL
+  POR_DEMANDA
+  POR_EVENTO
+  PERIODO_VARIAVEL
+}
+
+enum StatusContrato {
+  ATIVO
+  INATIVO
+  SUSPENSO
+  RESCINDIDO
+  ENCERRADO
+}
+
+enum TipoIndiceReajuste {
+  IPCA
+  SETORIAL
+  CONVENCAO_COLETIVA
+}
+
+enum StatusMedicao {
+  AGUARDANDO_ENVIO_NF
+  EM_CONFERENCIA_ADM
+  ATESTE_PROVISORIO_TECNICO
+  ATESTE_DEFINITIVO_GESTOR
+  ENVIADO_PAGAMENTO_PROPLAN
+  LIQUIDADO_PAGO
+}
+
+enum RubricaContaVinculada {
+  FERIAS_8_33
+  TERCO_FERIAS_2_78
+  DECIMO_TERCEIRO_8_33
+  FGTS_SOBRE_PROVISOES
+  MULTA_RESCISORIA_FGTS
+}
+
+enum TipoOperacaoContaVinculada {
+  RETENCAO_ENTRADA
+  LIBERACAO_SAIDA
+}
+
+enum TipoPenalidade {
+  ADVERTENCIA
+  MULTA
+  IMPEDIMENTO_LICITAR_ATE_3_ANOS
+  DECLARACAO_INIDONEIDADE
+}
+
+enum StatusPenalidade {
+  NOTIFICACAO_DEFESA_15_DIAS
+  EM_ANALISE_DEFESA
+  RECURSO_15_DIAS_SUSPENSIVO
+  PENALIDADE_APLICADA
+  REGISTRADO_SICAF
+  ARQUIVADO
+}
+
+enum NivelAlerta {
+  INFO
+  ALERTA
+  CRITICO
+}
+
+// 1. Usuários e Autenticação (Desacoplada para servidores UERN)
+model User {
+  id                 String   @id @default(uuid())
+  nome               String
+  email              String   @unique
+  matricula          String?
+  senhaHash          String
+  role               Role     @default(FISCAL_ADMINISTRATIVO)
+  deveTrocarSenha    Boolean  @default(true) // Força troca no 1º acesso (padrão 123)
+  ativo              Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relações
+  contratosDesignados ContratoResponsavel[]
+  ordensServico       OrdemServico[]
+  normativosCriados   Normativo[]
+  alertas             AlertaSistema[]
+  atasGerenciadas     AtaRegistroPreco[]
+  fornecedor          Fornecedor?
+
+  @@map("usuarios")
+}
+
+// 2. Normativos e Legislações da UERN (IN 01/2026, IN 05/2017, etc.)
+model Normativo {
+  id            String   @id @default(uuid())
+  titulo        String
+  tipo          String   // INSTRUCAO_NORMATIVA, LEI, DECRETO, CADERNO_LOGISTICA, PORTARIA
+  numero        String?
+  ano           Int?
+  orgaoEmissor  String   @default("PROAD/UERN")
+  descricao     String?
+  arquivoUrl    String
+  criadoPorId   String?
+  criadoPor     User?    @relation(fields: [criadoPorId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@map("normativos")
+}
+
+// 3. Fornecedores
+model Fornecedor {
+  id                  String   @id @default(uuid())
+  razaoSocial         String
+  nomeFantasia        String?
+  cnpj                String   @unique
+  email               String
+  telefone            String?
+  nomePreposto        String?
+  telefonePreposto    String?
+  emailPreposto       String?
+  statusSicaf         String   @default("REGULAR")
+  scoreConfiabilidade Float    @default(100.0) // Reduzido por penalidades e glosas
+  userId              String?  @unique
+  user                User?    @relation(fields: [userId], references: [id])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relações
+  contratos           Contrato[]
+  atas                AtaRegistroPreco[]
+  penalidades         Penalidade[]
+
+  @@map("fornecedores")
+}
+
+// 4. Contratos Administrativos (Regras completas da IN 01/2026 e Lei 14.133)
+model Contrato {
+  id                          String         @id @default(uuid())
+  numeroContrato              String?
+  numeroEmpenho               String?
+  empenhoSubstituiContrato    Boolean        @default(false)
+  processoSeiMae              String
+  licitacaoProcedimento       String
+  objeto                      String
+  vigenciaInicio              DateTime
+  vigenciaFim                 DateTime
+  valorGlobal                 Float
+  valorAtualizado             Float
+  tipoVigencia                TipoVigencia   @default(NAO_CONTINUADO)
+  portariaContinuadosRef      String?
+  portariaContinuadosIdSei    String?
+  portariaContinuadosUrl      String?
+  tipoContrato                TipoContrato   @default(FORNECIMENTO_SIMPLES)
+  tipoEmpreitada              TipoEmpreitada @default(PRECO_UNITARIO)
+  tipoMedicao                 TipoMedicao    @default(MENSAL)
+  dataOrcamentoEstimado       DateTime?      // Data base para reajuste (interregno 1 ano)
+  status                      StatusContrato @default(ATIVO)
+  motivoEncerramento          String?
+  saldoInexequivelJustificativa String?
+  fornecedorId                String
+  fornecedor                  Fornecedor     @relation(fields: [fornecedorId], references: [id])
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+
+  // Relações
+  indicesReajuste             ContratoIndice[]
+  itens                       ContratoItem[]
+  responsaveis                ContratoResponsavel[]
+  trabalhadores               TrabalhadorTerceirizado[]
+  convencoesColetivas         ConvenioColetivo[]
+  ordensServico               OrdemServico[]
+  medicoes                    MedicaoDespesa[]
+  movimentacoesContaVinculada ContaVinculadaMovimentacao[]
+  penalidades                 Penalidade[]
+  alertas                     AlertaSistema[]
+
+  @@map("contratos")
+}
+
+// 5. Índices de Reajuste do Contrato
+model ContratoIndice {
+  id                      String              @id @default(uuid())
+  contratoId              String
+  contrato                Contrato            @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  tipoIndice              TipoIndiceReajuste
+  nomeIndiceSetorial      String?
+  justificativaSetorial   String?
+  dataBase                DateTime?
+  percentualUltimoReajuste Float?
+
+  @@map("contrato_indices")
+}
+
+// 6. Itens do Contrato (Travas de 25% Compras/Serviços e 50% Obras)
+model ContratoItem {
+  id                    String   @id @default(uuid())
+  contratoId            String
+  contrato              Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numeroItem            Int
+  descricao             String
+  tipoGrupo             String   @default("ITEM_INDIVIDUAL") // GRUPO_UNICO ou ITEM_INDIVIDUAL
+  unidade               String
+  quantidadeOriginal    Float
+  quantidadeAtual       Float
+  valorUnitarioOriginal Float
+  valorUnitarioAtual    Float
+  valorTotalOriginal    Float
+  valorTotalAtual       Float
+  limiteAcrescimoPercent Float   @default(25.0) // 25% para compras/serviços e 50% para obras
+
+  @@map("contrato_itens")
+}
+
+// 7. Equipe de Gestão e Fiscalização por Contrato (IN 01/2026)
+model ContratoResponsavel {
+  id                   String   @id @default(uuid())
+  contratoId           String
+  contrato             Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id])
+  tipoAtuacao          Role     // GESTOR, SUPLENTE, FISCAL_ADMINISTRATIVO, FISCAL_TECNICO, FISCAL_SETORIAL
+  numeroAtoDesignacao  String
+  idSeiAtoDesignacao   String
+  campusSetor          String?
+  ativo                Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  @@unique([contratoId, userId, tipoAtuacao])
+  @@map("contrato_responsaveis")
+}
+
+// 8. Atas de Registro de Preço (ARP)
+model AtaRegistroPreco {
+  id                  String     @id @default(uuid())
+  numeroAta           String
+  ano                 Int
+  processoSei         String
+  objeto              String
+  gestorId            String?
+  gestor              User?      @relation(fields: [gestorId], references: [id])
+  fornecedorId        String
+  fornecedor          Fornecedor @relation(fields: [fornecedorId], references: [id])
+  vigenciaInicio      DateTime
+  vigenciaFim         DateTime
+  valorGlobalOriginal Float
+  valorGlobalAtual    Float
+  status              String     @default("VIGENTE")
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  itens               AtaItem[]
+  adesoes             AtaAdesao[]
+
+  @@map("atas_registro_preco")
+}
+
+model AtaItem {
+  id                   String           @id @default(uuid())
+  ataId                String
+  ata                  AtaRegistroPreco @relation(fields: [ataId], references: [id], onDelete: Cascade)
+  numeroItem           Int
+  descricao            String
+  marcaModelo          String?
+  unidade              String
+  quantidadeRegistrada Float
+  quantidadeSaldo      Float
+  valorUnitario        Float
+  valorTotal           Float
+
+  @@map("ata_itens")
+}
+
+model AtaAdesao {
+  id                 String           @id @default(uuid())
+  ataId              String
+  ata                AtaRegistroPreco @relation(fields: [ataId], references: [id], onDelete: Cascade)
+  orgaoRequisitante  String
+  tipoOrgao          String           @default("NAO_PARTICIPANTE_CARONA")
+  processoSeiAdesao  String
+  statusAprovacao    String           @default("PENDENTE")
+  dataAprovacao      DateTime?
+
+  @@map("ata_adesoes")
+}
+
+// 9. Módulo de Terceirização (Dedicação Exclusiva de Mão de Obra)
+model TrabalhadorTerceirizado {
+  id               String   @id @default(uuid())
+  contratoId       String
+  contrato         Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  nomeCompleto     String
+  cpf              String
+  funcao           String
+  sexo             String?
+  dataNascimento   DateTime?
+  dataAdmissao     DateTime
+  dataDemissao     DateTime?
+  banco            String?
+  agencia          String?
+  contaCorrente    String?
+  salarioBaseCct   Float
+  beneficiosInfo   String?
+  status           String   @default("ATIVO")
+  createdAt        DateTime @default(now())
+
+  movimentacoesContaVinculada ContaVinculadaMovimentacao[]
+
+  @@map("trabalhadores_terceirizados")
+}
+
+model ConvenioColetivo {
+  id                 String   @id @default(uuid())
+  contratoId         String
+  contrato           Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numeroRegistroMte  String?
+  sindicatoLaboral   String?
+  sindicatoPatronal  String?
+  vigenciaInicio     DateTime
+  vigenciaFim        DateTime
+  dataAssinatura     DateTime?
+  arquivoPdfUrl      String?
+  createdAt          DateTime @default(now())
+
+  funcoes            ConvenioColetivoFuncao[]
+
+  @@map("convencoes_coletivas")
+}
+
+model ConvenioColetivoFuncao {
+  id                   String           @id @default(uuid())
+  convenioId           String
+  convenio             ConvenioColetivo @relation(fields: [convenioId], references: [id], onDelete: Cascade)
+  nomeFuncao           String
+  salarioPiso          Float
+  beneficioAlimentacao Float?
+  beneficioTransporte  Float?
+  outrosBeneficios     String?
+
+  @@map("convenio_funcoes")
+}
+
+// 10. Execução: Ordem de Serviço com Assinatura Eletrônica (IN 01/2026)
+model OrdemServico {
+  id                       String    @id @default(uuid())
+  contratoId               String
+  contrato                 Contrato  @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numeroOs                 String
+  ano                      Int
+  fiscalAdmId              String
+  fiscalAdm                User      @relation(fields: [fiscalAdmId], references: [id])
+  processoSeiDespesa       String
+  descricaoServico         String
+  valorEstimado            Float
+  dataEmissao              DateTime  @default(now())
+  hashAssinaturaEletronica String
+  status                   String    @default("EMITIDA")
+  arquivoPdfUrl            String?
+  createdAt                DateTime  @default(now())
+
+  medicoes                 MedicaoDespesa[]
+
+  @@map("ordens_servico")
+}
+
+// 11. Medição, Controle de Saldo e Atestes
+model MedicaoDespesa {
+  id                        String        @id @default(uuid())
+  contratoId                String
+  contrato                  Contrato      @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  ordemServicoId            String?
+  ordemServico              OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+  referenciaMesAno          String        // Ex: 03/2026
+  processoSeiDespesa        String
+  numeroNotaFiscal          String?
+  dataEmissaoNf             DateTime?
+  valorNotaFiscal           Float?
+  valorGlosa                Float         @default(0.0)
+  motivoGlosa               String?
+  valorAtestadoFinal        Float?
+  dataRecebimentoProvisorio DateTime?     // Fiscal Técnico
+  dataRecebimentoDefinitivo DateTime?     // Gestor do Contrato
+  status                    StatusMedicao @default(AGUARDANDO_ENVIO_NF)
+  createdAt                 DateTime      @default(now())
+
+  @@map("medicoes_despesa")
+}
+
+// 12. Conta Vinculada (Fórmulas do Caderno de Logística)
+model ContaVinculadaMovimentacao {
+  id                  String                     @id @default(uuid())
+  contratoId          String
+  contrato            Contrato                   @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  trabalhadorId       String?
+  trabalhador         TrabalhadorTerceirizado?   @relation(fields: [trabalhadorId], references: [id])
+  competenciaMesAno   String                     // MM/AAAA
+  rubrica             RubricaContaVinculada
+  tipoOperacao        TipoOperacaoContaVinculada
+  valor               Float
+  saldoAnterior       Float
+  saldoAtual          Float
+  numeroOficio        String?
+  motivoLiberacao     String?
+  createdAt           DateTime                   @default(now())
+
+  @@map("conta_vinculada_movimentacoes")
+}
+
+// 13. Penalidades e Sanções (IN 01/2026 - Prazos de 15 dias de defesa e recurso)
+model Penalidade {
+  id                     String           @id @default(uuid())
+  contratoId             String
+  contrato               Contrato         @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  fornecedorId           String
+  fornecedor             Fornecedor       @relation(fields: [fornecedorId], references: [id])
+  tipoPenalidade         TipoPenalidade
+  fatosDescricao         String
+  baseLegal              String
+  status                 StatusPenalidade @default(NOTIFICACAO_DEFESA_15_DIAS)
+  protocoloNotificacaoSei String?
+  dataEnvioNotificacao   DateTime         @default(now())
+  prazoDefesaFim         DateTime
+  dataDefesaApresentada  DateTime?
+  protocoloDecisaoSei    String?
+  impactoScore           Float            @default(5.0)
+  createdAt              DateTime         @default(now())
+
+  @@map("penalidades")
+}
+
+// 14. Alertas do Sistema (Vigência, Saldo < Média 12, Prazos CCT, CNDs)
+model AlertaSistema {
+  id             String      @id @default(uuid())
+  contratoId     String?
+  contrato       Contrato?   @relation(fields: [contratoId], references: [id])
+  destinatarioId String
+  destinatario   User        @relation(fields: [destinatarioId], references: [id])
+  tipoAlerta     String
+  nivel          NivelAlerta @default(INFO)
+  titulo         String
+  mensagem       String
+  lido           Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+
+  @@map("alertas_sistema")
+}

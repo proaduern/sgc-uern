@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # 1. Banco de Dados PostgreSQL padrão (compatível com Neon, Supabase e Servidores Físicos UERN)
+  db:
+    image: postgres:16-alpine
+    container_name: sgc_uern_db
+    restart: always
+    environment:
+      POSTGRES_DB: sgc_uern
+      POSTGRES_USER: uern_admin
+      POSTGRES_PASSWORD: uern_secure_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - sgc_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uern_admin -d sgc_uern"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Aplicação Web SGC-UERN
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sgc_uern_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://uern_admin:uern_secure_password_2026@db:5432/sgc_uern?schema=public
+      JWT_SECRET: uern_secret_key_change_in_production_2026
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  sgc_postgres_data:
+    driver: local

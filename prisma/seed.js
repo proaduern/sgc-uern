@@ -11,7 +11,11 @@ async function main() {
   
   const adminProad = await prisma.user.upsert({
     where: { email: 'proad@uern.br' },
-    update: {},
+    update: {
+      senhaHash: senhaHash,
+      deveTrocarSenha: true,
+      ativo: true,
+    },
     create: {
       nome: 'Pró-Reitoria de Administração (PROAD)',
       email: 'proad@uern.br',

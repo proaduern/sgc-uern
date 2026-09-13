@@ -20,7 +20,8 @@ import {
   XCircle,
   UploadCloud,
   Bookmark,
-  ArrowRight
+  ArrowRight,
+  Edit3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -437,13 +438,22 @@ export default function ContratosPage() {
 
                       {/* Ações */}
                       <td className="py-3 px-4 text-center">
-                        <Link
-                          href={`/contratos/${c.id}`}
-                          className="inline-flex items-center space-x-1 p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                          title="Detalhar Contrato"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Link>
+                        <div className="inline-flex items-center space-x-1.5">
+                          <Link
+                            href={`/contratos/${c.id}`}
+                            className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                            title="Visualizar e Detalhar Contrato"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                          <Link
+                            href={`/contratos/${c.id}/editar`}
+                            className="p-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
+                            title="Editar Contrato e Itens"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );

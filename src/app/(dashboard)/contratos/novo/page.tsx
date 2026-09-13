@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import {
   FileText,
   Building2,
@@ -16,8 +17,31 @@ import {
   Upload,
   Layers,
   HelpCircle,
-  Info
+  Info,
+  FileSpreadsheet,
+  Download,
+  UploadCloud,
+  X,
+  Check,
+  RefreshCw,
+  Sparkles,
+  Search,
+  ArrowRight
 } from 'lucide-react';
+
+function parseBrazilianNumber(val: any): number {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  let str = String(val).trim();
+  str = str.replace(/R\$\s?/gi, '').trim();
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    str = str.replace(',', '.');
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
 
 export default function NovoContratoPage() {
   const router = useRouter();
@@ -111,6 +135,261 @@ export default function NovoContratoPage() {
     const v = parseFloat(item.valorUnitario) || 0;
     return acc + q * v;
   }, 0);
+
+  // Estados para Importação em Lote de Itens via Planilha
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [previewItens, setPreviewItens] = useState<Array<{
+    numeroItem: number;
+    descricao: string;
+    unidade: string;
+    quantidade: string;
+    valorUnitario: string;
+    subtotal: number;
+  }>>([]);
+  const [importMode, setImportMode] = useState<'REPLACE' | 'APPEND'>('REPLACE');
+  const [autoUpdateValorGlobal, setAutoUpdateValorGlobal] = useState(true);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+  const [itemSearch, setItemSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+
+  // Processamento da Planilha Excel (.xlsx, .xls, .csv)
+  const processarPlanilhaItens = (file: File) => {
+    setImportError(null);
+    setImportFile(file);
+    setImportFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+
+        if (!rows || rows.length === 0) {
+          setImportError('A planilha selecionada está vazia ou não contém dados na primeira aba.');
+          setPreviewItens([]);
+          return;
+        }
+
+        // Mapear colunas de forma flexível e inteligente
+        const parsedList: Array<{
+          numeroItem: number;
+          descricao: string;
+          unidade: string;
+          quantidade: string;
+          valorUnitario: string;
+          subtotal: number;
+        }> = [];
+
+        rows.forEach((row, index) => {
+          const keys = Object.keys(row);
+          let numeroItem = index + 1;
+          let descricao = '';
+          let unidade = 'UN';
+          let quantidade = 1;
+          let valorUnitario = 0;
+
+          keys.forEach((key) => {
+            const val = row[key];
+            const norm = key
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9]/g, '');
+
+            // Detectar Número do Item
+            if (norm === 'item' || norm === 'n' || norm === 'no' || norm === 'numero' || norm === 'num' || norm === 'seq' || norm === 'codigo') {
+              const parsedNum = parseInt(String(val).replace(/\D/g, ''), 10);
+              if (!isNaN(parsedNum) && parsedNum > 0) numeroItem = parsedNum;
+            }
+            // Detectar Descrição
+            else if (norm.includes('desc') || norm.includes('espec') || norm.includes('objeto') || norm.includes('material') || norm.includes('serv') || norm.includes('prod') || norm === 'itemdescricao') {
+              if (val) descricao = String(val).trim();
+            }
+            // Detectar Unidade
+            else if (norm === 'un' || norm === 'und' || norm.includes('unid') || norm.includes('medida')) {
+              if (val) unidade = String(val).trim().toUpperCase();
+            }
+            // Detectar Quantidade
+            else if (norm.includes('quant') || norm.includes('qtd') || norm === 'q' || norm === 'qnt') {
+              const q = parseBrazilianNumber(val);
+              if (q > 0) quantidade = q;
+            }
+            // Detectar Valor Unitário
+            else if (norm.includes('unit') || norm.includes('preco') || norm.includes('valorunit') || norm === 'vu' || norm.includes('vlr')) {
+              const v = parseBrazilianNumber(val);
+              if (v >= 0) valorUnitario = v;
+            }
+          });
+
+          // Se a descrição foi encontrada ou se há algum valor na linha
+          if (descricao || valorUnitario > 0 || row[keys[0]]) {
+            if (!descricao) descricao = String(row[keys[0]] || `Item ${index + 1}`);
+            parsedList.push({
+              numeroItem,
+              descricao,
+              unidade: unidade || 'UN',
+              quantidade: String(quantidade),
+              valorUnitario: String(valorUnitario),
+              subtotal: quantidade * valorUnitario,
+            });
+          }
+        });
+
+        if (parsedList.length === 0) {
+          setImportError('Nenhum item válido pôde ser extraído da planilha. Baixe o modelo oficial para conferir a estrutura.');
+          setPreviewItens([]);
+        } else {
+          setPreviewItens(parsedList);
+        }
+      } catch (err: any) {
+        console.error('Erro ao ler planilha:', err);
+        setImportError('Falha ao processar arquivo. Certifique-se de que é uma planilha Excel (.xlsx, .xls) ou CSV válida.');
+        setPreviewItens([]);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Confirmar Importação
+  const confirmarImportacao = () => {
+    if (previewItens.length === 0) return;
+
+    let novaLista: typeof itens = [];
+
+    if (importMode === 'REPLACE') {
+      novaLista = previewItens.map((p, idx) => ({
+        numeroItem: idx + 1,
+        descricao: p.descricao,
+        unidade: p.unidade,
+        quantidade: p.quantidade,
+        valorUnitario: p.valorUnitario,
+      }));
+    } else {
+      // APPEND
+      const startNum = itens.length;
+      const adicionados = previewItens.map((p, idx) => ({
+        numeroItem: startNum + idx + 1,
+        descricao: p.descricao,
+        unidade: p.unidade,
+        quantidade: p.quantidade,
+        valorUnitario: p.valorUnitario,
+      }));
+      novaLista = [...itens, ...adicionados];
+    }
+
+    setItens(novaLista);
+
+    // Atualizar Valor Global se solicitado
+    if (autoUpdateValorGlobal) {
+      const somaTotal = novaLista.reduce((acc, it) => {
+        const q = parseFloat(it.quantidade) || 0;
+        const v = parseFloat(it.valorUnitario) || 0;
+        return acc + q * v;
+      }, 0);
+      setValorGlobal(somaTotal.toFixed(2));
+    }
+
+    setImportSuccessMsg(`✅ ${previewItens.length} itens carregados com sucesso da planilha!`);
+    setShowImportModal(false);
+    setImportFile(null);
+    setPreviewItens([]);
+    setCurrentPage(1);
+
+    setTimeout(() => {
+      setImportSuccessMsg(null);
+    }, 6000);
+  };
+
+  // Download do Modelo Oficial de Itens
+  const baixarModeloItens = () => {
+    const dadosModelo = [
+      {
+        Item: 1,
+        Descricao: 'Papel Sulfite A4 75g/m² alcalino resma com 500 folhas',
+        Unidade: 'RESMA',
+        Quantidade: 500,
+        ValorUnitario: 28.50,
+      },
+      {
+        Item: 2,
+        Descricao: 'Caneta esferográfica corpo transparente tinta azul 1.0mm',
+        Unidade: 'CX',
+        Quantidade: 100,
+        ValorUnitario: 45.00,
+      },
+      {
+        Item: 3,
+        Descricao: 'Toner compatível para impressora HP LaserJet Pro M404n',
+        Unidade: 'UN',
+        Quantidade: 30,
+        ValorUnitario: 175.00,
+      },
+      {
+        Item: 4,
+        Descricao: 'Serviço de manutenção preventiva e corretiva em aparelhos de ar-condicionado',
+        Unidade: 'MÊS',
+        Quantidade: 12,
+        ValorUnitario: 3800.00,
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(dadosModelo);
+    ws['!cols'] = [
+      { wch: 8 },
+      { wch: 70 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 18 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Itens_Contrato_UERN');
+    XLSX.writeFile(wb, 'Modelo_Importacao_Itens_Contrato_UERN.xlsx');
+  };
+
+  // Exportar Itens Atuais para Excel
+  const exportarItensParaExcel = () => {
+    if (itens.length === 0) return;
+    const dados = itens.map((it) => ({
+      Item: it.numeroItem,
+      Descricao: it.descricao,
+      Unidade: it.unidade,
+      Quantidade: parseFloat(it.quantidade) || 0,
+      ValorUnitario: parseFloat(it.valorUnitario) || 0,
+      Total: (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0),
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    ws['!cols'] = [
+      { wch: 8 },
+      { wch: 60 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 18 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Itens');
+    XLSX.writeFile(wb, `Itens_Contrato_${numeroContrato || 'Rascunho'}.xlsx`);
+  };
+
+  // Limpar Todos os Itens
+  const handleLimparItens = () => {
+    if (confirm('Deseja realmente limpar todos os itens cadastrados?')) {
+      setItens([{ numeroItem: 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }]);
+      setCurrentPage(1);
+    }
+  };
+
+  // Sincronizar Valor Global com Soma dos Itens
+  const sincronizarValorGlobal = () => {
+    setValorGlobal(totalCalculadoItens.toFixed(2));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -634,14 +913,81 @@ export default function NovoContratoPage() {
 
         {/* SEÇÃO 5: MÓDULO 2 - ITENS DO CONTRATO & LIMITES LEGAIS */}
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="flex items-center space-x-2 text-sm font-bold text-slate-800">
-              <Layers className="w-4 h-4 text-blue-700" />
-              <span>5. Itens do Contrato & Limite de Aditamento (Lei 14.133)</span>
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center space-x-2">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-slate-800">5. Itens do Contrato & Limite de Aditamento (Lei 14.133)</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
+                    {itens.length} {itens.length === 1 ? 'item' : 'itens'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Cadastre manualmente ou importe todos os itens de uma vez via planilha Excel ou CSV.
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-3 text-xs">
-              <span className="font-semibold text-slate-600">Tipo de Licitação:</span>
+            {/* Grupo de Ações em Lote */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setImportError(null);
+                  setImportFile(null);
+                  setPreviewItens([]);
+                  setShowImportModal(true);
+                }}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+                title="Carregar itens via arquivo Excel ou CSV"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Importar Planilha</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={baixarModeloItens}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                title="Baixar planilha padrão (.xlsx) com exemplos e formatação correta"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>Baixar Modelo (.xlsx)</span>
+              </button>
+
+              {itens.length > 0 && itens.some((it) => it.descricao.trim() !== '') && (
+                <button
+                  type="button"
+                  onClick={exportarItensParaExcel}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  title="Exportar os itens atuais para planilha Excel"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Exportar</span>
+                </button>
+              )}
+
+              {itens.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleLimparItens}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  title="Limpar todos os itens da tabela"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Limpar</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tipo de Licitação & Regra de Acréscimo */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+            <div className="flex items-center space-x-3">
+              <span className="font-semibold text-slate-700">Tipo de Licitação:</span>
               <label className="flex items-center space-x-1 cursor-pointer">
                 <input
                   type="radio"
@@ -650,7 +996,7 @@ export default function NovoContratoPage() {
                   onChange={() => setTipoAgrupamento('ITEM_INDIVIDUAL')}
                   className="text-blue-600"
                 />
-                <span>Por Item</span>
+                <span className="font-medium text-slate-800">Por Item</span>
               </label>
 
               <label className="flex items-center space-x-1 cursor-pointer">
@@ -661,110 +1007,257 @@ export default function NovoContratoPage() {
                   onChange={() => setTipoAgrupamento('GRUPO_UNICO')}
                   className="text-blue-600"
                 />
-                <span>Grupo Único</span>
+                <span className="font-medium text-slate-800">Grupo Único</span>
               </label>
+            </div>
+
+            <div className="text-slate-600 text-[11px]">
+              <span className="font-bold text-slate-800">Limite legal de aditamento:</span>{' '}
+              {tipoAgrupamento === 'GRUPO_UNICO'
+                ? `${limiteAcrescimoLegal}% sobre o valor global do contrato.`
+                : `${limiteAcrescimoLegal}% individual para cada item.`}
             </div>
           </div>
 
-          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-xs text-blue-900">
-            <span className="font-bold">Regra de Acréscimo Legal ({limiteAcrescimoLegal}%):</span>{' '}
-            {tipoAgrupamento === 'GRUPO_UNICO'
-              ? `Como a licitação é Grupo Único, o limite de acréscimo de ${limiteAcrescimoLegal}% aplica-se sobre o valor global do contrato.`
-              : `Como a licitação é Por Item, o limite de acréscimo de ${limiteAcrescimoLegal}% aplica-se a cada item individualmente.`}
-          </div>
+          {/* Alerta de Sucesso na Importação */}
+          {importSuccessMsg && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="font-medium">{importSuccessMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportSuccessMsg(null)}
+                className="text-emerald-600 hover:text-emerald-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Alerta de Divergência entre Soma dos Itens e Valor Global */}
+          {totalCalculadoItens > 0 && Math.abs((parseFloat(valorGlobal) || 0) - totalCalculadoItens) > 0.05 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>
+                  A soma calculada dos itens é <strong>{totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>, enquanto o Valor Global informado no campo de vigência é <strong>{(parseFloat(valorGlobal) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={sincronizarValorGlobal}
+                className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-[11px] shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Sincronizar Valor Global</span>
+              </button>
+            </div>
+          )}
+
+          {/* Barra de Filtro e Busca para Contratos com Muitos Itens */}
+          {itens.length > 5 && (
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="relative w-full max-w-xs">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={itemSearch}
+                  onChange={(e) => {
+                    setItemSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Filtrar por descrição, número ou unidade..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                />
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                Exibindo {itens.filter((it) => {
+                  if (!itemSearch.trim()) return true;
+                  const q = itemSearch.toLowerCase();
+                  return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || it.unidade.toLowerCase().includes(q);
+                }).length} de {itens.length} itens
+              </div>
+            </div>
+          )}
 
           {/* Tabela de Itens */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
             <table className="w-full text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3 w-16">Item</th>
+                  <th className="py-2.5 px-3 w-16 text-center">Item</th>
                   <th className="py-2.5 px-3">Descrição do Item</th>
-                  <th className="py-2.5 px-3 w-20">Unidade</th>
-                  <th className="py-2.5 px-3 w-28">Quantidade</th>
-                  <th className="py-2.5 px-3 w-32">Valor Unit. (R$)</th>
-                  <th className="py-2.5 px-3 w-32">Total (R$)</th>
+                  <th className="py-2.5 px-3 w-24 text-center">Unidade</th>
+                  <th className="py-2.5 px-3 w-28 text-right">Quantidade</th>
+                  <th className="py-2.5 px-3 w-32 text-right">Valor Unit. (R$)</th>
+                  <th className="py-2.5 px-3 w-32 text-right">Total (R$)</th>
                   <th className="py-2.5 px-2 w-12 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {itens.map((it, idx) => {
-                  const subtotal = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0);
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-bold text-slate-800">{it.numeroItem}</td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          required
-                          value={it.descricao}
-                          onChange={(e) => handleItemChange(idx, 'descricao', e.target.value)}
-                          placeholder="Descrição do material ou serviço..."
-                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={it.unidade}
-                          onChange={(e) => handleItemChange(idx, 'unidade', e.target.value)}
-                          placeholder="UN, MÊS"
-                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-center"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={it.quantidade}
-                          onChange={(e) => handleItemChange(idx, 'quantidade', e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={it.valorUnitario}
-                          onChange={(e) => handleItemChange(idx, 'valorUnitario', e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold"
-                        />
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-slate-900 text-right">
-                        {subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          disabled={itens.length === 1}
-                          className="text-slate-400 hover:text-red-600 disabled:opacity-30 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  const filtered = itens
+                    .map((item, originalIndex) => ({ ...item, originalIndex }))
+                    .filter((item) => {
+                      if (!itemSearch.trim()) return true;
+                      const q = itemSearch.toLowerCase();
+                      return (
+                        item.descricao.toLowerCase().includes(q) ||
+                        String(item.numeroItem).includes(q) ||
+                        item.unidade.toLowerCase().includes(q)
+                      );
+                    });
+
+                  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+                  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+                  if (paginated.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
+                          Nenhum item encontrado com o filtro "{itemSearch}".
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return paginated.map((it) => {
+                    const idx = it.originalIndex;
+                    const subtotal = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="py-2 px-3 font-bold text-slate-800 text-center">{it.numeroItem}</td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="text"
+                            required
+                            value={it.descricao}
+                            onChange={(e) => handleItemChange(idx, 'descricao', e.target.value)}
+                            placeholder="Descrição do material ou serviço..."
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 focus:bg-white"
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="text"
+                            value={it.unidade}
+                            onChange={(e) => handleItemChange(idx, 'unidade', e.target.value)}
+                            placeholder="UN, MÊS"
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-center uppercase outline-none focus:border-blue-600 focus:bg-white"
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            value={it.quantidade}
+                            onChange={(e) => handleItemChange(idx, 'quantidade', e.target.value)}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            value={it.valorUnitario}
+                            onChange={(e) => handleItemChange(idx, 'valorUnitario', e.target.value)}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                          />
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-slate-900 text-right whitespace-nowrap">
+                          {subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            disabled={itens.length === 1}
+                            className="text-slate-400 hover:text-red-600 disabled:opacity-30 cursor-pointer p-1 rounded transition-colors"
+                            title="Remover item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={handleAddItem}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Adicionar Mais Um Item</span>
-            </button>
+          {/* Paginação para Planilhas com Muitos Itens */}
+          {(() => {
+            const filtered = itens.filter((it) => {
+              if (!itemSearch.trim()) return true;
+              const q = itemSearch.toLowerCase();
+              return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || it.unidade.toLowerCase().includes(q);
+            });
+            const totalPages = Math.ceil(filtered.length / pageSize) || 1;
 
-            <div className="text-xs text-slate-700">
-              <span className="font-semibold">Soma Total dos Itens: </span>
-              <span className="font-bold text-slate-900 text-sm">
+            if (totalPages <= 1) return null;
+
+            return (
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                <span>
+                  Página {currentPage} de {totalPages} (Total: {filtered.length} itens)
+                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Rodapé da Seção de Itens */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Adicionar Linha Manual</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setImportError(null);
+                  setImportFile(null);
+                  setPreviewItens([]);
+                  setShowImportModal(true);
+                }}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-emerald-200"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Upload de Planilha em Lote</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 flex items-center space-x-3 text-xs">
+              <span className="font-medium text-slate-600">Soma Total dos {itens.length} Itens:</span>
+              <span className="font-bold text-[#003366] text-base">
                 {totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
             </div>
@@ -796,6 +1289,231 @@ export default function NovoContratoPage() {
           </button>
         </div>
       </form>
+
+      {/* MODAL DE IMPORTAÇÃO DE ITENS EM LOTE VIA PLANILHA */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 max-h-[90vh] flex flex-col">
+            {/* Cabeçalho do Modal */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Lançamento de Itens em Lote via Planilha</h3>
+                  <p className="text-xs text-slate-500">
+                    Importe centenas de itens instantaneamente a partir de um arquivo Excel (.xlsx, .xls) ou CSV.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Conteúdo com Scroll */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+              {/* Alertas de Erro */}
+              {importError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500 mt-0.5" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {/* Área de Seleção e Upload do Arquivo */}
+              <div className="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-6 text-center bg-slate-50/50 transition-colors">
+                <input
+                  type="file"
+                  id="modal-planilha-itens"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) processarPlanilhaItens(file);
+                  }}
+                  className="hidden"
+                />
+                <label htmlFor="modal-planilha-itens" className="cursor-pointer block space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      {importFile ? importFile.name : 'Clique para selecionar a planilha de itens'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Arquivos suportados: Excel (.xlsx, .xls) ou CSV
+                    </span>
+                  </div>
+                  {importFile && (
+                    <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-semibold">
+                      {(importFile.size / 1024).toFixed(1)} KB carregados
+                    </span>
+                  )}
+                </label>
+              </div>
+
+              {/* Botão para Baixar Modelo se tiver dúvida */}
+              <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">
+                <div className="flex items-center space-x-2">
+                  <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <span>Ainda não preparou a planilha? Use o modelo oficial da PROAD/UERN.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={baixarModeloItens}
+                  className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar Modelo</span>
+                </button>
+              </div>
+
+              {/* Pré-visualização dos Dados Carregados */}
+              {previewItens.length > 0 && (
+                <div className="space-y-3">
+                  {/* Resumo da Extração */}
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div>
+                      <span className="text-[11px] text-slate-500 block">Itens Identificados</span>
+                      <span className="text-base font-bold text-emerald-700">
+                        {previewItens.length} itens
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block">Soma Financeira Calculada</span>
+                      <span className="text-base font-bold text-slate-900">
+                        {previewItens.reduce((acc, p) => acc + p.subtotal, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Amostra dos Primeiros 5 Itens */}
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                      Pré-visualização dos primeiros itens detectados:
+                    </span>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                      <table className="w-full text-[11px] text-slate-700">
+                        <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+                          <tr>
+                            <th className="py-2 px-2 text-center w-12">Item</th>
+                            <th className="py-2 px-3 text-left">Descrição</th>
+                            <th className="py-2 px-2 text-center w-16">Und</th>
+                            <th className="py-2 px-2 text-right w-16">Qtd</th>
+                            <th className="py-2 px-2 text-right w-24">Vlr Unit</th>
+                            <th className="py-2 px-3 text-right w-24">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {previewItens.slice(0, 5).map((p, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="py-1.5 px-2 text-center font-bold text-slate-800">{p.numeroItem}</td>
+                              <td className="py-1.5 px-3 truncate max-w-xs">{p.descricao}</td>
+                              <td className="py-1.5 px-2 text-center">{p.unidade}</td>
+                              <td className="py-1.5 px-2 text-right">{parseFloat(p.quantidade).toLocaleString('pt-BR')}</td>
+                              <td className="py-1.5 px-2 text-right font-medium">
+                                {parseFloat(p.valorUnitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </td>
+                              <td className="py-1.5 px-3 text-right font-bold text-emerald-700">
+                                {p.subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {previewItens.length > 5 && (
+                      <p className="text-[10px] text-slate-400 text-right mt-1">
+                        + {previewItens.length - 5} outros itens serão importados...
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Opções de Inserção */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-800 block">Modo de Inserção:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className={`p-3 rounded-xl border cursor-pointer text-xs flex items-center space-x-2 transition-all ${
+                        importMode === 'REPLACE' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="importMode"
+                          value="REPLACE"
+                          checked={importMode === 'REPLACE'}
+                          onChange={() => setImportMode('REPLACE')}
+                          className="text-emerald-600"
+                        />
+                        <div>
+                          <span className="font-bold block">Substituir Itens Atuais</span>
+                          <span className="text-[10px] text-slate-500 block">Remove o rascunho anterior e carrega a planilha</span>
+                        </div>
+                      </label>
+
+                      <label className={`p-3 rounded-xl border cursor-pointer text-xs flex items-center space-x-2 transition-all ${
+                        importMode === 'APPEND' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="importMode"
+                          value="APPEND"
+                          checked={importMode === 'APPEND'}
+                          onChange={() => setImportMode('APPEND')}
+                          className="text-emerald-600"
+                        />
+                        <div>
+                          <span className="font-bold block">Acrescentar aos Existentes</span>
+                          <span className="text-[10px] text-slate-500 block">Mantém os {itens.length} itens atuais e adiciona estes</span>
+                        </div>
+                      </label>
+                    </div>
+
+                    <label className="flex items-center space-x-2 pt-1 text-xs text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={autoUpdateValorGlobal}
+                        onChange={(e) => setAutoUpdateValorGlobal(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded"
+                      />
+                      <span>
+                        Atualizar automaticamente o <strong>Valor Global do Contrato</strong> com a soma desta planilha (
+                        {previewItens.reduce((acc, p) => acc + p.subtotal, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé do Modal com Ações */}
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={previewItens.length === 0}
+                onClick={confirmarImportacao}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-900/10 disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2 transition-all cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Confirmar e Carregar {previewItens.length > 0 ? `(${previewItens.length} itens)` : ''}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

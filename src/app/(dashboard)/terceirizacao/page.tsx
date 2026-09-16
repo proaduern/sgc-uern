@@ -101,6 +101,8 @@ export default function TerceirizacaoPage() {
     obrigacoesComPagamento: [{ id: '1', descricao: '', valor: '', periodicidade: 'Mensal' }],
     obrigacoesSemPagamento: [{ id: '1', descricao: '' }],
   });
+  const [lendoPdfCct, setLendoPdfCct] = useState(false);
+  const [cctPdfFeedback, setCctPdfFeedback] = useState<string | null>(null);
 
   const handleOpenEditTrabalhador = (t: any) => {
     setEditingTrabalhadorId(t.id);
@@ -262,6 +264,74 @@ export default function TerceirizacaoPage() {
       alert(err.message || 'Erro de conexão');
     } finally {
       setSalvandoCct(false);
+    }
+  };
+
+  const handleUploadPdfCct = async (file: File) => {
+    setLendoPdfCct(true);
+    setCctPdfFeedback(null);
+    try {
+      const fd = new FormData();
+      fd.append('arquivo', file);
+      const res = await fetch('/api/terceirizacao/cct/parse-pdf', {
+        method: 'POST',
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Erro ao processar PDF da CCT');
+      }
+
+      const d = json.dados;
+      setCctForm((prev) => ({
+        ...prev,
+        numeroRegistroMte: d.numeroRegistroMte || prev.numeroRegistroMte,
+        sindicatoLaboral: d.sindicatoLaboral || prev.sindicatoLaboral,
+        sindicatoPatronal: d.sindicatoPatronal || prev.sindicatoPatronal,
+        vigenciaInicio: d.vigenciaInicio || prev.vigenciaInicio,
+        vigenciaFim: d.vigenciaFim || prev.vigenciaFim,
+        categoriasProfissionais: d.categoriasProfissionais || prev.categoriasProfissionais,
+        salarios: d.itensFiscalizacao?.salarios && d.itensFiscalizacao.salarios.length > 0
+          ? d.itensFiscalizacao.salarios.map((s: any, idx: number) => ({
+              id: String(idx + 1),
+              funcao: s.funcao,
+              salarioPiso: s.salarioPiso,
+            }))
+          : prev.salarios,
+        beneficios: d.itensFiscalizacao?.beneficios && d.itensFiscalizacao.beneficios.length > 0
+          ? d.itensFiscalizacao.beneficios.map((b: any, idx: number) => ({
+              id: String(idx + 1),
+              beneficio: b.beneficio,
+              valor: b.valor,
+            }))
+          : prev.beneficios,
+        obrigacoesComPagamento: d.itensFiscalizacao?.obrigacoesComPagamento && d.itensFiscalizacao.obrigacoesComPagamento.length > 0
+          ? d.itensFiscalizacao.obrigacoesComPagamento.map((o: any, idx: number) => ({
+              id: String(idx + 1),
+              descricao: o.descricao,
+              valor: o.valor,
+              periodicidade: o.periodicidade || 'Mensal',
+            }))
+          : prev.obrigacoesComPagamento,
+        obrigacoesSemPagamento: d.itensFiscalizacao?.obrigacoesSemPagamento && d.itensFiscalizacao.obrigacoesSemPagamento.length > 0
+          ? d.itensFiscalizacao.obrigacoesSemPagamento.map((o: any, idx: number) => ({
+              id: String(idx + 1),
+              descricao: o.descricao,
+            }))
+          : prev.obrigacoesSemPagamento,
+      }));
+
+      const nSal = d.itensFiscalizacao?.salarios?.length || 0;
+      const nBen = d.itensFiscalizacao?.beneficios?.length || 0;
+      const nPag = d.itensFiscalizacao?.obrigacoesComPagamento?.length || 0;
+      const nReg = d.itensFiscalizacao?.obrigacoesSemPagamento?.length || 0;
+      setCctPdfFeedback(
+        `✓ Leitura do PDF concluída com sucesso! Foram identificados: ${nSal} pisos salariais, ${nBen} benefícios, ${nPag} obrigações financeiras e ${nReg} regras operacionais. Você pode revisar e ajustar cada aba antes de gravar.`
+      );
+    } catch (err: any) {
+      alert('Erro ao processar PDF da CCT: ' + (err.message || 'Verifique o arquivo.'));
+    } finally {
+      setLendoPdfCct(false);
     }
   };
 
@@ -1319,6 +1389,64 @@ export default function TerceirizacaoPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Barra de Ação de Leitura Inteligente via PDF */}
+            <div className="bg-blue-50/80 border-b border-blue-200/80 px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 text-xs text-blue-950 font-medium">
+                <FileText className="w-4 h-4 text-blue-700 flex-shrink-0" />
+                <span>
+                  Tem o PDF da Convenção (MTE)? O robô lê e preenche automaticamente as 5 abas para você revisar.
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <input
+                  type="file"
+                  id="cct-pdf-upload"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadPdfCct(f);
+                  }}
+                />
+                <label
+                  htmlFor="cct-pdf-upload"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm ${
+                    lendoPdfCct
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-blue-700 hover:bg-blue-800 text-white'
+                  }`}
+                >
+                  {lendoPdfCct ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Analisando PDF da CCT...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>Importar CCT via PDF</span>
+                    </>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            {cctPdfFeedback && (
+              <div className="mx-6 mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{cctPdfFeedback}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCctPdfFeedback(null)}
+                  className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* Abas Internas do Formulário de CCT */}
             <div className="px-6 py-2 bg-slate-50 border-b border-slate-200 flex space-x-1.5 overflow-x-auto text-xs">

@@ -159,12 +159,57 @@ export default function PlanilhaCustosModal({
     setFatorK(String(fK));
   };
 
-  // Processar upload de arquivo Excel da IN 05/2017
+  // Processar upload de arquivo Excel ou PDF da IN 05/2017
   const handleUploadArquivo = async (file: File) => {
     setLendoArquivo(true);
     setErro(null);
     setArquivoUpload(file);
     try {
+      // Se for arquivo PDF, utilizar o motor inteligente de extração de PDF
+      if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+        const fd = new FormData();
+        fd.append('arquivo', file);
+        const res = await fetch('/api/contratos/planilhas-custos/parse-pdf', {
+          method: 'POST',
+          body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Erro ao processar PDF da planilha de custos');
+        }
+
+        const d = json.dados;
+        if (d.funcao) setFuncao(d.funcao);
+        if (d.cbo) setCbo(d.cbo);
+        if (d.municipio) setMunicipio(d.municipio);
+        if (d.jornada) setJornada(d.jornada);
+        if (d.cctReferencia) setCctReferencia(d.cctReferencia);
+        if (d.mesesExecucao) setMesesExecucao(String(d.mesesExecucao));
+        if (d.quantidadePostos) setQuantidadePostos(String(d.quantidadePostos));
+        if (d.salarioBase) setSalarioBase(String(d.salarioBase));
+        if (d.totalModulo1) setTotalModulo1(String(d.totalModulo1));
+        if (d.totalModulo2) setTotalModulo2(String(d.totalModulo2));
+        if (d.totalModulo3) setTotalModulo3(String(d.totalModulo3));
+        if (d.totalModulo4) setTotalModulo4(String(d.totalModulo4));
+        if (d.totalModulo5) setTotalModulo5(String(d.totalModulo5));
+        if (d.totalModulo6) setTotalModulo6(String(d.totalModulo6));
+        if (d.custosIndiretosPercent) setCustosIndiretosPercent(String(d.custosIndiretosPercent));
+        if (d.lucroPercent) setLucroPercent(String(d.lucroPercent));
+        if (d.tributosPercent) setTributosPercent(String(d.tributosPercent));
+        if (d.precoTotalEmpregado) setPrecoTotalEmpregado(String(d.precoTotalEmpregado));
+        if (d.valorMensalTotal) setValorMensalTotal(String(d.valorMensalTotal));
+        if (d.valorGlobalTotal) setValorGlobalTotal(String(d.valorGlobalTotal));
+        if (d.fatorK) setFatorK(String(d.fatorK));
+        setDadosDetalhados({
+          importadoDeArquivo: file.name,
+          formato: 'PDF',
+          dataImportacao: new Date().toISOString(),
+        });
+        setModoEntrada('FORMULARIO');
+        return;
+      }
+
+      // Caso seja arquivo Excel .xlsx
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -423,7 +468,7 @@ export default function PlanilhaCustosModal({
               <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50/70 rounded-2xl p-8 text-center transition-colors">
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.pdf"
                   id="file-upload-custos"
                   className="hidden"
                   onChange={(e) => {
@@ -436,10 +481,10 @@ export default function PlanilhaCustosModal({
                     {lendoArquivo ? <RefreshCw className="w-6 h-6 animate-spin" /> : <FileSpreadsheet className="w-6 h-6" />}
                   </div>
                   <p className="font-bold text-slate-800 text-sm">
-                    {arquivoUpload ? arquivoUpload.name : 'Clique para selecionar a Planilha de Custos (.xlsx)'}
+                    {arquivoUpload ? arquivoUpload.name : 'Clique para selecionar a Planilha de Custos (.xlsx ou .pdf)'}
                   </p>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Compatível com o modelo oficial da <strong>IN 05/2017 - UERN</strong>. Todos os módulos (M1 a M6), salário-base e valor global serão lidos automaticamente.
+                    Compatível com o modelo da <strong>IN 05/2017 - UERN</strong> (Excel ou PDF da proposta). Todos os módulos (M1 a M6), salário-base, impostos e Fator K serão preenchidos automaticamente.
                   </p>
                 </label>
               </div>

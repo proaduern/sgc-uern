@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   FileText,
   Scale,
-  Award
+  Award,
+  Edit3,
+  X
 } from 'lucide-react';
 
 export default function PenalidadesPage() {
@@ -18,6 +20,63 @@ export default function PenalidadesPage() {
   const [contratos, setContratos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Estados de Edição
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPenalidadeId, setEditingPenalidadeId] = useState<string | null>(null);
+  const [salvandoEdit, setSalvandoEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    tipoPenalidade: 'ADVERTENCIA',
+    status: 'NOTIFICACAO_DEFESA_15_DIAS',
+    protocoloNotificacaoSei: '',
+    protocoloDecisaoSei: '',
+    prazoDefesaFim: '',
+    fatosDescricao: '',
+    baseLegal: '',
+  });
+
+  const handleOpenEdit = (p: any) => {
+    setEditingPenalidadeId(p.id);
+    setEditForm({
+      tipoPenalidade: p.tipoPenalidade || 'ADVERTENCIA',
+      status: p.status || 'NOTIFICACAO_DEFESA_15_DIAS',
+      protocoloNotificacaoSei: p.protocoloNotificacaoSei || '',
+      protocoloDecisaoSei: p.protocoloDecisaoSei || '',
+      prazoDefesaFim: p.prazoDefesaFim ? new Date(p.prazoDefesaFim).toISOString().split('T')[0] : '',
+      fatosDescricao: p.fatosDescricao || '',
+      baseLegal: p.baseLegal || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPenalidadeId) return;
+    setSalvandoEdit(true);
+    try {
+      const res = await fetch('/api/penalidades', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingPenalidadeId,
+          ...editForm,
+        }),
+      });
+      if (res.ok) {
+        setShowEditModal(false);
+        setEditingPenalidadeId(null);
+        carregarDados();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao editar penalidade');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão');
+    } finally {
+      setSalvandoEdit(false);
+    }
+  };
 
   // Form Penalidade
   const [form, setForm] = useState({
@@ -31,13 +90,16 @@ export default function PenalidadesPage() {
   const carregarDados = async () => {
     setLoading(true);
     try {
-      const [resP, resC] = await Promise.all([
+      const [resP, resC, resUser] = await Promise.all([
         fetch('/api/penalidades'),
         fetch('/api/contratos'),
+        fetch('/api/auth/me'),
       ]);
       const dataP = await resP.json();
       const dataC = await resC.json();
+      const dataUser = await resUser.json();
 
+      if (dataUser.user) setCurrentUser(dataUser.user);
       if (dataP.penalidades) setPenalidades(dataP.penalidades);
       if (dataC.contratos) setContratos(dataC.contratos);
     } catch (e) {
@@ -157,6 +219,18 @@ export default function PenalidadesPage() {
                     {p.fornecedor.scoreConfiabilidade.toFixed(1)} / 100
                   </span>
                 </div>
+
+                {currentUser?.isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(p)}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    title="Editar Processo"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar Processo</span>
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -254,6 +328,164 @@ export default function PenalidadesPage() {
                   className="px-5 py-2 bg-rose-600 text-white text-xs font-semibold rounded-lg hover:bg-rose-700"
                 >
                   Expedir Notificação
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR PROCESSO DE PENALIDADE */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Editar Processo de Penalidade
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Ajuste tipo de sanção, status processual, SEI e fundamentação
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingPenalidadeId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Tipo de Penalidade
+                  </label>
+                  <select
+                    value={editForm.tipoPenalidade}
+                    onChange={(e) => setEditForm({ ...editForm, tipoPenalidade: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-semibold"
+                  >
+                    <option value="ADVERTENCIA">Advertência Escrita</option>
+                    <option value="MULTA">Multa Moratória/Compensatória</option>
+                    <option value="IMPEDIMENTO_LICITAR_2_ANOS">Impedimento de Licitar (Até 3 anos)</option>
+                    <option value="DECLARACAO_INIDONEIDADE">Declaração de Inidoneidade</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Status do Processo
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-semibold"
+                  >
+                    <option value="NOTIFICACAO_DEFESA_15_DIAS">Notificação / Prazo de Defesa</option>
+                    <option value="DEFESA_APRESENTADA">Defesa Apresentada</option>
+                    <option value="RECURSO_ADMINISTRATIVO">Em Fase Recursal</option>
+                    <option value="PENALIDADE_APLICADA">Penalidade Aplicada</option>
+                    <option value="ARQUIVADO">Arquivado / Julgado Extinto</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Protocolo Notificação SEI
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.protocoloNotificacaoSei}
+                    onChange={(e) => setEditForm({ ...editForm, protocoloNotificacaoSei: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-mono"
+                    placeholder="Ex: 04410024.000123/2026-11"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Protocolo Decisão SEI (se houver)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.protocoloDecisaoSei}
+                    onChange={(e) => setEditForm({ ...editForm, protocoloDecisaoSei: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-mono"
+                    placeholder="Ex: Decisão nº 45/2026-PROAD"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Prazo Final para Defesa Prévia
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editForm.prazoDefesaFim}
+                  onChange={(e) => setEditForm({ ...editForm, prazoDefesaFim: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Descrição dos Fatos e Infração
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editForm.fatosDescricao}
+                  onChange={(e) => setEditForm({ ...editForm, fatosDescricao: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  placeholder="Detalhamento do descumprimento contratual..."
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Fundamento Legal / Cláusula Contratual
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.baseLegal}
+                  onChange={(e) => setEditForm({ ...editForm, baseLegal: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  placeholder="Ex: Art. 44 da IN 01/2026 - PROAD/UERN"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingPenalidadeId(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoEdit}
+                  className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {salvandoEdit ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

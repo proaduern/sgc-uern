@@ -14,7 +14,11 @@ import {
   Building,
   CreditCard,
   FileText,
-  UploadCloud
+  UploadCloud,
+  Edit3,
+  X,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -24,6 +28,7 @@ export default function TerceirizacaoPage() {
   const [trabalhadores, setTrabalhadores] = useState<any[]>([]);
   const [convencoes, setConvencoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Modal Novo Trabalhador
   const [showTrabalhadorModal, setShowTrabalhadorModal] = useState(false);
@@ -45,18 +50,149 @@ export default function TerceirizacaoPage() {
     beneficiosInfo: 'Vale Alimentação (R$ 650) + Vale Transporte',
   });
 
+  // Estados de Edição de Trabalhador
+  const [showEditTrabalhadorModal, setShowEditTrabalhadorModal] = useState(false);
+  const [editingTrabalhadorId, setEditingTrabalhadorId] = useState<string | null>(null);
+  const [salvandoTrabalhador, setSalvandoTrabalhador] = useState(false);
+  const [editTrabalhadorForm, setEditTrabalhadorForm] = useState({
+    nomeCompleto: '',
+    cpf: '',
+    funcao: '',
+    dataAdmissao: '',
+    dataDemissao: '',
+    banco: '',
+    agencia: '',
+    contaCorrente: '',
+    salarioBaseCct: '0',
+    beneficiosInfo: '',
+    status: 'ATIVO',
+  });
+
+  // Estados de Edição de CCT
+  const [showEditCctModal, setShowEditCctModal] = useState(false);
+  const [editingCctId, setEditingCctId] = useState<string | null>(null);
+  const [salvandoCct, setSalvandoCct] = useState(false);
+  const [editCctForm, setEditCctForm] = useState<{
+    numeroRegistroMte: string;
+    sindicatoLaboral: string;
+    sindicatoPatronal: string;
+    vigenciaInicio: string;
+    vigenciaFim: string;
+    arquivoPdfUrl: string;
+    funcoes: Array<{ nomeFuncao: string; salarioPiso: string | number; beneficioAlimentacao?: string | number; beneficioTransporte?: string | number; outrosBeneficios?: string }>;
+  }>({
+    numeroRegistroMte: '',
+    sindicatoLaboral: '',
+    sindicatoPatronal: '',
+    vigenciaInicio: '',
+    vigenciaFim: '',
+    arquivoPdfUrl: '',
+    funcoes: [],
+  });
+
+  const handleOpenEditTrabalhador = (t: any) => {
+    setEditingTrabalhadorId(t.id);
+    setEditTrabalhadorForm({
+      nomeCompleto: t.nomeCompleto || '',
+      cpf: t.cpf || '',
+      funcao: t.funcao || '',
+      dataAdmissao: t.dataAdmissao ? new Date(t.dataAdmissao).toISOString().split('T')[0] : '',
+      dataDemissao: t.dataDemissao ? new Date(t.dataDemissao).toISOString().split('T')[0] : '',
+      banco: t.banco || '',
+      agencia: t.agencia || '',
+      contaCorrente: t.contaCorrente || '',
+      salarioBaseCct: String(t.salarioBaseCct || 0),
+      beneficiosInfo: t.beneficiosInfo || '',
+      status: t.status || 'ATIVO',
+    });
+    setShowEditTrabalhadorModal(true);
+  };
+
+  const handleSaveEditTrabalhador = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrabalhadorId) return;
+    setSalvandoTrabalhador(true);
+    try {
+      const res = await fetch('/api/terceirizacao/trabalhadores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingTrabalhadorId, ...editTrabalhadorForm }),
+      });
+      if (res.ok) {
+        setShowEditTrabalhadorModal(false);
+        setEditingTrabalhadorId(null);
+        carregarDados();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao editar trabalhador');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão');
+    } finally {
+      setSalvandoTrabalhador(false);
+    }
+  };
+
+  const handleOpenEditCct = (cct: any) => {
+    setEditingCctId(cct.id);
+    setEditCctForm({
+      numeroRegistroMte: cct.numeroRegistroMte || '',
+      sindicatoLaboral: cct.sindicatoLaboral || '',
+      sindicatoPatronal: cct.sindicatoPatronal || '',
+      vigenciaInicio: cct.vigenciaInicio ? new Date(cct.vigenciaInicio).toISOString().split('T')[0] : '',
+      vigenciaFim: cct.vigenciaFim ? new Date(cct.vigenciaFim).toISOString().split('T')[0] : '',
+      arquivoPdfUrl: cct.arquivoPdfUrl || '',
+      funcoes: cct.funcoes ? cct.funcoes.map((f: any) => ({
+        nomeFuncao: f.nomeFuncao || '',
+        salarioPiso: f.salarioPiso || 0,
+        beneficioAlimentacao: f.beneficioAlimentacao || '',
+        beneficioTransporte: f.beneficioTransporte || '',
+        outrosBeneficios: f.outrosBeneficios || '',
+      })) : [],
+    });
+    setShowEditCctModal(true);
+  };
+
+  const handleSaveEditCct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCctId) return;
+    setSalvandoCct(true);
+    try {
+      const res = await fetch('/api/terceirizacao/cct', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingCctId, ...editCctForm }),
+      });
+      if (res.ok) {
+        setShowEditCctModal(false);
+        setEditingCctId(null);
+        carregarDados();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao editar CCT');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão');
+    } finally {
+      setSalvandoCct(false);
+    }
+  };
+
   const carregarDados = async () => {
     setLoading(true);
     try {
-      const [resC, resT, resCCT] = await Promise.all([
+      const [resC, resT, resCCT, resUser] = await Promise.all([
         fetch('/api/contratos'),
         fetch('/api/terceirizacao/trabalhadores'),
         fetch('/api/terceirizacao/cct'),
+        fetch('/api/auth/me'),
       ]);
       const dataC = await resC.json();
       const dataT = await resT.json();
       const dataCCT = await resCCT.json();
+      const dataUser = await resUser.json();
 
+      if (dataUser.user) setCurrentUser(dataUser.user);
       if (dataC.contratos) setContratos(dataC.contratos);
       if (dataT.trabalhadores) setTrabalhadores(dataT.trabalhadores);
       if (dataCCT.convencoes) setConvencoes(dataCCT.convencoes);
@@ -212,18 +348,19 @@ export default function TerceirizacaoPage() {
                   <th className="py-3.5 px-4">Dados Bancários</th>
                   <th className="py-3.5 px-4">Data Admissão</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
                       Carregando funcionários terceirizados...
                     </td>
                   </tr>
                 ) : trabalhadores.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
                       Nenhum trabalhador cadastrado. Clique em "Cadastrar Trabalhador" ou importe via planilha.
                     </td>
                   </tr>
@@ -261,6 +398,21 @@ export default function TerceirizacaoPage() {
                           {t.status}
                         </span>
                       </td>
+                      <td className="py-3 px-4 text-center">
+                        {currentUser?.isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditTrabalhador(t)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Editar Trabalhador"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Editar</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Cadastrado</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -288,9 +440,22 @@ export default function TerceirizacaoPage() {
               >
                 <div>
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-                      Registro MTE: {cct.numeroRegistroMte || 'Cadastrado'}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                        Registro MTE: {cct.numeroRegistroMte || 'Cadastrado'}
+                      </span>
+                      {currentUser?.isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCct(cct)}
+                          className="inline-flex items-center space-x-1 px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                          title="Editar Convenção Coletiva"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Editar</span>
+                        </button>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-500 font-medium">
                       Vigência: {new Date(cct.vigenciaInicio).getFullYear()} / {new Date(cct.vigenciaFim).getFullYear()}
                     </span>
@@ -611,6 +776,408 @@ export default function TerceirizacaoPage() {
                   className="px-4 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-50"
                 >
                   Processar Importação
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR TRABALHADOR */}
+      {showEditTrabalhadorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Editar Trabalhador Terceirizado
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Ajuste dados cadastrais, cargo, salário e dados bancários
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditTrabalhadorModal(false);
+                  setEditingTrabalhadorId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditTrabalhador} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Nome Completo
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTrabalhadorForm.nomeCompleto}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, nomeCompleto: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    CPF
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTrabalhadorForm.cpf}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, cpf: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Função / Cargo
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTrabalhadorForm.funcao}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, funcao: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Salário Base CCT (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editTrabalhadorForm.salarioBaseCct}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, salarioBaseCct: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Data de Admissão
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editTrabalhadorForm.dataAdmissao}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, dataAdmissao: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Data de Demissão (se houver)
+                  </label>
+                  <input
+                    type="date"
+                    value={editTrabalhadorForm.dataDemissao}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, dataDemissao: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Banco
+                  </label>
+                  <input
+                    type="text"
+                    value={editTrabalhadorForm.banco}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, banco: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: Banco do Brasil"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Agência
+                  </label>
+                  <input
+                    type="text"
+                    value={editTrabalhadorForm.agencia}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, agencia: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: 0035-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Conta Corrente
+                  </label>
+                  <input
+                    type="text"
+                    value={editTrabalhadorForm.contaCorrente}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, contaCorrente: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: 123456-7"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Status do Funcionário
+                  </label>
+                  <select
+                    value={editTrabalhadorForm.status}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, status: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-semibold"
+                  >
+                    <option value="ATIVO">Ativo</option>
+                    <option value="DEMITIDO">Demitido / Rescindido</option>
+                    <option value="AFASTADO">Afastado / Licença</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Benefícios / Observações
+                  </label>
+                  <input
+                    type="text"
+                    value={editTrabalhadorForm.beneficiosInfo}
+                    onChange={(e) => setEditTrabalhadorForm({ ...editTrabalhadorForm, beneficiosInfo: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: Vale Transporte + VR"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditTrabalhadorModal(false);
+                    setEditingTrabalhadorId(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoTrabalhador}
+                  className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {salvandoTrabalhador ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR CCT */}
+      {showEditCctModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Editar Convenção Coletiva (CCT)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Ajuste registro MTE, vigência, entidades sindicais e pisos salariais
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditCctModal(false);
+                  setEditingCctId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditCct} className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Registro MTE
+                  </label>
+                  <input
+                    type="text"
+                    value={editCctForm.numeroRegistroMte}
+                    onChange={(e) => setEditCctForm({ ...editCctForm, numeroRegistroMte: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-mono"
+                    placeholder="Ex: RN000123/2026"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Vigência Início
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editCctForm.vigenciaInicio}
+                    onChange={(e) => setEditCctForm({ ...editCctForm, vigenciaInicio: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Vigência Fim
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editCctForm.vigenciaFim}
+                    onChange={(e) => setEditCctForm({ ...editCctForm, vigenciaFim: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Sindicato Laboral (Trabalhadores)
+                  </label>
+                  <input
+                    type="text"
+                    value={editCctForm.sindicatoLaboral}
+                    onChange={(e) => setEditCctForm({ ...editCctForm, sindicatoLaboral: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: SINDESP/RN"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Sindicato Patronal (Empresas)
+                  </label>
+                  <input
+                    type="text"
+                    value={editCctForm.sindicatoPatronal}
+                    onChange={(e) => setEditCctForm({ ...editCctForm, sindicatoPatronal: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: SINDLIMP/RN"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Link / URL do PDF da CCT
+                </label>
+                <input
+                  type="text"
+                  value={editCctForm.arquivoPdfUrl}
+                  onChange={(e) => setEditCctForm({ ...editCctForm, arquivoPdfUrl: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  placeholder="https://..."
+                />
+              </div>
+
+              {/* Tabela de Pisos Salariais por Função */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700">Pisos Salariais Homologados</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditCctForm({
+                      ...editCctForm,
+                      funcoes: [...editCctForm.funcoes, { nomeFuncao: '', salarioPiso: 0, beneficioAlimentacao: '', beneficioTransporte: '' }]
+                    })}
+                    className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-[11px] font-bold hover:bg-blue-100"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Adicionar Função</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {editCctForm.funcoes.map((f, idx) => (
+                    <div key={idx} className="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
+                      <input
+                        type="text"
+                        placeholder="Nome da Função"
+                        value={f.nomeFuncao}
+                        onChange={(e) => {
+                          const updated = [...editCctForm.funcoes];
+                          updated[idx].nomeFuncao = e.target.value;
+                          setEditCctForm({ ...editCctForm, funcoes: updated });
+                        }}
+                        className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded outline-none"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Piso (R$)"
+                        value={f.salarioPiso}
+                        onChange={(e) => {
+                          const updated = [...editCctForm.funcoes];
+                          updated[idx].salarioPiso = e.target.value;
+                          setEditCctForm({ ...editCctForm, funcoes: updated });
+                        }}
+                        className="w-24 px-2 py-1 bg-white border border-slate-200 rounded outline-none font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = editCctForm.funcoes.filter((_, i) => i !== idx);
+                          setEditCctForm({ ...editCctForm, funcoes: updated });
+                        }}
+                        className="p-1 text-red-500 hover:text-red-700"
+                        title="Remover função"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {editCctForm.funcoes.length === 0 && (
+                    <p className="text-[11px] text-slate-400 italic text-center py-2">
+                      Nenhuma função cadastrada. Clique em "Adicionar Função".
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditCctModal(false);
+                    setEditingCctId(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoCct}
+                  className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {salvandoCct ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

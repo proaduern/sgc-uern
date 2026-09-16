@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { isAdminRole, canManageTerceirizacao, getUserDesignatedContext } from '@/lib/rbac';
 import * as XLSX from 'xlsx';
 
 export async function GET(request: NextRequest) {
@@ -12,7 +13,18 @@ export async function GET(request: NextRequest) {
     const contratoId = searchParams.get('contratoId');
 
     const whereClause: any = {};
-    if (contratoId) whereClause.contratoId = contratoId;
+
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (contratoId) {
+        if (!contractIds.includes(contratoId)) return NextResponse.json({ trabalhadores: [] });
+        whereClause.contratoId = contratoId;
+      } else {
+        whereClause.contratoId = { in: contractIds };
+      }
+    } else if (contratoId) {
+      whereClause.contratoId = contratoId;
+    }
 
     const trabalhadores = await prisma.trabalhadorTerceirizado.findMany({
       where: whereClause,
@@ -41,6 +53,13 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
+    if (!isAdminRole(session.role) && !canManageTerceirizacao(session.role)) {
+      return NextResponse.json(
+        { error: 'Seu perfil não possui permissão para gerenciar trabalhadores terceirizados.' },
+        { status: 403 }
+      );
+    }
+
     const contentType = request.headers.get('content-type') || '';
 
     // Se for upload de planilha (.xlsx / .csv)
@@ -51,6 +70,13 @@ export async function POST(request: NextRequest) {
 
       if (!file || !contratoId) {
         return NextResponse.json({ error: 'Arquivo de planilha e Contrato ID são obrigatórios.' }, { status: 400 });
+      }
+
+      if (!isAdminRole(session.role)) {
+        const { contractIds } = await getUserDesignatedContext(session.id);
+        if (!contractIds.includes(contratoId)) {
+          return NextResponse.json({ error: 'Não autorizado para este contrato.' }, { status: 403 });
+        }
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -134,5 +160,62 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao cadastrar trabalhador:', error);
     return NextResponse.json({ error: error.message || 'Erro ao processar trabalhador' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json({ error: 'Apenas administradores da PROAD podem editar cadastros de trabalhadores.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      nomeCompleto,
+      cpf,
+      funcao,
+      sexo,
+      dataNascimento,
+      dataAdmissao,
+      dataDemissao,
+      banco,
+      agencia,
+      contaCorrente,
+      salarioBaseCct,
+      beneficiosInfo,
+      status,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID do trabalhador é obrigatório.' }, { status: 400 });
+    }
+
+    const cleanCpf = cpf ? cpf.replace(/\D/g, '') : undefined;
+
+    const updated = await prisma.trabalhadorTerceirizado.update({
+      where: { id },
+      data: {
+        ...(nomeCompleto ? { nomeCompleto } : {}),
+        ...(cleanCpf ? { cpf: cleanCpf } : {}),
+        ...(funcao ? { funcao } : {}),
+        ...(sexo !== undefined ? { sexo } : {}),
+        ...(dataNascimento ? { dataNascimento: new Date(dataNascimento) } : {}),
+        ...(dataAdmissao ? { dataAdmissao: new Date(dataAdmissao) } : {}),
+        ...(dataDemissao !== undefined ? { dataDemissao: dataDemissao ? new Date(dataDemissao) : null } : {}),
+        ...(banco !== undefined ? { banco } : {}),
+        ...(agencia !== undefined ? { agencia } : {}),
+        ...(contaCorrente !== undefined ? { contaCorrente } : {}),
+        ...(salarioBaseCct !== undefined ? { salarioBaseCct: parseFloat(salarioBaseCct) } : {}),
+        ...(beneficiosInfo !== undefined ? { beneficiosInfo } : {}),
+        ...(status ? { status } : {}),
+      },
+    });
+
+    return NextResponse.json({ success: true, trabalhador: updated });
+  } catch (error: any) {
+    console.error('Erro ao atualizar trabalhador:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao atualizar trabalhador' }, { status: 500 });
   }
 }

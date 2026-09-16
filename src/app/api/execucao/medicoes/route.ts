@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import {
+  isAdminRole,
+  canPerformDefinitiveAttest,
+  canPerformProvisionalAttest,
+  getUserDesignatedContext,
+} from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +17,20 @@ export async function GET(request: NextRequest) {
     const contratoId = searchParams.get('contratoId');
 
     const whereClause: any = {};
-    if (contratoId) whereClause.contratoId = contratoId;
+
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (contratoId) {
+        if (!contractIds.includes(contratoId)) {
+          return NextResponse.json({ medicoes: [] });
+        }
+        whereClause.contratoId = contratoId;
+      } else {
+        whereClause.contratoId = { in: contractIds };
+      }
+    } else if (contratoId) {
+      whereClause.contratoId = contratoId;
+    }
 
     const medicoes = await prisma.medicaoDespesa.findMany({
       where: whereClause,
@@ -62,6 +81,16 @@ export async function POST(request: NextRequest) {
         { error: 'Contrato, Referência (Mês/Ano), Processo SEI e Valor da NF são obrigatórios.' },
         { status: 400 }
       );
+    }
+
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (!contractIds.includes(contratoId)) {
+        return NextResponse.json(
+          { error: 'Você só pode lançar medições em contratos dos quais seja gestor ou fiscal designado.' },
+          { status: 403 }
+        );
+      }
     }
 
     const valorNfFloat = parseFloat(valorNotaFiscal);
@@ -115,10 +144,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Medição não encontrada.' }, { status: 404 });
     }
 
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (!contractIds.includes(medicao.contratoId)) {
+        return NextResponse.json(
+          { error: 'Você não tem permissão para atestar despesas deste contrato.' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Ações: ATESTE_PROVISORIO (Fiscal Técnico), ATESTE_DEFINITIVO (Gestor), ENVIAR_PAGAMENTO
     const updateData: any = {};
 
     if (acao === 'ATESTE_PROVISORIO') {
+      if (!canPerformProvisionalAttest(session.role)) {
+        return NextResponse.json(
+          { error: 'Você não possui permissão para emitir Ateste Provisório.' },
+          { status: 403 }
+        );
+      }
       updateData.dataRecebimentoProvisorio = new Date();
       updateData.status = 'ATESTE_PROVISORIO_TECNICO';
       if (valorGlosa !== undefined) {
@@ -128,12 +173,23 @@ export async function PATCH(request: NextRequest) {
         updateData.valorAtestadoFinal = Math.max(0, (medicao.valorNotaFiscal || 0) - glosa);
       }
     } else if (acao === 'ATESTE_DEFINITIVO') {
+      if (!canPerformDefinitiveAttest(session.role)) {
+        return NextResponse.json(
+          { error: 'O Ateste Definitivo é privativo do Gestor do Contrato (ou PROAD).' },
+          { status: 403 }
+        );
+      }
       updateData.dataRecebimentoDefinitivo = new Date();
       updateData.status = 'ATESTE_DEFINITIVO_GESTOR';
-    } else if (acao === 'ENVIAR_PAGAMENTO') {
-      updateData.status = 'ENVIADO_PAGAMENTO_PROPLAN';
-    } else if (acao === 'LIQUIDAR') {
-      updateData.status = 'LIQUIDADO_PAGO';
+    } else if (acao === 'ENVIAR_PAGAMENTO' || acao === 'LIQUIDAR') {
+      if (!isAdminRole(session.role) && session.role !== 'GESTOR') {
+        return NextResponse.json(
+          { error: 'Apenas a PROAD ou o Gestor do Contrato podem encaminhar para liquidação/pagamento.' },
+          { status: 403 }
+        );
+      }
+      if (acao === 'ENVIAR_PAGAMENTO') updateData.status = 'ENVIADO_PAGAMENTO_PROPLAN';
+      if (acao === 'LIQUIDAR') updateData.status = 'LIQUIDADO_PAGO';
     }
 
     const updated = await prisma.medicaoDespesa.update({
@@ -147,3 +203,139 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Erro ao processar ateste' }, { status: 500 });
   }
 }
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    if (!isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores da PROAD podem editar medições já registradas.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      referenciaMesAno,
+      processoSeiDespesa,
+      numeroNotaFiscal,
+      dataEmissaoNf,
+      valorNotaFiscal,
+      valorGlosa,
+      motivoGlosa,
+      status,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da medição é obrigatório.' }, { status: 400 });
+    }
+
+    const existing = await prisma.medicaoDespesa.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Medição não encontrada.' }, { status: 404 });
+    }
+
+    const vNf = valorNotaFiscal !== undefined ? parseFloat(valorNotaFiscal) : (existing.valorNotaFiscal || 0);
+    const vGlosa = valorGlosa !== undefined ? parseFloat(valorGlosa) : (existing.valorGlosa || 0);
+    const vAtestado = Math.max(0, vNf - vGlosa);
+
+    const updated = await prisma.medicaoDespesa.update({
+      where: { id },
+      data: {
+        ...(referenciaMesAno && { referenciaMesAno }),
+        ...(processoSeiDespesa && { processoSeiDespesa }),
+        ...(numeroNotaFiscal !== undefined && { numeroNotaFiscal }),
+        ...(dataEmissaoNf !== undefined && {
+          dataEmissaoNf: dataEmissaoNf ? new Date(dataEmissaoNf) : null,
+        }),
+        valorNotaFiscal: vNf,
+        valorGlosa: vGlosa,
+        ...(motivoGlosa !== undefined && { motivoGlosa }),
+        valorAtestadoFinal: vAtestado,
+        ...(status && { status }),
+      },
+      include: {
+        contrato: {
+          select: {
+            id: true,
+            numeroContrato: true,
+            numeroEmpenho: true,
+            objeto: true,
+            processoSeiMae: true,
+            valorGlobal: true,
+            valorAtualizado: true,
+            fornecedor: true,
+          },
+        },
+        ordemServico: true,
+      },
+    });
+
+    return NextResponse.json({ success: true, medicao: updated });
+  } catch (error: any) {
+    console.error('Erro ao editar medição:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao editar medição' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores podem excluir medições/faturas.' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body?.id;
+      } catch (e) {
+        // body may be empty if called with query param
+      }
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da medição é obrigatório.' }, { status: 400 });
+    }
+
+    const existing = await prisma.medicaoDespesa.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Medição não encontrada.' }, { status: 404 });
+    }
+
+    // Regra: Permitir excluir apenas faturas ainda não atestadas definitivamente
+    if (existing.dataRecebimentoDefinitivo !== null || existing.status === 'LIQUIDADO_PAGO') {
+      return NextResponse.json(
+        {
+          error:
+            'Não é permitido excluir faturas/medições que já receberam Ateste Definitivo ou foram liquidadas/pagas.',
+        },
+        { status: 400 }
+      );
+    }
+
+    await prisma.medicaoDespesa.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: 'Medição/fatura excluída com sucesso.' });
+  } catch (error: any) {
+    console.error('Erro ao excluir medição:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir medição' }, { status: 500 });
+  }
+}
+
+

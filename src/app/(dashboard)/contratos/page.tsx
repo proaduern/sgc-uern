@@ -35,6 +35,16 @@ export default function ContratosPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) setCurrentUser(data.user);
+      })
+      .catch(console.error);
+  }, []);
 
   const carregarRascunhos = async () => {
     try {
@@ -160,6 +170,7 @@ export default function ContratosPage() {
       setImportResult(data);
       if (data.success) {
         carregarContratos();
+        carregarRascunhos();
       }
     } catch (err) {
       console.error(err);
@@ -176,21 +187,25 @@ export default function ContratosPage() {
         <div>
           <div className="flex items-center space-x-2 text-slate-800 font-bold text-lg md:text-xl">
             <FileText className="w-6 h-6 text-blue-700" />
-            <h2>Controle e Listagem Geral de Contratos</h2>
+            <h2>{currentUser?.isAdmin ? 'Controle e Listagem Geral de Contratos' : 'Contratos Vinculados à Minha Gestão/Fiscalização'}</h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Módulo 1 & 2 - Monitoramento contínuo de vigências, empenhos, fiscais e saldos contratuais.
+            {currentUser?.isAdmin
+              ? 'Módulo 1 & 2 - Monitoramento contínuo de vigências, empenhos, fiscais e saldos contratuais.'
+              : 'Visualização restrita aos contratos em que você possui designação formal de Gestor ou Fiscal.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-slate-200"
-          >
-            <UploadCloud className="w-4 h-4 text-slate-500" />
-            <span>Importar Planilha</span>
-          </button>
+          {currentUser?.isAdmin && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-slate-200"
+            >
+              <UploadCloud className="w-4 h-4 text-slate-500" />
+              <span>Importar Planilha</span>
+            </button>
+          )}
 
           <button
             onClick={exportarParaExcel}
@@ -200,18 +215,20 @@ export default function ContratosPage() {
             <span>Exportar Excel</span>
           </button>
 
-          <Link
-            href="/contratos/novo"
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Novo Contrato</span>
-          </Link>
+          {currentUser?.isAdmin && (
+            <Link
+              href="/contratos/novo"
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Novo Contrato</span>
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* SEÇÃO DE RASCUNHOS EM ANDAMENTO */}
-      {rascunhos.length > 0 && (
+      {/* SEÇÃO DE RASCUNHOS EM ANDAMENTO (Exclusivo Administrador PROAD) */}
+      {currentUser?.isAdmin && rascunhos.length > 0 && (
         <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-50/90 border border-amber-300 rounded-2xl p-5 shadow-sm space-y-3 animate-in fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
@@ -446,13 +463,15 @@ export default function ContratosPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Link>
-                          <Link
-                            href={`/contratos/${c.id}/editar`}
-                            className="p-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
-                            title="Editar Contrato e Itens"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </Link>
+                          {currentUser?.isAdmin && (
+                            <Link
+                              href={`/contratos/${c.id}/editar`}
+                              className="p-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
+                              title="Editar Contrato e Itens"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Link>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -467,27 +486,42 @@ export default function ContratosPage() {
       {/* Modal de Importação de Planilha */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center space-x-2 font-bold text-slate-800 text-base mb-2">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center space-x-2 font-bold text-slate-800 text-base">
               <UploadCloud className="w-5 h-5 text-blue-600" />
               <h3>Importar Contratos por Planilha</h3>
             </div>
-            <p className="text-xs text-slate-500 mb-4">
+            <p className="text-xs text-slate-500">
               Faça upload de arquivo Excel (.xlsx, .xls) ou CSV contendo as colunas padronizadas de contratos.
             </p>
 
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+              <p className="font-semibold">Importação Inteligente em Lote (Geração de Rascunhos):</p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                Os contratos importados via planilha serão registrados como <strong>Rascunho</strong>. Para validá-los e ativá-los oficialmente no sistema, basta acessar cada rascunho e inserir os respectivos itens contratuais.
+              </p>
+              <div className="pt-1">
+                <a
+                  href="/api/modelos-planilhas/contratos"
+                  download="Modelo_Importacao_Contratos_UERN.xlsx"
+                  className="inline-flex items-center space-x-1 text-xs font-bold text-blue-800 hover:text-blue-900 underline"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar Modelo Oficial de Planilha de Contratos (.xlsx)</span>
+                </a>
+              </div>
+            </div>
+
             {importResult && (
               <div
-                className={`mb-4 p-3 rounded-xl text-xs ${
-                  importResult.success
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
+                className={`p-3 rounded-xl text-xs ${
+                  importResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
                 }`}
               >
                 {importResult.success ? (
                   <div>
-                    <p className="font-bold">Importação concluída!</p>
-                    <p>{importResult.sucessos} contratos inseridos com sucesso.</p>
+                    <p className="font-bold">{importResult.message || 'Importação concluída!'}</p>
+                    {importResult.sucessos > 0 && <p className="mt-0.5">{importResult.sucessos} contratos criados como rascunhos no painel.</p>}
                   </div>
                 ) : (
                   <p>{importResult.error || 'Erro ao processar arquivo.'}</p>
@@ -507,7 +541,7 @@ export default function ContratosPage() {
                 <label htmlFor="file-upload" className="cursor-pointer block">
                   <FileSpreadsheet className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                   <span className="text-xs font-semibold text-slate-700 block">
-                    {importFile ? importFile.name : 'Clique para selecionar a planilha'}
+                    {importFile ? importFile.name : 'Clique para selecionar a planilha de contratos'}
                   </span>
                   <span className="text-[10px] text-slate-400 block mt-1">
                     Formatos suportados: .xlsx, .xls, .csv
@@ -519,16 +553,16 @@ export default function ContratosPage() {
                 <button
                   type="button"
                   onClick={() => setShowImportModal(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
                 >
                   Fechar
                 </button>
                 <button
                   type="submit"
                   disabled={!importFile || importing}
-                  className="px-4 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-50"
+                  className="px-4 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-50 cursor-pointer"
                 >
-                  {importing ? 'Importando...' : 'Iniciar Importação'}
+                  {importing ? 'Importando Rascunhos...' : 'Importar como Rascunho'}
                 </button>
               </div>
             </form>

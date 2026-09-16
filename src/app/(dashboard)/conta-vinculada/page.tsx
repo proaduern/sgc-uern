@@ -14,7 +14,9 @@ import {
   Calendar,
   Layers,
   ArrowDownRight,
-  ArrowUpRight
+  ArrowUpRight,
+  Edit3,
+  X
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -26,10 +28,67 @@ export default function ContaVinculadaPage() {
   const [saldosPorRubrica, setSaldosPorRubrica] = useState<Record<string, number>>({});
   const [saldoTotal, setSaldoTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Modals
   const [showRetencaoModal, setShowRetencaoModal] = useState(false);
   const [showLiberacaoModal, setShowLiberacaoModal] = useState(false);
+
+  // Estados de Edição
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingMovimentacaoId, setEditingMovimentacaoId] = useState<string | null>(null);
+  const [salvandoEdit, setSalvandoEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    competenciaMesAno: '',
+    tipoOperacao: 'RETENCAO_ENTRADA',
+    rubrica: 'FERIAS_8_33',
+    valor: '0',
+    numeroOficio: '',
+    motivoLiberacao: '',
+  });
+
+  const handleOpenEdit = (m: any) => {
+    setEditingMovimentacaoId(m.id);
+    setEditForm({
+      competenciaMesAno: m.competenciaMesAno || '',
+      tipoOperacao: m.tipoOperacao || 'RETENCAO_ENTRADA',
+      rubrica: m.rubrica || 'FERIAS_8_33',
+      valor: String(m.valor || 0),
+      numeroOficio: m.numeroOficio || '',
+      motivoLiberacao: m.motivoLiberacao || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMovimentacaoId) return;
+    setSalvandoEdit(true);
+    try {
+      const res = await fetch('/api/conta-vinculada', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingMovimentacaoId,
+          ...editForm,
+        }),
+      });
+      if (res.ok) {
+        setShowEditModal(false);
+        setEditingMovimentacaoId(null);
+        if (selectedContratoId) {
+          carregarMovimentacoes(selectedContratoId);
+        }
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao editar movimentação');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão');
+    } finally {
+      setSalvandoEdit(false);
+    }
+  };
 
   // Form Retenção Automática
   const [competencia, setCompetencia] = useState('03/2026');
@@ -45,8 +104,13 @@ export default function ContaVinculadaPage() {
 
   const carregarContratos = async () => {
     try {
-      const res = await fetch('/api/contratos');
-      const data = await res.json();
+      const [resC, resUser] = await Promise.all([
+        fetch('/api/contratos'),
+        fetch('/api/auth/me'),
+      ]);
+      const data = await resC.json();
+      const dataUser = await resUser.json();
+      if (dataUser.user) setCurrentUser(dataUser.user);
       if (data.contratos) {
         // Filtrar preferencialmente contratos de terceirização
         setContratos(data.contratos);
@@ -342,18 +406,19 @@ export default function ContaVinculadaPage() {
                 <th className="py-3 px-4">Trabalhador Vinculado</th>
                 <th className="py-3 px-4">Valor (R$)</th>
                 <th className="py-3 px-4">Documento / Ofício</th>
+                <th className="py-3 px-4 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-400">
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
                     Carregando extrato da conta vinculada...
                   </td>
                 </tr>
               ) : movimentacoes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-400">
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
                     Nenhuma movimentação registrada para este contrato. Clique em "Calcular Retenções do Mês".
                   </td>
                 </tr>
@@ -392,6 +457,21 @@ export default function ContaVinculadaPage() {
                     </td>
                     <td className="py-2.5 px-4 text-[11px] text-slate-500">
                       {m.numeroOficio || 'Retenção em Fatura'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      {currentUser?.isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(m)}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                          title="Editar Movimentação"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Editar</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">Lançado</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -535,6 +615,148 @@ export default function ContaVinculadaPage() {
                   className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244]"
                 >
                   Autorizar e Gerar Ofício PDF
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR MOVIMENTAÇÃO DA CONTA VINCULADA */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Editar Movimentação da Conta Vinculada
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Ajuste administrativo da retenção/liberação, valores e ofício
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingMovimentacaoId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Competência (Mês/Ano)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.competenciaMesAno}
+                    onChange={(e) => setEditForm({ ...editForm, competenciaMesAno: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    placeholder="Ex: 03/2026"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Tipo de Operação
+                  </label>
+                  <select
+                    value={editForm.tipoOperacao}
+                    onChange={(e) => setEditForm({ ...editForm, tipoOperacao: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-semibold"
+                  >
+                    <option value="RETENCAO_ENTRADA">Retenção (+)</option>
+                    <option value="LIBERACAO_SAIDA">Liberação (-)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Rubrica Provisionada
+                  </label>
+                  <select
+                    value={editForm.rubrica}
+                    onChange={(e) => setEditForm({ ...editForm, rubrica: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  >
+                    <option value="FERIAS_8_33">Férias (8,33%)</option>
+                    <option value="TERCO_FERIAS_2_78">1/3 Constitucional de Férias (2,78%)</option>
+                    <option value="DECIMO_TERCEIRO_8_33">13º Salário (8,33%)</option>
+                    <option value="FGTS_SOBRE_PROVISOES">FGTS sobre Provisões (8%)</option>
+                    <option value="MULTA_RESCISORIA_FGTS">Multa Rescisória FGTS (4%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Valor da Movimentação (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editForm.valor}
+                    onChange={(e) => setEditForm({ ...editForm, valor: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Número do Documento / Ofício
+                </label>
+                <input
+                  type="text"
+                  value={editForm.numeroOficio}
+                  onChange={(e) => setEditForm({ ...editForm, numeroOficio: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  placeholder="Ex: OFÍCIO-PROAD/012/2026"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Motivo da Liberação / Observação
+                </label>
+                <textarea
+                  rows={2}
+                  value={editForm.motivoLiberacao}
+                  onChange={(e) => setEditForm({ ...editForm, motivoLiberacao: e.target.value })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  placeholder="Ex: Férias gozadas no período..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingMovimentacaoId(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoEdit}
+                  className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {salvandoEdit ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

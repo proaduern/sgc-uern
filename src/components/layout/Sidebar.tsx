@@ -25,20 +25,73 @@ interface SidebarProps {
 export default function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
 
-  const navigation = [
-    { name: 'Visão Geral', href: '/', icon: LayoutDashboard },
-    { name: 'Contratos & Empenhos', href: '/contratos', icon: FileText },
-    { name: 'Atas de Registro de Preço', href: '/atas', icon: Layers },
-    { name: 'Gestores & Fiscais', href: '/fiscais', icon: Users },
-    { name: 'Execução & Medições', href: '/execucao', icon: FileSpreadsheet },
-    { name: 'Terceirização & CCT', href: '/terceirizacao', icon: Briefcase },
-    { name: 'Conta Vinculada', href: '/conta-vinculada', icon: PiggyBank },
-    { name: 'IMR & Penalidades', href: '/penalidades', icon: AlertTriangle },
-    { name: 'Base de Normativos', href: '/normativos', icon: BookOpen },
-    { name: 'Relatórios Executivos', href: '/relatorios', icon: BarChart3 },
+  const isAdmin = role === 'ADMIN_PROAD' || role === 'ADMIN_PARCIAL';
+  const isGestorAta = role === 'GESTOR_ATA';
+  const isGestor = role === 'GESTOR' || role === 'SUPLENTE';
+  const isFiscalAdm = role === 'FISCAL_ADMINISTRATIVO';
+  const isFiscalTecnico = role === 'FISCAL_TECNICO';
+  const isFiscalSetorial = role === 'FISCAL_SETORIAL';
+
+  // Lista base de navegação com controle de permissões por perfil
+  const allNavigation = [
+    { name: 'Visão Geral', href: '/', icon: LayoutDashboard, visible: true },
+    {
+      name: isAdmin ? 'Contratos & Empenhos' : 'Contratos Vinculados',
+      href: '/contratos',
+      icon: FileText,
+      visible: true,
+    },
+    {
+      name: 'Gestão de Atas (ARP)',
+      href: '/atas',
+      icon: Layers,
+      visible: isAdmin || isGestorAta, // Exclusivo PROAD / Admin e Gestor de Ata
+    },
+    {
+      name: 'Gestores & Fiscais',
+      href: '/fiscais',
+      icon: Users,
+      visible: isAdmin, // Exclusivo PROAD / Admin
+    },
+    {
+      name: isFiscalSetorial ? 'Execução (Meu Campus)' : 'Execução & Medições',
+      href: '/execucao',
+      icon: FileSpreadsheet,
+      visible: true,
+    },
+    {
+      name: 'Terceirização & CCT',
+      href: '/terceirizacao',
+      icon: Briefcase,
+      visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
+    },
+    {
+      name: 'Conta Vinculada',
+      href: '/conta-vinculada',
+      icon: PiggyBank,
+      visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
+    },
+    {
+      name: 'IMR & Penalidades',
+      href: '/penalidades',
+      icon: AlertTriangle,
+      visible: true, // Visível para todos os fiscais e gestores (para IMR / notificações)
+    },
+    {
+      name: 'Base de Normativos',
+      href: '/normativos',
+      icon: BookOpen,
+      visible: true,
+    },
+    {
+      name: isAdmin ? 'Relatórios Executivos' : 'Relatórios & Fechamento',
+      href: '/relatorios',
+      icon: BarChart3,
+      visible: isAdmin || isGestor || isFiscalAdm, // PROAD, Gestores e Fiscais Adm para Fechamento Contábil
+    },
   ];
 
-  const isAdmin = role === 'ADMIN_PROAD' || role === 'ADMIN_PARCIAL';
+  const navigation = allNavigation.filter((item) => item.visible);
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 min-h-[calc(100vh-4rem)] border-r border-slate-800">

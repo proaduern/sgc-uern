@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { canManageAtas } from '@/lib/rbac';
 
 export async function GET() {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    if (!canManageAtas(session.role)) {
+      return NextResponse.json({ error: 'Acesso restrito à PROAD e Gestor de Ata.' }, { status: 403 });
+    }
 
     const atas = await prisma.ataRegistroPreco.findMany({
       include: {
@@ -13,8 +18,15 @@ export async function GET() {
         gestor: {
           select: { id: true, nome: true, email: true, matricula: true },
         },
-        itens: true,
-        adesoes: true,
+        itens: {
+          orderBy: { numeroItem: 'asc' },
+        },
+        adesoes: {
+          orderBy: { createdAt: 'desc' },
+        },
+        autorizacoesExecucao: {
+          orderBy: { dataAutorizacao: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -30,6 +42,10 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
+    if (!canManageAtas(session.role)) {
+      return NextResponse.json({ error: 'Apenas administradores da PROAD e Gestores de Ata podem registrar Atas de Registro de Preços.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       numeroAta,
@@ -37,9 +53,11 @@ export async function POST(request: NextRequest) {
       processoSei,
       objeto,
       fornecedorId,
+      gestorId,
       vigenciaInicio,
       vigenciaFim,
       valorGlobal,
+      indiceReajuste,
       itens, // Array<{ numeroItem, descricao, marcaModelo, unidade, quantidade, valorUnitario }>
     } = body;
 
@@ -60,11 +78,12 @@ export async function POST(request: NextRequest) {
           processoSei,
           objeto,
           fornecedorId,
-          gestorId: session.id,
+          gestorId: gestorId || session.id,
           vigenciaInicio: new Date(vigenciaInicio),
           vigenciaFim: new Date(vigenciaFim),
           valorGlobalOriginal: valorGlobalFloat,
           valorGlobalAtual: valorGlobalFloat,
+          indiceReajuste: indiceReajuste || 'IPCA',
           status: 'VIGENTE',
         },
       });

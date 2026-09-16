@@ -17,6 +17,7 @@ enum Role {
   FISCAL_TECNICO
   FISCAL_SETORIAL
   FORNECEDOR
+  GESTOR_ATA
 }
 
 enum TipoVigencia {
@@ -162,10 +163,15 @@ model Fornecedor {
   cnpj                String   @unique
   email               String
   telefone            String?
-  nomePreposto        String?
-  telefonePreposto    String?
-  emailPreposto       String?
-  statusSicaf         String   @default("REGULAR")
+  endereco            String?
+  nomeRepresentanteLegal      String?
+  cpfRepresentanteLegal       String?
+  telefoneRepresentanteLegal  String?
+  emailRepresentanteLegal     String?
+  nomePreposto                String?
+  telefonePreposto            String?
+  emailPreposto               String?
+  statusSicaf                 String   @default("REGULAR")
   scoreConfiabilidade Float    @default(100.0) // Reduzido por penalidades e glosas
   userId              String?  @unique
   user                User?    @relation(fields: [userId], references: [id])
@@ -220,6 +226,7 @@ model Contrato {
   movimentacoesContaVinculada ContaVinculadaMovimentacao[]
   penalidades                 Penalidade[]
   alertas                     AlertaSistema[]
+  despesasExecucao            DespesaExecucao[]
 
   @@map("contratos")
 }
@@ -292,11 +299,15 @@ model AtaRegistroPreco {
   valorGlobalOriginal Float
   valorGlobalAtual    Float
   status              String     @default("VIGENTE")
+  indiceReajuste      String?    @default("IPCA")
+  dataUltimoReajuste  DateTime?
+  percentualUltimoReajuste Float?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
   itens               AtaItem[]
   adesoes             AtaAdesao[]
+  autorizacoesExecucao AtaAutorizacaoExecucao[]
 
   @@map("atas_registro_preco")
 }
@@ -324,10 +335,33 @@ model AtaAdesao {
   orgaoRequisitante  String
   tipoOrgao          String           @default("NAO_PARTICIPANTE_CARONA")
   processoSeiAdesao  String
-  statusAprovacao    String           @default("PENDENTE")
+  valorAdesao        Float            @default(0)
+  percentualAdesao   Float            @default(0) // Limite de 50% por carona (Lei 14.133)
+  statusAprovacao    String           @default("PENDENTE") // PENDENTE, AUTORIZADA, INDEFERIDA
   dataAprovacao      DateTime?
+  justificativa      String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@map("ata_adesoes")
+}
+
+model AtaAutorizacaoExecucao {
+  id                  String           @id @default(uuid())
+  ataId               String
+  ata                 AtaRegistroPreco @relation(fields: [ataId], references: [id], onDelete: Cascade)
+  numeroAutorizacao   String           // Ex: UERN-AEA-001/2026
+  processoSei         String
+  orgaoRequisitante   String           // Ex: Campus Mossoró, PROAD, etc.
+  descricao           String
+  valorTotal          Float
+  status              String           @default("AUTORIZADA") // PENDENTE, AUTORIZADA, CANCELADA
+  dataAutorizacao     DateTime         @default(now())
+  observacoes         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@map("ata_autorizacoes_execucao")
 }
 
 // 9. Módulo de Terceirização (Dedicação Exclusiva de Mão de Obra)
@@ -506,4 +540,34 @@ model ContratoRascunho {
 
   @@map("contrato_rascunhos")
 }
+
+// 16. Despesas de Execução e Saldo de Contratos (Campi UERN)
+model DespesaExecucao {
+  id                    String    @id @default(uuid())
+  contratoId            String
+  contrato              Contrato  @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numeroContratoRef     String?
+  processoSeiMaeRef     String?
+  processoSeiDespesa    String    // Processo SEI da Despesa
+  numeroNotaFiscal      String?   // Nº da Nota Fiscal
+  dataAtesto            DateTime? // Data do Atesto
+  referencia            String    // Mês/ano ou nº Medição/ano
+  cidade                String    // Mossoró, Assú, Patu, Pau dos Ferros, Caicó ou Natal
+  valorEstimado         Float     @default(0.0) // Processo aberto com valor estimado (empenhado)
+  valorAtestado         Float     @default(0.0) // Real atestado
+  saldo                 Float     @default(0.0) // Saldo aberto / a atestar
+  status                String    @default("ABERTA") // ABERTA, ATESTADA, PAGA, CANCELADA
+  observacoes           String?
+
+  // Encerramento do Exercício / Fechamento Contábil Anual (IN 01/2026)
+  decisaoContabil       String    @default("MANTER") // MANTER (há perspectiva de execução) ou ANULAR_CANCELAR (anular empenho)
+  justificativaContabil String?   // Parecer contábil/operacional registrado pelo Gestor/Fiscal
+  anoExercicio          Int?      // Ano contábil do exercício financeiro (ex: 2026)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("despesas_execucao")
+}
+
 

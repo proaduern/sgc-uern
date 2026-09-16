@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { isAdminRole, canManageContaVinculada, getUserDesignatedContext } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +12,33 @@ export async function GET(request: NextRequest) {
     const contratoId = searchParams.get('contratoId');
 
     const whereClause: any = {};
-    if (contratoId) whereClause.contratoId = contratoId;
+
+    if (!isAdminRole(session.role)) {
+      if (!canManageContaVinculada(session.role)) {
+        return NextResponse.json({ error: 'Acesso restrito ao Gestor e Fiscal Administrativo do Contrato.' }, { status: 403 });
+      }
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (contratoId) {
+        if (!contractIds.includes(contratoId)) {
+          return NextResponse.json({
+            movimentacoes: [],
+            saldosPorRubrica: {
+              FERIAS_8_33: 0,
+              TERCO_FERIAS_2_78: 0,
+              DECIMO_TERCEIRO_8_33: 0,
+              FGTS_SOBRE_PROVISOES: 0,
+              MULTA_RESCISORIA_FGTS: 0,
+            },
+            saldoTotal: 0,
+          });
+        }
+        whereClause.contratoId = contratoId;
+      } else {
+        whereClause.contratoId = { in: contractIds };
+      }
+    } else if (contratoId) {
+      whereClause.contratoId = contratoId;
+    }
 
     const movimentacoes = await prisma.contaVinculadaMovimentacao.findMany({
       where: whereClause,
@@ -63,13 +90,31 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
+    if (!isAdminRole(session.role) && !canManageContaVinculada(session.role)) {
+      return NextResponse.json(
+        { error: 'Seu perfil não possui permissão para movimentar a Conta Vinculada.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { contratoId, competenciaMesAno, tipoOperacao, rubrica, valor, trabalhadorId, numeroOficio, motivoLiberacao } = body;
 
+    if (!contratoId) {
+      return NextResponse.json({ error: 'Contrato ID é obrigatório.' }, { status: 400 });
+    }
+
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (!contractIds.includes(contratoId)) {
+        return NextResponse.json({ error: 'Não autorizado para este contrato.' }, { status: 403 });
+      }
+    }
+
     // Se for liberação manual
     if (tipoOperacao === 'LIBERACAO_SAIDA') {
-      if (!contratoId || !valor || !rubrica) {
-        return NextResponse.json({ error: 'Contrato, Rubrica e Valor são obrigatórios para liberação.' }, { status: 400 });
+      if (!valor || !rubrica) {
+        return NextResponse.json({ error: 'Rubrica e Valor são obrigatórios para liberação.' }, { status: 400 });
       }
 
       const valFloat = parseFloat(valor);
@@ -92,8 +137,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Se for cálculo mensal automático de provisões (Férias 8.33%, 1/3 2.78%, 13º 8.33%, FGTS 8%, Multa 4%)
-    if (!contratoId || !competenciaMesAno) {
-      return NextResponse.json({ error: 'Contrato ID e Competência (MM/AAAA) são obrigatórios.' }, { status: 400 });
+    if (!competenciaMesAno) {
+      return NextResponse.json({ error: 'Competência (MM/AAAA) é obrigatória.' }, { status: 400 });
     }
 
     const trabalhadores = await prisma.trabalhadorTerceirizado.findMany({
@@ -152,5 +197,46 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro em Conta Vinculada:', error);
     return NextResponse.json({ error: error.message || 'Erro ao processar retenção' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json({ error: 'Apenas administradores da PROAD podem editar movimentações da conta vinculada.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      competenciaMesAno,
+      rubrica,
+      tipoOperacao,
+      valor,
+      numeroOficio,
+      motivoLiberacao,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da movimentação é obrigatório.' }, { status: 400 });
+    }
+
+    const updated = await prisma.contaVinculadaMovimentacao.update({
+      where: { id },
+      data: {
+        ...(competenciaMesAno ? { competenciaMesAno } : {}),
+        ...(rubrica ? { rubrica } : {}),
+        ...(tipoOperacao ? { tipoOperacao } : {}),
+        ...(valor !== undefined ? { valor: parseFloat(valor) } : {}),
+        ...(numeroOficio !== undefined ? { numeroOficio } : {}),
+        ...(motivoLiberacao !== undefined ? { motivoLiberacao } : {}),
+      },
+    });
+
+    return NextResponse.json({ success: true, movimentacao: updated });
+  } catch (error: any) {
+    console.error('Erro ao atualizar movimentação da conta vinculada:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao atualizar movimentação' }, { status: 500 });
   }
 }

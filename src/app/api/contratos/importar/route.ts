@@ -3,15 +3,28 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 
+function parseBrazilianNumber(val: any): number {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  let str = String(val).trim().replace(/R\$\s?/gi, '');
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    str = str.replace(',', '.');
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (session.role !== 'ADMIN_PROAD' && session.role !== 'ADMIN_PARCIAL')) {
-      return NextResponse.json({ error: 'Apenas administradores podem importar planilhas.' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const formData = await request.formData();
-    const file = formData.get('planilha') as File;
+    const file = (formData.get('planilha') || formData.get('file')) as File | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -32,77 +45,110 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const linhaNum = i + 2; // Cabeçalho na linha 1
+      const linhaNum = i + 2;
 
-      const razaoSocial = row['Empresa'] || row['Razão Social'] || row['Fornecedor'];
-      const cnpjRaw = String(row['CNPJ'] || '').replace(/\D/g, '');
-      const processoSei = row['Processo SEI'] || row['Processo SEI Mãe'] || row['Processo'];
-      const objeto = row['Objeto'] || row['Descrição do Objeto'];
-      const valorGlobal = parseFloat(row['Valor Global'] || row['Valor'] || 0);
-      const vigenciaInicio = row['Início Vigência'] || row['Vigência Início'];
-      const vigenciaFim = row['Fim Vigência'] || row['Vigência Fim'];
-      const numContrato = row['Número Contrato'] || row['Contrato'];
-      const numEmpenho = row['Número Empenho'] || row['Empenho'];
+      const keys = Object.keys(row);
+      const getVal = (patterns: string[]) => {
+        for (const key of keys) {
+          const norm = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          if (patterns.some((p) => norm.includes(p))) {
+            return row[key];
+          }
+        }
+        return '';
+      };
 
-      if (!razaoSocial || !cnpjRaw || !processoSei || !objeto || !valorGlobal) {
-        erros.push(`Linha ${linhaNum}: Campos obrigatórios ausentes (Empresa, CNPJ, Processo SEI, Objeto ou Valor).`);
+      const razaoSocial = String(getVal(['razao social', 'fornecedor', 'empresa', 'contratada']) || '').trim();
+      const cnpjRaw = String(getVal(['cnpj', 'cpf/cnpj']) || '').replace(/\D/g, '').trim();
+      const email = String(getVal(['email', 'e-mail']) || '').trim();
+      const telefone = String(getVal(['telefone da empresa', 'telefone', 'fone', 'tel']) || '').trim();
+      const endereco = String(getVal(['endereco', 'logradouro', 'localizacao']) || '').trim();
+
+      // Representante Legal
+      const repLegal = String(getVal(['representante legal', 'representante', 'signatario', 'assinante']) || '').trim();
+      const repCpf = String(getVal(['cpf representante', 'cpf signatario']) || '').replace(/\D/g, '').trim();
+      const repTel = String(getVal(['telefone representante', 'tel representante']) || '').trim();
+      const repEmail = String(getVal(['email representante']) || '').trim();
+
+      // Preposto
+      const preposto = String(getVal(['preposto', 'contato operacional']) || '').trim();
+      const prepostoTel = String(getVal(['telefone preposto', 'tel preposto']) || '').trim();
+      const prepostoEmail = String(getVal(['email preposto']) || '').trim();
+
+      const processoSei = String(getVal(['processo sei', 'sei', 'processo']) || '').trim();
+      const licitacao = String(getVal(['licitacao', 'procedimento', 'modalidade']) || 'Pregão Eletrônico').trim();
+      const objeto = String(getVal(['objeto', 'descricao']) || '').trim();
+      const valorGlobal = parseBrazilianNumber(getVal(['valor global', 'valor', 'total']));
+      const vigenciaInicio = getVal(['inicio vigencia', 'vigencia inicio', 'inicio', 'data inicio']);
+      const vigenciaFim = getVal(['fim vigencia', 'vigencia fim', 'fim', 'data fim']);
+      const numContrato = String(getVal(['numero contrato', 'contrato', 'num']) || '').trim();
+      const numEmpenho = String(getVal(['numero empenho', 'empenho', 'ne']) || '').trim();
+      const continuadoVal = String(getVal(['regime', 'continuado', 'tipo vigencia']) || '').toUpperCase();
+      const tipoVigencia = continuadoVal.includes('CONTINUADO') ? 'CONTINUADO' : 'NAO_CONTINUADO';
+
+      if (!razaoSocial && !processoSei && !objeto && !numContrato) {
         continue;
       }
 
       try {
-        // 1. Localizar ou criar fornecedor
-        let fornecedor = await prisma.fornecedor.findUnique({
-          where: { cnpj: cnpjRaw },
-        });
-
-        if (!fornecedor) {
-          fornecedor = await prisma.fornecedor.create({
-            data: {
-              razaoSocial,
-              cnpj: cnpjRaw,
-              email: row['Email'] || `${cnpjRaw}@fornecedor.uern.br`,
-              telefone: row['Telefone'] ? String(row['Telefone']) : null,
-              nomePreposto: row['Preposto'] || null,
-            },
-          });
-        }
-
-        // 2. Tratar datas
-        const dataIni = vigenciaInicio ? new Date(vigenciaInicio) : new Date();
-        const dataFim = vigenciaFim ? new Date(vigenciaFim) : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
-
-        // 3. Criar Contrato
-        await prisma.contrato.create({
+        // Criar como ContratoRascunho (pendente de inserção de itens para validação)
+        await prisma.contratoRascunho.create({
           data: {
-            numeroContrato: numContrato ? String(numContrato) : null,
-            numeroEmpenho: numEmpenho ? String(numEmpenho) : null,
-            processoSeiMae: String(processoSei),
-            licitacaoProcedimento: row['Licitação'] || 'Dispensa/Pregão',
-            objeto: String(objeto),
-            vigenciaInicio: dataIni,
-            vigenciaFim: dataFim,
-            valorGlobal: valorGlobal,
-            valorAtualizado: valorGlobal,
-            tipoVigencia: row['Continuado'] === 'SIM' || row['Tipo Vigência'] === 'CONTINUADO' ? 'CONTINUADO' : 'NAO_CONTINUADO',
-            tipoContrato: 'SERVICO_SEM_DEDICACAO',
-            fornecedorId: fornecedor.id,
+            usuarioId: session.id,
+            tituloIdentificador: numContrato
+              ? `Contrato nº ${numContrato}`
+              : (processoSei ? `SEI: ${processoSei}` : `Contrato Importado (Linha ${linhaNum})`),
+            numeroContrato: numContrato || null,
+            processoSei: processoSei || null,
+            objeto: objeto || null,
+            dados: {
+              numeroContrato: numContrato || '',
+              numeroEmpenho: numEmpenho || '',
+              empenhoSubstituiContrato: false,
+              processoSeiMae: processoSei || '',
+              licitacaoProcedimento: licitacao,
+              objeto: objeto || '',
+              isNovoFornecedor: true,
+              fornecedorNovo: {
+                razaoSocial: razaoSocial || 'Fornecedor Pendente',
+                cnpj: cnpjRaw || '00000000000000',
+                email: email || 'contato@empresa.com.br',
+                telefone: telefone || '',
+                endereco: endereco || '',
+                nomeRepresentanteLegal: repLegal || '',
+                cpfRepresentanteLegal: repCpf || '',
+                telefoneRepresentanteLegal: repTel || '',
+                emailRepresentanteLegal: repEmail || '',
+                nomePreposto: preposto || '',
+                telefonePreposto: prepostoTel || '',
+                emailPreposto: prepostoEmail || '',
+              },
+              vigenciaInicio: vigenciaInicio ? String(vigenciaInicio).split('T')[0] : '',
+              vigenciaFim: vigenciaFim ? String(vigenciaFim).split('T')[0] : '',
+              valorGlobal: String(valorGlobal || '0'),
+              tipoVigencia,
+              tipoContrato: 'FORNECIMENTO_SIMPLES',
+              tipoEmpreitada: 'PRECO_UNITARIO',
+              tipoMedicao: 'MENSAL',
+              tipoAgrupamento: 'ITEM_INDIVIDUAL',
+              itens: [], // Fica como rascunho até os itens serem cadastrados
+            },
           },
         });
 
         sucessos++;
       } catch (err: any) {
-        erros.push(`Linha ${linhaNum}: Erro ao inserir contrato - ${err.message}`);
+        erros.push(`Linha ${linhaNum}: ${err.message}`);
       }
     }
 
     return NextResponse.json({
       success: true,
-      totalProcessados: rows.length,
+      message: `${sucessos} contratos importados com sucesso como Rascunhos! Eles já constam no painel para que você adicione os itens e finalize cada um.`,
       sucessos,
       erros,
     });
   } catch (error: any) {
-    console.error('Erro na importação de planilha:', error);
-    return NextResponse.json({ error: 'Erro ao processar importação da planilha.' }, { status: 500 });
+    return NextResponse.json({ error: 'Falha no processamento da planilha: ' + error.message }, { status: 500 });
   }
 }

@@ -62,7 +62,14 @@ function NovoContratoForm() {
     cnpj: '',
     email: '',
     telefone: '',
+    endereco: '',
+    nomeRepresentanteLegal: '',
+    cpfRepresentanteLegal: '',
+    telefoneRepresentanteLegal: '',
+    emailRepresentanteLegal: '',
     nomePreposto: '',
+    telefonePreposto: '',
+    emailPreposto: '',
   });
 
   // Dados Gerais
@@ -761,52 +768,156 @@ function NovoContratoForm() {
               </select>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Razão Social</label>
-                <input
-                  type="text"
-                  required
-                  value={fornecedorNovo.razaoSocial}
-                  onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, razaoSocial: e.target.value })}
-                  placeholder="Nome empresarial completo"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                />
+            <div className="space-y-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+              <div className="text-xs font-bold text-slate-800 border-b border-slate-200 pb-2">
+                Dados da Empresa Contratada
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Razão Social *</label>
+                  <input
+                    type="text"
+                    required
+                    value={fornecedorNovo.razaoSocial}
+                    onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, razaoSocial: e.target.value })}
+                    placeholder="Nome empresarial completo"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">CNPJ *</label>
+                  <input
+                    type="text"
+                    required
+                    value={fornecedorNovo.cnpj}
+                    onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, cnpj: e.target.value })}
+                    placeholder="00.000.000/0000-00"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Institucional *</label>
+                  <input
+                    type="email"
+                    required
+                    value={fornecedorNovo.email}
+                    onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, email: e.target.value })}
+                    placeholder="contato@empresa.com.br"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone da Empresa</label>
+                  <input
+                    type="text"
+                    value={fornecedorNovo.telefone}
+                    onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, telefone: e.target.value })}
+                    placeholder="(84) 3315-0000"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Endereço Completo da Empresa</label>
+                  <input
+                    type="text"
+                    value={fornecedorNovo.endereco}
+                    onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, endereco: e.target.value })}
+                    placeholder="Rua/Avenida, nº, Bairro, Cidade/UF, CEP"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">CNPJ</label>
-                <input
-                  type="text"
-                  required
-                  value={fornecedorNovo.cnpj}
-                  onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, cnpj: e.target.value })}
-                  placeholder="00.000.000/0000-00"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                />
+              {/* REPRESENTANTE LEGAL (QUEM ASSINA O CONTRATO) */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-blue-900 mb-2">
+                  <span>Representante Legal (Signatário que Assina o Contrato)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo do Representante Legal</label>
+                    <input
+                      type="text"
+                      value={fornecedorNovo.nomeRepresentanteLegal}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, nomeRepresentanteLegal: e.target.value })}
+                      placeholder="Nome do representante legal"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">CPF do Representante Legal</label>
+                    <input
+                      type="text"
+                      value={fornecedorNovo.cpfRepresentanteLegal}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, cpfRepresentanteLegal: e.target.value })}
+                      placeholder="000.000.000-00"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone do Representante Legal</label>
+                    <input
+                      type="text"
+                      value={fornecedorNovo.telefoneRepresentanteLegal}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, telefoneRepresentanteLegal: e.target.value })}
+                      placeholder="(84) 99999-0000"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail do Representante Legal</label>
+                    <input
+                      type="email"
+                      value={fornecedorNovo.emailRepresentanteLegal}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, emailRepresentanteLegal: e.target.value })}
+                      placeholder="representante@empresa.com.br"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail de Contato</label>
-                <input
-                  type="email"
-                  required
-                  value={fornecedorNovo.email}
-                  onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, email: e.target.value })}
-                  placeholder="contato@empresa.com.br"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Preposto</label>
-                <input
-                  type="text"
-                  value={fornecedorNovo.nomePreposto}
-                  onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, nomePreposto: e.target.value })}
-                  placeholder="Preposto designado no contrato"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                />
+              {/* PREPOSTO OPERACIONAL (GESTÃO DO DIA A DIA) */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800 mb-2">
+                  <span>Preposto da Contratada (Aspectos Operacionais do Contrato)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Preposto</label>
+                    <input
+                      type="text"
+                      value={fornecedorNovo.nomePreposto}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, nomePreposto: e.target.value })}
+                      placeholder="Preposto designado no contrato"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone Direto do Preposto</label>
+                    <input
+                      type="text"
+                      value={fornecedorNovo.telefonePreposto}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, telefonePreposto: e.target.value })}
+                      placeholder="(84) 98888-0000"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail do Preposto</label>
+                    <input
+                      type="email"
+                      value={fornecedorNovo.emailPreposto}
+                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, emailPreposto: e.target.value })}
+                      placeholder="preposto@empresa.com.br"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}

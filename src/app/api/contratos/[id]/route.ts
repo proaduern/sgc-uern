@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { isAdminRole } from '@/lib/rbac';
 
 export async function GET(
   request: NextRequest,
@@ -71,17 +72,9 @@ export async function PUT(
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    // Apenas Gestores e Admins podem editar contratos cadastrados
-    const podeEditar = [
-      'ADMIN_PROAD',
-      'ADMIN_PARCIAL',
-      'GESTOR',
-      'SUPLENTE',
-    ].includes(session.role);
-
-    if (!podeEditar) {
+    if (!isAdminRole(session.role)) {
       return NextResponse.json(
-        { error: 'Você não possui permissão para editar contratos. Apenas Gestores e Administradores PROAD podem realizar alterações.' },
+        { error: 'Você não possui permissão para editar contratos. Apenas Administradores PROAD podem realizar alterações administrativas.' },
         { status: 403 }
       );
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
+import { isAdminRole, getUserDesignatedContext } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +12,16 @@ export async function GET(request: NextRequest) {
     const contratoId = searchParams.get('contratoId');
 
     const whereClause: any = { ativo: true };
-    if (contratoId) {
+
+    if (!isAdminRole(session.role)) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      if (contratoId) {
+        if (!contractIds.includes(contratoId)) return NextResponse.json({ designacoes: [] });
+        whereClause.contratoId = contratoId;
+      } else {
+        whereClause.contratoId = { in: contractIds };
+      }
+    } else if (contratoId) {
       whereClause.contratoId = contratoId;
     }
 
@@ -50,9 +60,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (session.role !== 'ADMIN_PROAD' && session.role !== 'ADMIN_PARCIAL' && session.role !== 'GESTOR')) {
+    if (!session || !isAdminRole(session.role)) {
       return NextResponse.json(
-        { error: 'Apenas a PROAD ou Gestor do Contrato podem designar fiscais.' },
+        { error: 'Apenas administradores da PROAD podem designar fiscais por ato/portaria.' },
         { status: 403 }
       );
     }
@@ -130,5 +140,70 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao designar fiscal:', error);
     return NextResponse.json({ error: error.message || 'Erro ao processar designação' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json({ error: 'Apenas administradores da PROAD podem editar designações de fiscais.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      tipoAtuacao,
+      numeroAtoDesignacao,
+      idSeiAtoDesignacao,
+      campusSetor,
+      ativo,
+      nomeCompleto,
+      matricula,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da designação é obrigatório.' }, { status: 400 });
+    }
+
+    const designacaoExistente = await prisma.contratoResponsavel.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!designacaoExistente) {
+      return NextResponse.json({ error: 'Designação não encontrada.' }, { status: 404 });
+    }
+
+    // Se nome ou matrícula foram informados, atualiza também o usuário
+    if (nomeCompleto || matricula !== undefined) {
+      await prisma.user.update({
+        where: { id: designacaoExistente.userId },
+        data: {
+          ...(nomeCompleto ? { nome: nomeCompleto } : {}),
+          ...(matricula !== undefined ? { matricula } : {}),
+        },
+      });
+    }
+
+    const updated = await prisma.contratoResponsavel.update({
+      where: { id },
+      data: {
+        ...(tipoAtuacao ? { tipoAtuacao } : {}),
+        ...(numeroAtoDesignacao ? { numeroAtoDesignacao } : {}),
+        ...(idSeiAtoDesignacao ? { idSeiAtoDesignacao } : {}),
+        ...(campusSetor !== undefined ? { campusSetor } : {}),
+        ...(ativo !== undefined ? { ativo: Boolean(ativo) } : {}),
+      },
+      include: {
+        user: true,
+        contrato: true,
+      },
+    });
+
+    return NextResponse.json({ success: true, designacao: updated });
+  } catch (error: any) {
+    console.error('Erro ao atualizar designação de fiscal:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao atualizar designação' }, { status: 500 });
   }
 }

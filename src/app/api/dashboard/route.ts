@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { isAdminRole, getUserDesignatedContext } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,32 +14,53 @@ export async function GET(request: NextRequest) {
     const ninetyDaysFromNow = new Date();
     ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
+    const isAdmin = isAdminRole(session.role);
+    let contractWhere: any = { status: 'ATIVO' };
+    let cctWhere: any = { vigenciaFim: { gte: now } };
+    let terceirizadosWhere: any = { status: 'ATIVO' };
+
+    if (!isAdmin) {
+      const { contractIds } = await getUserDesignatedContext(session.id);
+      contractWhere = {
+        status: 'ATIVO',
+        id: { in: contractIds },
+      };
+      cctWhere = {
+        vigenciaFim: { gte: now },
+        contratoId: { in: contractIds },
+      };
+      terceirizadosWhere = {
+        status: 'ATIVO',
+        contratoId: { in: contractIds },
+      };
+    }
+
     // 1. Contratos Ativos
     const contratosAtivosCount = await prisma.contrato.count({
-      where: { status: 'ATIVO' },
+      where: contractWhere,
     });
 
     // 2. Soma de Valor Global Sob Gestão
     const valorSoma = await prisma.contrato.aggregate({
-      where: { status: 'ATIVO' },
+      where: contractWhere,
       _sum: { valorAtualizado: true },
     });
     const valorGlobalTotal = valorSoma._sum.valorAtualizado || 0;
 
-    // 3. Atas Vigentes
-    const atasVigentesCount = await prisma.ataRegistroPreco.count({
-      where: { status: 'VIGENTE' },
-    });
+    // 3. Atas Vigentes (Apenas contadas para admin)
+    const atasVigentesCount = isAdmin
+      ? await prisma.ataRegistroPreco.count({ where: { status: 'VIGENTE' } })
+      : 0;
 
     // 4. Terceirizados Ativos
     const terceirizadosCount = await prisma.trabalhadorTerceirizado.count({
-      where: { status: 'ATIVO' },
+      where: terceirizadosWhere,
     });
 
     // 5. Alertas de Vigência (Vencendo nos próximos 90 dias)
     const contratosVencendo = await prisma.contrato.findMany({
       where: {
-        status: 'ATIVO',
+        ...contractWhere,
         vigenciaFim: {
           gte: now,
           lte: ninetyDaysFromNow,

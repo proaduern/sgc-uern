@@ -23,7 +23,21 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
     const body = await request.json();
-    const { razaoSocial, nomeFantasia, cnpj, email, telefone, nomePreposto, telefonePreposto, emailPreposto } = body;
+    const {
+      razaoSocial,
+      nomeFantasia,
+      cnpj,
+      email,
+      telefone,
+      endereco,
+      nomeRepresentanteLegal,
+      cpfRepresentanteLegal,
+      telefoneRepresentanteLegal,
+      emailRepresentanteLegal,
+      nomePreposto,
+      telefonePreposto,
+      emailPreposto,
+    } = body;
 
     if (!razaoSocial || !cnpj || !email) {
       return NextResponse.json({ error: 'Razão Social, CNPJ e E-mail são obrigatórios' }, { status: 400 });
@@ -46,6 +60,11 @@ export async function POST(request: NextRequest) {
         cnpj: cleanCnpj,
         email,
         telefone,
+        endereco,
+        nomeRepresentanteLegal,
+        cpfRepresentanteLegal,
+        telefoneRepresentanteLegal,
+        emailRepresentanteLegal,
         nomePreposto,
         telefonePreposto,
         emailPreposto,

@@ -27,7 +27,13 @@ import {
   Sparkles,
   Search,
   ArrowRight,
-  Save
+  Save,
+  UserCheck,
+  MapPin,
+  Phone,
+  Mail,
+  User,
+  Edit3
 } from 'lucide-react';
 
 function parseBrazilianNumber(val: any): number {
@@ -55,8 +61,20 @@ export default function EditarContratoPage() {
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [fornecedores, setFornecedores] = useState<any[]>([]);
 
-  // Fornecedor Selection
+  // Fornecedor Selection & Dados Detalhados
   const [fornecedorId, setFornecedorId] = useState('');
+  const [mostrarEdicaoFornecedor, setMostrarEdicaoFornecedor] = useState(false);
+  const [salvandoFornecedor, setSalvandoFornecedor] = useState(false);
+  const [supplierEndereco, setSupplierEndereco] = useState('');
+  const [supplierTelefone, setSupplierTelefone] = useState('');
+  const [supplierNomeRepresentante, setSupplierNomeRepresentante] = useState('');
+  const [supplierCpfRepresentante, setSupplierCpfRepresentante] = useState('');
+  const [supplierTelefoneRepresentante, setSupplierTelefoneRepresentante] = useState('');
+  const [supplierEmailRepresentante, setSupplierEmailRepresentante] = useState('');
+  const [supplierNomePreposto, setSupplierNomePreposto] = useState('');
+  const [supplierTelefonePreposto, setSupplierTelefonePreposto] = useState('');
+  const [supplierEmailPreposto, setSupplierEmailPreposto] = useState('');
+  const [sucessoFornecedor, setSucessoFornecedor] = useState<string | null>(null);
 
   // Dados Gerais
   const [status, setStatus] = useState('ATIVO');
@@ -212,6 +230,59 @@ export default function EditarContratoPage() {
         });
     }
   }, [id]);
+
+  useEffect(() => {
+    if (fornecedorId && fornecedores.length > 0) {
+      const f = fornecedores.find((x) => x.id === fornecedorId);
+      if (f) {
+        setSupplierEndereco(f.endereco || '');
+        setSupplierTelefone(f.telefone || '');
+        setSupplierNomeRepresentante(f.nomeRepresentanteLegal || '');
+        setSupplierCpfRepresentante(f.cpfRepresentanteLegal || '');
+        setSupplierTelefoneRepresentante(f.telefoneRepresentanteLegal || '');
+        setSupplierEmailRepresentante(f.emailRepresentanteLegal || '');
+        setSupplierNomePreposto(f.nomePreposto || '');
+        setSupplierTelefonePreposto(f.telefonePreposto || '');
+        setSupplierEmailPreposto(f.emailPreposto || '');
+      }
+    }
+  }, [fornecedorId, fornecedores]);
+
+  const handleSalvarFornecedor = async () => {
+    if (!fornecedorId) return;
+    setSalvandoFornecedor(true);
+    setSucessoFornecedor(null);
+    try {
+      const res = await fetch(`/api/fornecedores/${fornecedorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endereco: supplierEndereco,
+          telefone: supplierTelefone,
+          nomeRepresentanteLegal: supplierNomeRepresentante,
+          cpfRepresentanteLegal: supplierCpfRepresentante,
+          telefoneRepresentanteLegal: supplierTelefoneRepresentante,
+          emailRepresentanteLegal: supplierEmailRepresentante,
+          nomePreposto: supplierNomePreposto,
+          telefonePreposto: supplierTelefonePreposto,
+          emailPreposto: supplierEmailPreposto,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao atualizar fornecedor');
+
+      setFornecedores((prev) =>
+        prev.map((f) => (f.id === fornecedorId ? { ...f, ...data.fornecedor } : f))
+      );
+      setSucessoFornecedor('Dados do fornecedor, representante legal e preposto atualizados com sucesso!');
+      setTimeout(() => setSucessoFornecedor(null), 4000);
+      setMostrarEdicaoFornecedor(false);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSalvandoFornecedor(false);
+    }
+  };
 
   const handleAddItem = () => {
     setItens([
@@ -502,6 +573,16 @@ export default function EditarContratoPage() {
               <Building2 className="w-4 h-4 text-blue-700" />
               <span>Fornecedor / Empresa Contratada</span>
             </div>
+            {fornecedorId && (
+              <button
+                type="button"
+                onClick={() => setMostrarEdicaoFornecedor(!mostrarEdicaoFornecedor)}
+                className="inline-flex items-center space-x-1 text-xs font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>{mostrarEdicaoFornecedor ? 'Fechar Edição' : 'Editar Dados do Fornecedor / Representante'}</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -520,6 +601,205 @@ export default function EditarContratoPage() {
               ))}
             </select>
           </div>
+
+          {sucessoFornecedor && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{sucessoFornecedor}</span>
+            </div>
+          )}
+
+          {/* DADOS VISUAIS DO FORNECEDOR SELECIONADO */}
+          {fornecedorId && !mostrarEdicaoFornecedor && (() => {
+            const f = fornecedores.find((x) => x.id === fornecedorId);
+            if (!f) return null;
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                {/* Cartão 1: Empresa & Endereço */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
+                  <div className="flex items-center space-x-1.5 font-bold text-slate-800">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Dados da Empresa</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    <strong className="text-slate-700">Endereço:</strong> {f.endereco || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    <strong className="text-slate-700">Telefone:</strong> {f.telefone || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600 truncate">
+                    <strong className="text-slate-700">E-mail:</strong> {f.email || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                </div>
+
+                {/* Cartão 2: Representante Legal */}
+                <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 text-xs space-y-1.5">
+                  <div className="flex items-center space-x-1.5 font-bold text-blue-900">
+                    <UserCheck className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Representante Legal (Signatário)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700">
+                    <strong>Nome:</strong> {f.nomeRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600 font-mono">
+                    <strong>CPF:</strong> {f.cpfRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    <strong>Contato:</strong> {f.telefoneRepresentanteLegal || f.emailRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                </div>
+
+                {/* Cartão 3: Preposto Operacional */}
+                <div className="bg-amber-50/50 rounded-xl p-3 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center space-x-1.5 font-bold text-amber-900">
+                    <User className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Preposto Operacional</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700">
+                    <strong>Nome:</strong> {f.nomePreposto || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    <strong>Telefone:</strong> {f.telefonePreposto || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-600 truncate">
+                    <strong>E-mail:</strong> {f.emailPreposto || <span className="italic text-slate-400">Não informado</span>}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* FORMULÁRIO DE EDIÇÃO INLINE DO FORNECEDOR */}
+          {fornecedorId && mostrarEdicaoFornecedor && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 animate-in fade-in">
+              <div className="text-xs font-bold text-slate-800 border-b border-slate-200 pb-2 flex items-center justify-between">
+                <span>Atualizar Informações do Fornecedor e Representantes</span>
+                <span className="text-[10px] text-slate-500 font-normal">Distinga o Representante Legal (quem assina) do Preposto (operacional)</span>
+              </div>
+
+              {/* Endereço e Telefone da Empresa */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700">Endereço Completo da Empresa</label>
+                  <input
+                    type="text"
+                    value={supplierEndereco}
+                    onChange={(e) => setSupplierEndereco(e.target.value)}
+                    placeholder="Rua, Número, Bairro, Cidade - UF, CEP"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700">Telefone da Empresa</label>
+                  <input
+                    type="text"
+                    value={supplierTelefone}
+                    onChange={(e) => setSupplierTelefone(e.target.value)}
+                    placeholder="(84) 3333-0000"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+
+              {/* Representante Legal */}
+              <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-3">
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-blue-900">
+                  <UserCheck className="w-4 h-4 text-blue-700" />
+                  <span>Representante Legal (Signatário do Contrato)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Nome do Representante Legal</label>
+                    <input
+                      type="text"
+                      value={supplierNomeRepresentante}
+                      onChange={(e) => setSupplierNomeRepresentante(e.target.value)}
+                      placeholder="Nome completo do signatário"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">CPF do Representante</label>
+                    <input
+                      type="text"
+                      value={supplierCpfRepresentante}
+                      onChange={(e) => setSupplierCpfRepresentante(e.target.value)}
+                      placeholder="000.000.000-00"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Telefone do Representante</label>
+                    <input
+                      type="text"
+                      value={supplierTelefoneRepresentante}
+                      onChange={(e) => setSupplierTelefoneRepresentante(e.target.value)}
+                      placeholder="(84) 99999-0000"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preposto Operacional */}
+              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
+                  <User className="w-4 h-4 text-amber-700" />
+                  <span>Preposto Operacional (Gestão do dia-a-dia)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Nome do Preposto</label>
+                    <input
+                      type="text"
+                      value={supplierNomePreposto}
+                      onChange={(e) => setSupplierNomePreposto(e.target.value)}
+                      placeholder="Nome do preposto"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Telefone do Preposto</label>
+                    <input
+                      type="text"
+                      value={supplierTelefonePreposto}
+                      onChange={(e) => setSupplierTelefonePreposto(e.target.value)}
+                      placeholder="(84) 98888-0000"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">E-mail do Preposto</label>
+                    <input
+                      type="email"
+                      value={supplierEmailPreposto}
+                      onChange={(e) => setSupplierEmailPreposto(e.target.value)}
+                      placeholder="preposto@empresa.com"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setMostrarEdicaoFornecedor(false)}
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSalvarFornecedor}
+                  disabled={salvandoFornecedor}
+                  className="px-3 py-1.5 bg-blue-700 text-white text-xs font-semibold rounded-lg hover:bg-blue-800 disabled:opacity-50 cursor-pointer"
+                >
+                  {salvandoFornecedor ? 'Salvando...' : 'Salvar Alterações do Fornecedor'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* SEÇÃO 2: DADOS GERAIS */}

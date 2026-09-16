@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { isAdminRole } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,6 +79,13 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
+    if (!isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores da PROAD podem cadastrar ou importar contratos.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       numeroContrato,
@@ -123,8 +131,15 @@ export async function POST(request: NextRequest) {
             razaoSocial: fornecedorNovo.razaoSocial,
             cnpj: cleanCnpj,
             email: fornecedorNovo.email,
-            telefone: fornecedorNovo.telefone,
-            nomePreposto: fornecedorNovo.nomePreposto,
+            telefone: fornecedorNovo.telefone || null,
+            endereco: fornecedorNovo.endereco || null,
+            nomeRepresentanteLegal: fornecedorNovo.nomeRepresentanteLegal || null,
+            cpfRepresentanteLegal: fornecedorNovo.cpfRepresentanteLegal || null,
+            telefoneRepresentanteLegal: fornecedorNovo.telefoneRepresentanteLegal || null,
+            emailRepresentanteLegal: fornecedorNovo.emailRepresentanteLegal || null,
+            nomePreposto: fornecedorNovo.nomePreposto || null,
+            telefonePreposto: fornecedorNovo.telefonePreposto || null,
+            emailPreposto: fornecedorNovo.emailPreposto || null,
           },
         });
       }

@@ -227,6 +227,7 @@ model Contrato {
   penalidades                 Penalidade[]
   alertas                     AlertaSistema[]
   despesasExecucao            DespesaExecucao[]
+  planilhasCustos             ContratoPlanilhaCusto[]
 
   @@map("contratos")
 }
@@ -261,6 +262,7 @@ model ContratoItem {
   valorTotalOriginal    Float
   valorTotalAtual       Float
   limiteAcrescimoPercent Float   @default(25.0) // 25% para compras/serviços e 50% para obras
+  planilhasCustos        ContratoPlanilhaCusto[]
 
   @@map("contrato_itens")
 }
@@ -398,11 +400,13 @@ model ConvenioColetivo {
   sindicatoPatronal  String?
   vigenciaInicio     DateTime
   vigenciaFim        DateTime
-  dataAssinatura     DateTime?
-  arquivoPdfUrl      String?
-  createdAt          DateTime @default(now())
+  dataAssinatura          DateTime?
+  arquivoPdfUrl           String?
+  categoriasProfissionais String?
+  itensFiscalizacao       Json?    // Estrutura com salarios, beneficios, obrigacoesComPagamento, obrigacoesSemPagamento
+  createdAt               DateTime @default(now())
 
-  funcoes            ConvenioColetivoFuncao[]
+  funcoes                 ConvenioColetivoFuncao[]
 
   @@map("convencoes_coletivas")
 }
@@ -418,6 +422,45 @@ model ConvenioColetivoFuncao {
   outrosBeneficios     String?
 
   @@map("convenio_funcoes")
+}
+
+// 9.1. Planilhas de Composição de Custos e Formação de Preços (IN 05/2017 e IN 01/2026)
+model ContratoPlanilhaCusto {
+  id                     String        @id @default(uuid())
+  contratoId             String
+  contrato               Contrato      @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  itemId                 String?
+  item                   ContratoItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  numeroItem             Int?
+  funcao                 String        // Nome da função (ex: Supervisor Operacional)
+  cbo                    String?       // Código CBO
+  municipio              String?       // Município de execução
+  jornada                String?       // Carga horária semanal (ex: 44h)
+  cctReferencia          String?       // Registro CCT de referência
+  mesesExecucao          Int           @default(12)
+  quantidadeEmpregados   Int           @default(1)
+  quantidadePostos       Int           @default(1)
+  salarioBase            Float
+  totalModulo1           Float         // Composição da Remuneração
+  totalModulo2           Float         // Encargos e Benefícios Anuais, Mensais e Diários
+  totalModulo3           Float         // Provisão para Rescisão
+  totalModulo4           Float         // Custo de Reposição do Profissional Ausente
+  totalModulo5           Float         // Insumos Diversos
+  totalModulo6           Float         // Custos Indiretos, Tributos e Lucro
+  custosIndiretosPercent Float?       // % Custos indiretos
+  lucroPercent           Float?        // % Lucro
+  tributosPercent        Float?        // % Tributos (PIS, COFINS, ISS)
+  precoTotalEmpregado    Float         // Custo total por empregado (mensal)
+  valorMensalTotal       Float         // Total mensal do posto/serviço
+  valorGlobalTotal       Float         // Total global (meses x mensal)
+  fatorK                 Float?        // Fator K multiplicador
+  dadosDetalhados        Json?         // Detalhamento item a item dos submódulos e insumos
+  arquivoOriginalNome    String?
+  arquivoOriginalUrl     String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  @@map("contratos_planilhas_custos")
 }
 
 // 10. Execução: Ordem de Serviço com Assinatura Eletrônica (IN 01/2026)

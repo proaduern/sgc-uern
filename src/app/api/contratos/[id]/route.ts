@@ -28,6 +28,12 @@ export async function GET(
             },
           },
         },
+        planilhasCustos: {
+          include: {
+            item: true,
+          },
+          orderBy: { numeroItem: 'asc' },
+        },
         _count: {
           select: {
             itens: true,
@@ -35,6 +41,7 @@ export async function GET(
             ordensServico: true,
             medicoes: true,
             penalidades: true,
+            planilhasCustos: true,
           },
         },
       },

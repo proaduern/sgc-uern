@@ -151,6 +151,22 @@ export async function GET(
           '0.00',
         ],
       ];
+    } else if (tipo === 'custos' || tipo === 'composicao-custos') {
+      const fs = await import('fs');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'public', 'docs', 'Planilha_de_custos_e_formacao_de_precos.xlsx');
+      if (fs.existsSync(filePath)) {
+        const fileBuffer = fs.readFileSync(filePath);
+        return new NextResponse(fileBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="Planilha_de_custos_e_formacao_de_precos_UERN.xlsx"',
+          },
+        });
+      } else {
+        return NextResponse.json({ error: 'Arquivo modelo não encontrado no servidor' }, { status: 404 });
+      }
     } else {
       return NextResponse.json({ error: 'Tipo de modelo não encontrado' }, { status: 404 });
     }

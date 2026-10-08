@@ -189,9 +189,13 @@ async function runTests() {
           contratoId: testContrato.id,
           numeroItem: 1,
           descricao: 'Prestação de serviços de apoio operacional e limpeza',
-          quantidade: 10,
-          valorUnitario: 3500.00,
-          valorTotal: 35000.00
+          unidade: 'MÊS',
+          quantidadeOriginal: 10,
+          quantidadeAtual: 10,
+          valorUnitarioOriginal: 3500.00,
+          valorUnitarioAtual: 3500.00,
+          valorTotalOriginal: 35000.00,
+          valorTotalAtual: 35000.00
         }
       });
       itemId = newItem.id;

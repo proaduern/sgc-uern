@@ -182,9 +182,16 @@ export async function PUT(
             return {
               contratoId: id,
               numeroItem: item.numeroItem || (i + 1),
+              cidade: item.cidade || 'Mossoró',
               descricao: item.descricao || `Item ${i + 1}`,
               tipoGrupo: item.tipoGrupo || 'ITEM_INDIVIDUAL',
               unidade: item.unidade || 'UN',
+              tipoReajuste: item.tipoReajuste || (
+                ['MÊS', 'MES', 'POSTO'].includes((item.unidade || '').toUpperCase()) && atualizado.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+                  ? 'REPACTUACAO_CCT'
+                  : 'REAJUSTE_INDICE'
+              ),
+              indiceReferencia: item.indiceReferencia || null,
               quantidadeOriginal: qtd,
               quantidadeAtual: qtd,
               valorUnitarioOriginal: vUnit,
@@ -222,7 +229,7 @@ export async function DELETE(
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (session.role !== 'ADMIN_PROAD') {
+    if (!isAdminRole(session.role)) {
       return NextResponse.json(
         { error: 'Apenas Administradores PROAD podem excluir contratos do sistema.' },
         { status: 403 }
@@ -233,37 +240,55 @@ export async function DELETE(
 
     const contrato = await prisma.contrato.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: {
-            medicoes: true,
-            ordensServico: true,
-            penalidades: true,
-          },
-        },
-      },
+      select: { id: true, numeroContrato: true, processoSeiMae: true },
     });
 
     if (!contrato) {
-      return NextResponse.json({ error: 'Contrato não encontrado' }, { status: 404 });
+      return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 });
     }
 
-    if (contrato._count.medicoes > 0 || contrato._count.ordensServico > 0) {
-      return NextResponse.json(
-        {
-          error:
-            'Não é possível excluir este contrato pois já existem Ordens de Serviço ou Medições de despesa lançadas. Caso necessário, altere o status para INATIVO ou SUSPENSO.',
-        },
-        { status: 400 }
-      );
-    }
-
-    await prisma.contrato.delete({
-      where: { id },
+    // Exclusão completa em cascata transacional para higienização segura do sistema
+    await prisma.$transaction(async (tx) => {
+      // 1. Histórico de alterações e aditivos
+      await tx.contratoAlteracao.deleteMany({ where: { contratoId: id } });
+      // 2. Alertas vinculados
+      await tx.alertaSistema.deleteMany({ where: { contratoId: id } });
+      // 3. Planilhas de custo
+      await tx.contratoPlanilhaCusto.deleteMany({ where: { contratoId: id } });
+      // 4. Lançamentos de despesa por campus
+      await tx.despesaExecucao.deleteMany({ where: { contratoId: id } });
+      // 5. Medições e faturas (inclusive atestadas)
+      await tx.medicaoDespesa.deleteMany({ where: { contratoId: id } });
+      // 6. Ordens de Serviço
+      await tx.ordemServico.deleteMany({ where: { contratoId: id } });
+      // 7. Conta vinculada
+      await tx.contaVinculadaMovimentacao.deleteMany({ where: { contratoId: id } });
+      // 8. Trabalhadores terceirizados
+      await tx.trabalhadorTerceirizado.deleteMany({ where: { contratoId: id } });
+      // 9. CCTs e suas funções associadas
+      const ccts = await tx.convenioColetivo.findMany({ where: { contratoId: id }, select: { id: true } });
+      for (const cct of ccts) {
+        await tx.convenioColetivoFuncao.deleteMany({ where: { convenioId: cct.id } });
+      }
+      await tx.convenioColetivo.deleteMany({ where: { contratoId: id } });
+      // 10. Penalidades
+      await tx.penalidade.deleteMany({ where: { contratoId: id } });
+      // 11. Designações de fiscais e gestores vinculados
+      await tx.contratoResponsavel.deleteMany({ where: { contratoId: id } });
+      // 12. Itens do contrato
+      await tx.contratoItem.deleteMany({ where: { contratoId: id } });
+      // 13. Índices de reajuste
+      await tx.contratoIndice.deleteMany({ where: { contratoId: id } });
+      // 14. O contrato
+      await tx.contrato.delete({ where: { id } });
     });
 
-    return NextResponse.json({ success: true, message: 'Contrato excluído com sucesso' });
+    return NextResponse.json({
+      success: true,
+      message: `Contrato ${contrato.numeroContrato || contrato.processoSeiMae} e todos os seus lançamentos vinculados foram excluídos com sucesso.`,
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Erro ao excluir contrato:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir contrato' }, { status: 500 });
   }
 }

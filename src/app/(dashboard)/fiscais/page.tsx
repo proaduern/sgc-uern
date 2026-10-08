@@ -17,8 +17,11 @@ import {
   Download,
   X,
   Check,
-  Edit3
+  Edit3,
+  Sparkles,
+  Trash2,
 } from 'lucide-react';
+import UploadInteligenteDesignacaoModal from '@/components/fiscais/UploadInteligenteDesignacaoModal';
 
 interface Designacao {
   id: string;
@@ -52,6 +55,7 @@ export default function FiscaisPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showUploadDesignacaoModal, setShowUploadDesignacaoModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
@@ -83,6 +87,24 @@ export default function FiscaisPage() {
     idSeiAtoDesignacao: '',
     campusSetor: '',
   });
+
+  const handleDeleteDesignacao = async (d: Designacao) => {
+    const nomeServidor = d.user?.nome || 'servidor';
+    const numContrato = d.contrato?.numeroContrato || d.contrato?.processoSeiMae || 'contrato';
+    if (!confirm(`Atenção: Deseja realmente excluir a designação de "${nomeServidor}" como ${d.tipoAtuacao.replace(/_/g, ' ')} no Contrato/Processo "${numContrato}"? Esta ação removerá o vínculo formal.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/fiscais?id=${d.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao excluir designação.');
+      alert(data.message || 'Designação excluída com sucesso!');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir designação.');
+    }
+  };
 
   const handleOpenEdit = (d: Designacao) => {
     setEditingDesignacaoId(d.id);
@@ -299,6 +321,14 @@ export default function FiscaisPage() {
               </button>
 
               <button
+                onClick={() => setShowUploadDesignacaoModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold rounded-xl border border-indigo-200 transition-colors cursor-pointer shadow-sm"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span>Upload Inteligente (Ato PDF)</span>
+              </button>
+
+              <button
                 onClick={() => setShowModal(true)}
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
               >
@@ -410,15 +440,27 @@ export default function FiscaisPage() {
 
                     <td className="py-3 px-4 text-center">
                       {currentUser?.isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(d)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                          title="Editar Fiscal/Gestor"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Editar</span>
-                        </button>
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(d)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Editar Fiscal/Gestor"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Editar</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDesignacao(d)}
+                            className="inline-flex items-center space-x-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Excluir Designação (Admin)"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -844,6 +886,14 @@ export default function FiscaisPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showUploadDesignacaoModal && (
+        <UploadInteligenteDesignacaoModal
+          isOpen={showUploadDesignacaoModal}
+          onClose={() => setShowUploadDesignacaoModal(false)}
+          onSuccess={carregarDados}
+        />
       )}
     </div>
   );

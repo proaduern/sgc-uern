@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -28,8 +28,10 @@ import {
   Search,
   ArrowRight,
   Save,
+  Briefcase,
   Bookmark,
-  Clock
+  Clock,
+  Calculator
 } from 'lucide-react';
 
 function parseBrazilianNumber(val: any): number {
@@ -83,6 +85,7 @@ function NovoContratoForm() {
   // Vigência & Classificação
   const [vigenciaInicio, setVigenciaInicio] = useState('');
   const [vigenciaFim, setVigenciaFim] = useState('');
+  const [anosVigencia, setAnosVigencia] = useState(1);
   const [valorGlobal, setValorGlobal] = useState('');
   const [tipoVigencia, setTipoVigencia] = useState('NAO_CONTINUADO');
   const [portariaContinuadosRef, setPortariaContinuadosRef] = useState('');
@@ -103,16 +106,51 @@ function NovoContratoForm() {
   const [indiceCct, setIndiceCct] = useState(false);
   const [dataOrcamentoEstimado, setDataOrcamentoEstimado] = useState('');
 
-  // Módulo 2 - Itens
+  // Convenções Coletivas Vinculadas ao Contrato (Multi-CCT)
+  const [convencoes, setConvencoes] = useState<Array<{
+    nomeConvencao: string;
+    sindicatoLaboral?: string;
+    sindicatoPatronal?: string;
+    numeroRegistroMte?: string;
+    dataBase?: string;
+  }>>([
+    { nomeConvencao: 'CCT Motoristas (SINDITRANS)', dataBase: 'Maio', sindicatoLaboral: 'SINDITRANS', numeroRegistroMte: '' }
+  ]);
+
+  const handleAddConvencao = () => {
+    setConvencoes((prev) => [
+      ...prev,
+      { nomeConvencao: '', dataBase: '', sindicatoLaboral: '', numeroRegistroMte: '' }
+    ]);
+  };
+
+  const handleRemoveConvencao = (idx: number) => {
+    if (convencoes.length <= 1) return;
+    setConvencoes((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleConvencaoChange = (idx: number, field: string, val: string) => {
+    setConvencoes((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return copy;
+    });
+  };
+
+  // Módulo 2 - Itens (Padrão: Terceirização com unidade mensal MÊS)
   const [tipoAgrupamento, setTipoAgrupamento] = useState('ITEM_INDIVIDUAL'); // GRUPO_UNICO ou ITEM_INDIVIDUAL
   const [itens, setItens] = useState<Array<{
     numeroItem: number;
+    cidade?: string;
     descricao: string;
     unidade: string;
     quantidade: string;
     valorUnitario: string;
+    tipoReajuste?: string;
+    indiceReferencia?: string;
+    cctVinculada?: string;
   }>>([
-    { numeroItem: 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+    { numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'MÊS', quantidade: '1', valorUnitario: '0', tipoReajuste: 'REPACTUACAO_CCT', indiceReferencia: '', cctVinculada: 'CCT Motoristas (SINDITRANS)' }
   ]);
 
   // Estados de Gerenciamento de Rascunho
@@ -136,6 +174,7 @@ function NovoContratoForm() {
     if (dados.objeto !== undefined) setObjeto(dados.objeto || '');
     if (dados.vigenciaInicio !== undefined) setVigenciaInicio(dados.vigenciaInicio || '');
     if (dados.vigenciaFim !== undefined) setVigenciaFim(dados.vigenciaFim || '');
+    if (dados.anosVigencia !== undefined) setAnosVigencia(Number(dados.anosVigencia) || 1);
     if (dados.valorGlobal !== undefined) setValorGlobal(dados.valorGlobal || '');
     if (dados.tipoVigencia !== undefined) setTipoVigencia(dados.tipoVigencia || 'NAO_CONTINUADO');
     if (dados.portariaContinuadosRef !== undefined) setPortariaContinuadosRef(dados.portariaContinuadosRef || '');
@@ -150,6 +189,9 @@ function NovoContratoForm() {
     if (dados.justificativaSetorial !== undefined) setJustificativaSetorial(dados.justificativaSetorial || '');
     if (dados.indiceCct !== undefined) setIndiceCct(!!dados.indiceCct);
     if (dados.dataOrcamentoEstimado !== undefined) setDataOrcamentoEstimado(dados.dataOrcamentoEstimado || '');
+    if (dados.convencoes && Array.isArray(dados.convencoes) && dados.convencoes.length > 0) {
+      setConvencoes(dados.convencoes);
+    }
     if (dados.tipoAgrupamento !== undefined) setTipoAgrupamento(dados.tipoAgrupamento || 'ITEM_INDIVIDUAL');
     if (dados.itens && Array.isArray(dados.itens) && dados.itens.length > 0) {
       setItens(dados.itens);
@@ -180,6 +222,7 @@ function NovoContratoForm() {
           objeto,
           vigenciaInicio,
           vigenciaFim,
+          anosVigencia,
           valorGlobal,
           tipoVigencia,
           portariaContinuadosRef,
@@ -193,6 +236,7 @@ function NovoContratoForm() {
           nomeIndiceSetorial,
           justificativaSetorial,
           indiceCct,
+          convencoes,
           dataOrcamentoEstimado,
           tipoAgrupamento,
           itens,
@@ -273,10 +317,31 @@ function NovoContratoForm() {
     }
   }, [rascunhoParam]);
 
+  // Helper para cálculo da quantidade de anos a partir das datas
+  const calcularAnosPorDatas = (inicio: string, fim: string): number => {
+    if (!inicio || !fim) return 1;
+    const d1 = new Date(inicio);
+    const d2 = new Date(fim);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime()) || d2 <= d1) return 1;
+    let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+    if (d2.getDate() >= d1.getDate() - 2) months += 1;
+    return Math.max(1, Math.round(months / 12));
+  };
+
   const handleAddItem = () => {
     setItens([
       ...itens,
-      { numeroItem: itens.length + 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+      {
+        numeroItem: itens.length + 1,
+        cidade: 'Mossoró',
+        descricao: '',
+        unidade: 'MÊS',
+        quantidade: '1',
+        valorUnitario: '0',
+        tipoReajuste: 'REPACTUACAO_CCT',
+        indiceReferencia: '',
+        cctVinculada: convencoes[0]?.nomeConvencao || '',
+      }
     ]);
   };
 
@@ -291,11 +356,38 @@ function NovoContratoForm() {
     setItens(updated);
   };
 
-  const totalCalculadoItens = itens.reduce((acc, item) => {
-    const q = parseFloat(item.quantidade) || 0;
-    const v = parseFloat(item.valorUnitario) || 0;
-    return acc + q * v;
-  }, 0);
+  // Cálculo individual de cada item: Mensal, Anual (x12), Plurianual (x12 x anos se anos > 1) e Efetivo
+  const calcularValoresItem = (it: { quantidade: string; valorUnitario: string; unidade?: string }) => {
+    const q = parseFloat(it.quantidade) || 0;
+    const v = parseFloat(it.valorUnitario) || 0;
+    const unidadeNorm = (it.unidade || 'MÊS').trim().toUpperCase();
+    const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes(unidadeNorm);
+
+    const totalMensal = q * v;
+    const totalAnual = isMensal ? totalMensal * 12 : totalMensal;
+    const totalPlurianual = anosVigencia > 1 ? (isMensal ? totalMensal * 12 * anosVigencia : totalMensal * anosVigencia) : 0;
+    const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
+
+    return { totalMensal, totalAnual, totalPlurianual, totalEfetivo };
+  };
+
+  // Totais consolidados de todos os itens do contrato
+  const totaisConsolidados = useMemo(() => {
+    return itens.reduce(
+      (acc, it) => {
+        const { totalMensal, totalAnual, totalPlurianual, totalEfetivo } = calcularValoresItem(it);
+        acc.mensal += totalMensal;
+        acc.anual += totalAnual;
+        acc.plurianual += totalPlurianual;
+        acc.global += totalEfetivo;
+        return acc;
+      },
+      { mensal: 0, anual: 0, plurianual: 0, global: 0 }
+    );
+  }, [itens, anosVigencia]);
+
+  // Valor total calculado para fins de valor global do contrato: plurianual se anos > 1, senão anual
+  const totalCalculadoItens = totaisConsolidados.global;
 
   // Estados para Importação em Lote de Itens via Planilha
   const [showImportModal, setShowImportModal] = useState(false);
@@ -303,6 +395,7 @@ function NovoContratoForm() {
   const [importFileName, setImportFileName] = useState('');
   const [previewItens, setPreviewItens] = useState<Array<{
     numeroItem: number;
+    cidade?: string;
     descricao: string;
     unidade: string;
     quantidade: string;
@@ -341,6 +434,7 @@ function NovoContratoForm() {
         // Mapear colunas de forma flexível e inteligente
         const parsedList: Array<{
           numeroItem: number;
+          cidade?: string;
           descricao: string;
           unidade: string;
           quantidade: string;
@@ -351,6 +445,7 @@ function NovoContratoForm() {
         rows.forEach((row, index) => {
           const keys = Object.keys(row);
           let numeroItem = index + 1;
+          let cidade = 'Mossoró';
           let descricao = '';
           let unidade = 'UN';
           let quantidade = 1;
@@ -368,6 +463,10 @@ function NovoContratoForm() {
             if (norm === 'item' || norm === 'n' || norm === 'no' || norm === 'numero' || norm === 'num' || norm === 'seq' || norm === 'codigo') {
               const parsedNum = parseInt(String(val).replace(/\D/g, ''), 10);
               if (!isNaN(parsedNum) && parsedNum > 0) numeroItem = parsedNum;
+            }
+            // Detectar Cidade / Campus / Município
+            else if (norm.includes('cidade') || norm.includes('municipio') || norm.includes('campus') || norm.includes('local')) {
+              if (val) cidade = String(val).trim();
             }
             // Detectar Descrição
             else if (norm.includes('desc') || norm.includes('espec') || norm.includes('objeto') || norm.includes('material') || norm.includes('serv') || norm.includes('prod') || norm === 'itemdescricao') {
@@ -394,6 +493,7 @@ function NovoContratoForm() {
             if (!descricao) descricao = String(row[keys[0]] || `Item ${index + 1}`);
             parsedList.push({
               numeroItem,
+              cidade: cidade || 'Mossoró',
               descricao,
               unidade: unidade || 'UN',
               quantidade: String(quantidade),
@@ -427,20 +527,30 @@ function NovoContratoForm() {
     if (importMode === 'REPLACE') {
       novaLista = previewItens.map((p, idx) => ({
         numeroItem: idx + 1,
+        cidade: p.cidade || 'Mossoró',
         descricao: p.descricao,
         unidade: p.unidade,
         quantidade: p.quantidade,
         valorUnitario: p.valorUnitario,
+        tipoReajuste: ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase()) || (indiceCct && !indiceSetorial && !indiceIpca)
+          ? 'REPACTUACAO_CCT'
+          : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
       }));
     } else {
       // APPEND
       const startNum = itens.length;
       const adicionados = previewItens.map((p, idx) => ({
         numeroItem: startNum + idx + 1,
+        cidade: p.cidade || 'Mossoró',
         descricao: p.descricao,
         unidade: p.unidade,
         quantidade: p.quantidade,
         valorUnitario: p.valorUnitario,
+        tipoReajuste: ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase()) || (indiceCct && !indiceSetorial && !indiceIpca)
+          ? 'REPACTUACAO_CCT'
+          : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
       }));
       novaLista = [...itens, ...adicionados];
     }
@@ -450,9 +560,8 @@ function NovoContratoForm() {
     // Atualizar Valor Global se solicitado
     if (autoUpdateValorGlobal) {
       const somaTotal = novaLista.reduce((acc, it) => {
-        const q = parseFloat(it.quantidade) || 0;
-        const v = parseFloat(it.valorUnitario) || 0;
-        return acc + q * v;
+        const { totalEfetivo } = calcularValoresItem(it);
+        return acc + totalEfetivo;
       }, 0);
       setValorGlobal(somaTotal.toFixed(2));
     }
@@ -468,88 +577,118 @@ function NovoContratoForm() {
     }, 6000);
   };
 
-  // Download do Modelo Oficial de Itens
+  // Download do Modelo Oficial de Itens / Postos de Terceirização
   const baixarModeloItens = () => {
     const dadosModelo = [
       {
         Item: 1,
-        Descricao: 'Papel Sulfite A4 75g/m² alcalino resma com 500 folhas',
-        Unidade: 'RESMA',
-        Quantidade: 500,
-        ValorUnitario: 28.50,
+        Cidade: 'Mossoró',
+        Funcao_Posto: 'Motorista Categoria B',
+        Unidade: 'MÊS',
+        Regra_Reajuste: 'REPACTUACAO_CCT',
+        Convencao_CCT: 'CCT Motoristas (SINDITRANS)',
+        Qtd_Postos_Mes: 1,
+        Valor_Mensal_Unitario: 4250.00,
       },
       {
         Item: 2,
-        Descricao: 'Caneta esferográfica corpo transparente tinta azul 1.0mm',
-        Unidade: 'CX',
-        Quantidade: 100,
-        ValorUnitario: 45.00,
+        Cidade: 'Mossoró',
+        Funcao_Posto: 'Supervisor de Transporte / Operacional',
+        Unidade: 'MÊS',
+        Regra_Reajuste: 'REPACTUACAO_CCT',
+        Convencao_CCT: 'CCT Supervisores (SINDESP)',
+        Qtd_Postos_Mes: 1,
+        Valor_Mensal_Unitario: 5800.00,
       },
       {
         Item: 3,
-        Descricao: 'Toner compatível para impressora HP LaserJet Pro M404n',
-        Unidade: 'UN',
-        Quantidade: 30,
-        ValorUnitario: 175.00,
+        Cidade: 'Caicó',
+        Funcao_Posto: 'Motorista Categoria D',
+        Unidade: 'MÊS',
+        Regra_Reajuste: 'REPACTUACAO_CCT',
+        Convencao_CCT: 'CCT Motoristas (SINDITRANS)',
+        Qtd_Postos_Mes: 1,
+        Valor_Mensal_Unitario: 4600.00,
       },
       {
         Item: 4,
-        Descricao: 'Serviço de manutenção preventiva e corretiva em aparelhos de ar-condicionado',
+        Cidade: 'Mossoró',
+        Funcao_Posto: 'Insumos e Manutenção da Frota',
         Unidade: 'MÊS',
-        Quantidade: 12,
-        ValorUnitario: 3800.00,
+        Regra_Reajuste: 'REAJUSTE_INDICE',
+        Convencao_CCT: '',
+        Qtd_Postos_Mes: 1,
+        Valor_Mensal_Unitario: 2100.00,
       },
     ];
 
     const ws = XLSX.utils.json_to_sheet(dadosModelo);
     ws['!cols'] = [
       { wch: 8 },
-      { wch: 70 },
-      { wch: 12 },
-      { wch: 14 },
       { wch: 18 },
+      { wch: 45 },
+      { wch: 12 },
+      { wch: 22 },
+      { wch: 32 },
+      { wch: 16 },
+      { wch: 22 },
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Itens_Contrato_UERN');
+    XLSX.utils.book_append_sheet(wb, ws, 'Postos_Contrato_UERN');
     XLSX.writeFile(wb, 'Modelo_Importacao_Itens_Contrato_UERN.xlsx');
   };
 
-  // Exportar Itens Atuais para Excel
+  // Exportar Itens Atuais para Excel com Detalhamento Anual e Plurianual
   const exportarItensParaExcel = () => {
     if (itens.length === 0) return;
-    const dados = itens.map((it) => ({
-      Item: it.numeroItem,
-      Descricao: it.descricao,
-      Unidade: it.unidade,
-      Quantidade: parseFloat(it.quantidade) || 0,
-      ValorUnitario: parseFloat(it.valorUnitario) || 0,
-      Total: (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0),
-    }));
+    const dados = itens.map((it) => {
+      const { totalMensal, totalAnual, totalPlurianual, totalEfetivo } = calcularValoresItem(it);
+      return {
+        Item: it.numeroItem,
+        Funcao_Posto: it.descricao,
+        Cidade: it.cidade || 'Mossoró',
+        Unidade: it.unidade,
+        Regra_Reajuste: it.tipoReajuste || 'REPACTUACAO_CCT',
+        Convencao_CCT: it.cctVinculada || '',
+        Qtd_Postos_Mes: parseFloat(it.quantidade) || 0,
+        Valor_Mensal_Unitario: parseFloat(it.valorUnitario) || 0,
+        Total_Mensal: totalMensal,
+        Total_Anual_12m: totalAnual,
+        Total_Plurianual: anosVigencia > 1 ? totalPlurianual : 0,
+        Valor_Global_Considerado: totalEfetivo,
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(dados);
     ws['!cols'] = [
       { wch: 8 },
-      { wch: 60 },
+      { wch: 40 },
+      { wch: 16 },
       { wch: 10 },
-      { wch: 14 },
+      { wch: 22 },
+      { wch: 30 },
+      { wch: 16 },
+      { wch: 22 },
       { wch: 18 },
-      { wch: 18 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 24 },
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Itens');
-    XLSX.writeFile(wb, `Itens_Contrato_${numeroContrato || 'Rascunho'}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Postos_Contratados');
+    XLSX.writeFile(wb, `Postos_Contrato_${numeroContrato || 'Rascunho'}.xlsx`);
   };
 
   // Limpar Todos os Itens
   const handleLimparItens = () => {
-    if (confirm('Deseja realmente limpar todos os itens cadastrados?')) {
-      setItens([{ numeroItem: 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }]);
+    if (confirm('Deseja realmente limpar todos os itens/postos cadastrados?')) {
+      setItens([{ numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'MÊS', quantidade: '1', valorUnitario: '0', tipoReajuste: 'REPACTUACAO_CCT', indiceReferencia: '' }]);
       setCurrentPage(1);
     }
   };
 
   // Sincronizar Valor Global com Soma dos Itens
   const sincronizarValorGlobal = () => {
-    setValorGlobal(totalCalculadoItens.toFixed(2));
+    setValorGlobal(totaisConsolidados.global.toFixed(2));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -579,6 +718,7 @@ function NovoContratoForm() {
         objeto,
         vigenciaInicio,
         vigenciaFim,
+        anosVigencia,
         valorGlobal,
         tipoVigencia,
         portariaContinuadosRef,
@@ -591,9 +731,11 @@ function NovoContratoForm() {
         fornecedorId: isNovoFornecedor ? null : fornecedorId,
         fornecedorNovo: isNovoFornecedor ? fornecedorNovo : null,
         indices: listaIndices,
+        convencoes: convencoes.filter((c) => c.nomeConvencao?.trim()),
         itens: itens.map((it) => ({
           ...it,
           tipoGrupo: tipoAgrupamento,
+          cctVinculada: it.tipoReajuste === 'REPACTUACAO_CCT' ? (it.cctVinculada || convencoes[0]?.nomeConvencao || null) : null,
         })),
       };
 
@@ -837,7 +979,7 @@ function NovoContratoForm() {
                 <div className="flex items-center space-x-1.5 text-xs font-bold text-blue-900 mb-2">
                   <span>Representante Legal (Signatário que Assina o Contrato)</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo do Representante Legal</label>
                     <input
@@ -845,16 +987,6 @@ function NovoContratoForm() {
                       value={fornecedorNovo.nomeRepresentanteLegal}
                       onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, nomeRepresentanteLegal: e.target.value })}
                       placeholder="Nome do representante legal"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">CPF do Representante Legal</label>
-                    <input
-                      type="text"
-                      value={fornecedorNovo.cpfRepresentanteLegal}
-                      onChange={(e) => setFornecedorNovo({ ...fornecedorNovo, cpfRepresentanteLegal: e.target.value })}
-                      placeholder="000.000.000-00"
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
                     />
                   </div>
@@ -1021,14 +1153,20 @@ function NovoContratoForm() {
             <span>3. Vigência, Valores e Classificação Normativa</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Início da Vigência *</label>
               <input
                 type="date"
                 required
                 value={vigenciaInicio}
-                onChange={(e) => setVigenciaInicio(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVigenciaInicio(val);
+                  if (val && vigenciaFim) {
+                    setAnosVigencia(calcularAnosPorDatas(val, vigenciaFim));
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
               />
             </div>
@@ -1039,13 +1177,56 @@ function NovoContratoForm() {
                 type="date"
                 required
                 value={vigenciaFim}
-                onChange={(e) => setVigenciaFim(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVigenciaFim(val);
+                  if (vigenciaInicio && val) {
+                    setAnosVigencia(calcularAnosPorDatas(vigenciaInicio, val));
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Valor Global (R$) *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Duração (Anos) *</label>
+                <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                  {anosVigencia * 12} meses
+                </span>
+              </div>
+              <select
+                value={anosVigencia}
+                onChange={(e) => setAnosVigencia(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-bold text-slate-800"
+              >
+                <option value={1}>1 ano (12 meses - Não Plurianual)</option>
+                <option value={2}>2 anos (24 meses - Plurianual)</option>
+                <option value={3}>3 anos (36 meses - Plurianual)</option>
+                <option value={4}>4 anos (48 meses - Plurianual)</option>
+                <option value={5}>5 anos (60 meses - Plurianual)</option>
+                <option value={6}>6 anos (72 meses - Plurianual)</option>
+                <option value={7}>7 anos (84 meses - Plurianual)</option>
+                <option value={8}>8 anos (96 meses - Plurianual)</option>
+                <option value={9}>9 anos (108 meses - Plurianual)</option>
+                <option value={10}>10 anos (120 meses - Limite Legal IN 01/2026)</option>
+              </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Valor Global (R$) *</label>
+                {totaisConsolidados.global > 0 && (
+                  <button
+                    type="button"
+                    onClick={sincronizarValorGlobal}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
+                    title="Preencher com a soma calculada dos itens"
+                  >
+                    Sincronizar
+                  </button>
+                )}
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -1056,6 +1237,29 @@ function NovoContratoForm() {
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-semibold"
               />
             </div>
+          </div>
+
+          {/* Banner Informativo de Vigência e Regra Plurianual */}
+          <div className="p-3 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-blue-50/60 border-blue-200 text-blue-900">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                {anosVigencia > 1 ? (
+                  <>
+                    Contrato <strong>Plurianual de {anosVigencia} anos ({anosVigencia * 12} meses)</strong>. A coluna <strong>Total Plurianual</strong> calculará o valor correspondente (a * {anosVigencia * 12}) e definirá a base do <strong>Valor Global</strong> do contrato.
+                  </>
+                ) : (
+                  <>
+                    Contrato de <strong>1 ano (12 meses)</strong>. A coluna plurianual permanece zerada (R$ 0,00) e o <strong>Valor Global</strong> é calculado com base no <strong>Total Anual (a * 12)</strong>.
+                  </>
+                )}
+              </span>
+            </div>
+            {totaisConsolidados.global > 0 && (
+              <span className="font-bold text-xs bg-white px-2.5 py-1 rounded-lg border border-blue-300 text-blue-950 shrink-0 self-start sm:self-auto">
+                Total Calculado: {totaisConsolidados.global.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            )}
           </div>
 
           {/* Tipo de Vigência */}
@@ -1173,15 +1377,55 @@ function NovoContratoForm() {
             <span>4. Regras de Reajuste, Repactuação & Data-Base</span>
           </div>
 
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-            <div className="flex items-center space-x-1.5 font-bold text-slate-800">
-              <Info className="w-4 h-4 text-blue-600" />
-              <span>Regra Legal de Reajustes (Art. 63 da IN 01/2026 - PROAD):</span>
+          {/* Banners Inteligentes de Reajuste / Repactuação */}
+          {indiceCct && (indiceIpca || indiceSetorial) && (
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-blue-50 rounded-xl border border-amber-300 text-xs text-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 font-bold text-amber-900">
+                <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Contrato Híbrido Detectado (Mão de Obra + Insumos/Serviços - Ex: Manutenção Predial):</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] pt-1">
+                <div className="bg-white/90 p-3 rounded-lg border border-amber-200">
+                  <span className="font-bold text-emerald-800 block mb-1">Trilha 1: Mão de Obra Residente (CCT)</span>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Sem exigência de interregno de 01 ano.</strong> A repactuação é admitida e produz efeitos tão logo exista nova Convenção Coletiva de Trabalho da categoria homologada/registrada.
+                  </p>
+                </div>
+                <div className="bg-white/90 p-3 rounded-lg border border-blue-200">
+                  <span className="font-bold text-blue-800 block mb-1">
+                    Trilha 2: Insumos, Materiais & Peças ({nomeIndiceSetorial || (indiceIpca ? 'IPCA' : 'Índice Setorial')})
+                  </span>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Sujeito ao interregno obrigatório de 01 ano</strong> (365 dias) a contar da Data do Orçamento Estimado da Licitação ou do último reajuste por índice.
+                  </p>
+                </div>
+              </div>
             </div>
-            <p>
-              Reajustes ordinários ocorrem somente após o interregno de <strong>1 ano da data do orçamento estimado</strong> da licitação. Contratos com terceirização de mão de obra seguem a data-base da Convenção Coletiva (CCT), independente de interregno.
-            </p>
-          </div>
+          )}
+
+          {indiceCct && !indiceIpca && !indiceSetorial && (
+            <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1">
+              <div className="flex items-center space-x-1.5 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>Regime Exclusivo de Repactuação por Convenção Coletiva (CCT):</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                <strong>Não há interregno de 01 ano para repactuação.</strong> Conforme a jurisprudência consolidada e o Art. 135 da Lei 14.133/2021, a repactuação vincula-se ao registro da nova convenção coletiva ou data-base sindical, não subordinando-se à trava anual dos índices de preços.
+              </p>
+            </div>
+          )}
+
+          {!indiceCct && (indiceIpca || indiceSetorial) && (
+            <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-1">
+              <div className="flex items-center space-x-1.5 font-bold">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span>Regime de Reajuste em Sentido Estrito por Índice de Preços:</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Sujeito ao <strong>interregno obrigatório de 01 ano (365 dias)</strong> contado da data do orçamento estimado da licitação ou do último reajuste concedido.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1262,6 +1506,102 @@ function NovoContratoForm() {
               </div>
             </div>
           )}
+
+          {/* Sub-seção: Convenções Coletivas Vinculadas (Multi-CCT) */}
+          {(indiceCct || tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' || itens.some((it) => it.tipoReajuste === 'REPACTUACAO_CCT')) && (
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-2">
+                <div>
+                  <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-950">
+                    <Briefcase className="w-4 h-4 text-amber-700" />
+                    <span>Convenções Coletivas Vinculadas ao Contrato (Multi-CCT)</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-bold">
+                      {convencoes.length} {convencoes.length === 1 ? 'convenção' : 'convenções'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Um mesmo contrato pode ter mais de uma CCT (ex: motoristas vinculados a uma convenção e o supervisor a outra). Cadastre abaixo as convenções para vinculá-las aos postos na tabela de itens.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddConvencao}
+                  className="inline-flex items-center space-x-1 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Adicionar Outra CCT</span>
+                </button>
+              </div>
+
+              {/* Lista de Convenções */}
+              <div className="space-y-2.5">
+                {convencoes.map((conv, cIdx) => (
+                  <div key={cIdx} className="bg-white p-3 rounded-lg border border-amber-200 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                    <div className="sm:col-span-4">
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-0.5">
+                        Identificação da Convenção / CCT *
+                      </label>
+                      <input
+                        type="text"
+                        value={conv.nomeConvencao}
+                        onChange={(e) => handleConvencaoChange(cIdx, 'nomeConvencao', e.target.value)}
+                        placeholder="Ex: CCT Motoristas (SINDITRANS)"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-amber-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-0.5">
+                        Sindicato Laboral
+                      </label>
+                      <input
+                        type="text"
+                        value={conv.sindicatoLaboral || ''}
+                        onChange={(e) => handleConvencaoChange(cIdx, 'sindicatoLaboral', e.target.value)}
+                        placeholder="Ex: SINDITRANS/RN"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-0.5">
+                        Mês Data-Base
+                      </label>
+                      <input
+                        type="text"
+                        value={conv.dataBase || ''}
+                        onChange={(e) => handleConvencaoChange(cIdx, 'dataBase', e.target.value)}
+                        placeholder="Ex: Maio, Janeiro"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-0.5">
+                        Nº Reg. MTE
+                      </label>
+                      <input
+                        type="text"
+                        value={conv.numeroRegistroMte || ''}
+                        onChange={(e) => handleConvencaoChange(cIdx, 'numeroRegistroMte', e.target.value)}
+                        placeholder="Ex: RN000123/2026"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:border-amber-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-1 text-center flex sm:justify-center items-end">
+                      {convencoes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveConvencao(cIdx)}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remover esta convenção"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* SEÇÃO 5: MÓDULO 2 - ITENS DO CONTRATO & LIMITES LEGAIS */}
@@ -1295,10 +1635,10 @@ function NovoContratoForm() {
                   setShowImportModal(true);
                 }}
                 className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
-                title="Carregar itens via arquivo Excel ou CSV"
+                title="Carregar lista de itens e postos via arquivo Excel (.xlsx) ou CSV"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
-                <span>Importar Planilha</span>
+                <span>Importar Itens (.xlsx)</span>
               </button>
 
               <button
@@ -1335,6 +1675,14 @@ function NovoContratoForm() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Aviso sobre Planilhas de Composição de Custos analíticas da IN 05/2017 */}
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start sm:items-center space-x-2">
+            <Calculator className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <p className="leading-snug">
+              <strong>Nota sobre Composição de Custos:</strong> Esta tabela destina-se ao lançamento dos <strong>Itens e Postos do Contrato</strong> (quantidades e valores mensais/anuais). Se você possui a <strong>Planilha Analítica de Composição de Custos (Módulos 1 a 6 e BDI da IN 05/2017)</strong>, ela poderá ser cadastrada ou importada na página de detalhes do contrato logo após salvar este cadastro.
+            </p>
           </div>
 
           {/* Tipo de Licitação & Regra de Acréscimo */}
@@ -1395,7 +1743,7 @@ function NovoContratoForm() {
               <div className="flex items-center space-x-2">
                 <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
                 <span>
-                  A soma calculada dos itens é <strong>{totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>, enquanto o Valor Global informado no campo de vigência é <strong>{(parseFloat(valorGlobal) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>.
+                  A soma calculada dos itens ({anosVigencia > 1 ? `Plurianual de ${anosVigencia} anos` : 'Anual de 1 ano'}) é <strong>{totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>, enquanto o Valor Global informado no campo de vigência é <strong>{(parseFloat(valorGlobal) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>.
                 </span>
               </div>
               <button
@@ -1404,7 +1752,7 @@ function NovoContratoForm() {
                 className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-[11px] shadow-sm transition-colors whitespace-nowrap cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" />
-                <span>Sincronizar Valor Global</span>
+                <span>Sincronizar Valor Global ({anosVigencia > 1 ? 'Plurianual' : 'Anual'})</span>
               </button>
             </div>
           )}
@@ -1421,7 +1769,7 @@ function NovoContratoForm() {
                     setItemSearch(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder="Filtrar por descrição, número ou unidade..."
+                  placeholder="Filtrar por função, posto, número ou cidade..."
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
                 />
               </div>
@@ -1429,23 +1777,54 @@ function NovoContratoForm() {
                 Exibindo {itens.filter((it) => {
                   if (!itemSearch.trim()) return true;
                   const q = itemSearch.toLowerCase();
-                  return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || it.unidade.toLowerCase().includes(q);
+                  return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || (it.cidade || '').toLowerCase().includes(q) || it.unidade.toLowerCase().includes(q);
                 }).length} de {itens.length} itens
               </div>
             </div>
           )}
 
-          {/* Tabela de Itens */}
-          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          {/* Barra de Classificação Rápida de Itens em Lote */}
+          {itens.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+              <span className="font-semibold text-slate-700">Classificação da Regra de Reajuste em Lote:</span>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REPACTUACAO_CCT' })))}
+                  className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Marcar todos os itens como Mão de Obra Residente (CCT - Repactuação sem Interregno de 1 ano)"
+                >
+                  Todos Mão de Obra (CCT)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REAJUSTE_INDICE' })))}
+                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Marcar todos os itens como Insumos/Serviços (Índice - Interregno de 1 ano)"
+                >
+                  Todos Insumos/Índice (1 ano)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tabela de Itens com Lançamento Mensal, Anual e Plurianual */}
+          <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
             <table className="w-full text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3 w-16 text-center">Item</th>
-                  <th className="py-2.5 px-3">Descrição do Item</th>
-                  <th className="py-2.5 px-3 w-24 text-center">Unidade</th>
-                  <th className="py-2.5 px-3 w-28 text-right">Quantidade</th>
-                  <th className="py-2.5 px-3 w-32 text-right">Valor Unit. (R$)</th>
-                  <th className="py-2.5 px-3 w-32 text-right">Total (R$)</th>
+                  <th className="py-2.5 px-3 w-14 text-center">Item</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">Função / Posto de Mão de Obra</th>
+                  <th className="py-2.5 px-3 w-28 text-center">Cidade Execução</th>
+                  <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
+                  <th className="py-2.5 px-3 w-32 text-center">Regra Reajuste</th>
+                  <th className="py-2.5 px-3 min-w-[170px] text-center" title="Convenção Coletiva de Trabalho vinculada a este posto (Multi-CCT)">Convenção Vinculada (CCT)</th>
+                  <th className="py-2.5 px-3 w-24 text-right" title="Quantidade do posto no mês">Qtd Posto/Mês</th>
+                  <th className="py-2.5 px-3 w-32 text-right" title="Valor mensal unitário do posto (a)">Valor Mensal Unit. (a)</th>
+                  <th className="py-2.5 px-3 w-32 text-right bg-blue-50/50" title="Valor Total Anual: Quantidade x Valor Mensal x 12">Total Anual (a * 12)</th>
+                  <th className={`py-2.5 px-3 w-36 text-right ${anosVigencia > 1 ? 'bg-blue-100/50 text-blue-950 font-black' : 'bg-slate-50 text-slate-400'}`} title="Valor Plurianual: Quantidade x Valor Mensal x 12 x Anos (Base do Contrato se > 1 ano)">
+                    Total Plurianual ({anosVigencia > 1 ? `a * ${anosVigencia * 12}` : '0'})
+                  </th>
                   <th className="py-2.5 px-2 w-12 text-center">Ações</th>
                 </tr>
               </thead>
@@ -1459,6 +1838,7 @@ function NovoContratoForm() {
                       return (
                         item.descricao.toLowerCase().includes(q) ||
                         String(item.numeroItem).includes(q) ||
+                        (item.cidade || '').toLowerCase().includes(q) ||
                         item.unidade.toLowerCase().includes(q)
                       );
                     });
@@ -1469,8 +1849,8 @@ function NovoContratoForm() {
                   if (paginated.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
-                          Nenhum item encontrado com o filtro "{itemSearch}".
+                        <td colSpan={11} className="text-center py-6 text-slate-400 text-xs">
+                          Nenhum posto/item encontrado com o filtro "{itemSearch}".
                         </td>
                       </tr>
                     );
@@ -1478,9 +1858,10 @@ function NovoContratoForm() {
 
                   return paginated.map((it) => {
                     const idx = it.originalIndex;
-                    const subtotal = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0);
+                    const { totalAnual, totalPlurianual } = calcularValoresItem(it);
+
                     return (
-                      <tr key={idx} className="hover:bg-slate-50/50">
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-2 px-3 font-bold text-slate-800 text-center">{it.numeroItem}</td>
                         <td className="py-2 px-3">
                           <input
@@ -1488,18 +1869,89 @@ function NovoContratoForm() {
                             required
                             value={it.descricao}
                             onChange={(e) => handleItemChange(idx, 'descricao', e.target.value)}
-                            placeholder="Descrição do material ou serviço..."
+                            placeholder="Ex: Motorista Categoria B, Vigia..."
                             className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 focus:bg-white"
                           />
+                        </td>
+                        <td className="py-2 px-3">
+                          <select
+                            value={it.cidade || 'Mossoró'}
+                            onChange={(e) => handleItemChange(idx, 'cidade', e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                          >
+                            <option value="Mossoró">Mossoró</option>
+                            <option value="Assú">Assú</option>
+                            <option value="Caicó">Caicó</option>
+                            <option value="Patu">Patu</option>
+                            <option value="Pau dos Ferros">Pau dos Ferros</option>
+                            <option value="Natal">Natal</option>
+                            <option value="Geral/Todos">Geral/Todos</option>
+                          </select>
                         </td>
                         <td className="py-2 px-3">
                           <input
                             type="text"
                             value={it.unidade}
                             onChange={(e) => handleItemChange(idx, 'unidade', e.target.value)}
-                            placeholder="UN, MÊS"
-                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-center uppercase outline-none focus:border-blue-600 focus:bg-white"
+                            placeholder="MÊS"
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-center uppercase outline-none focus:border-blue-600 focus:bg-white font-bold"
                           />
+                        </td>
+                        <td className="py-2 px-3">
+                          <select
+                            value={it.tipoReajuste || 'REPACTUACAO_CCT'}
+                            onChange={(e) => handleItemChange(idx, 'tipoReajuste', e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-[11px] font-semibold outline-none focus:border-blue-600 bg-white"
+                          >
+                            <option value="REPACTUACAO_CCT">Mão de Obra (CCT)</option>
+                            <option value="REAJUSTE_INDICE">Insumos/Serviços (1a)</option>
+                            <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
+                          </select>
+                        </td>
+                        <td className="py-2 px-3">
+                          {it.tipoReajuste === 'REPACTUACAO_CCT' ? (
+                            <div className="space-y-1">
+                              <select
+                                value={
+                                  convencoes.some((c) => c.nomeConvencao === it.cctVinculada)
+                                    ? it.cctVinculada
+                                    : (it.cctVinculada ? '__OUTRA__' : (convencoes[0]?.nomeConvencao || ''))
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value === '__OUTRA__') {
+                                    handleItemChange(idx, 'cctVinculada', 'Nova CCT');
+                                  } else {
+                                    handleItemChange(idx, 'cctVinculada', e.target.value);
+                                    handleItemChange(idx, 'indiceReferencia', e.target.value);
+                                  }
+                                }}
+                                className="w-full px-2 py-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-[11px] font-semibold text-amber-950 outline-none focus:border-amber-600"
+                              >
+                                {convencoes.map((c, cI) => (
+                                  <option key={cI} value={c.nomeConvencao}>
+                                    {c.nomeConvencao || `CCT ${cI + 1}`} {c.dataBase ? `(${c.dataBase})` : ''}
+                                  </option>
+                                ))}
+                                <option value="__OUTRA__">✏️ Outra CCT...</option>
+                              </select>
+                              {(!convencoes.some((c) => c.nomeConvencao === it.cctVinculada) && it.cctVinculada) && (
+                                <input
+                                  type="text"
+                                  value={it.cctVinculada}
+                                  onChange={(e) => {
+                                    handleItemChange(idx, 'cctVinculada', e.target.value);
+                                    handleItemChange(idx, 'indiceReferencia', e.target.value);
+                                  }}
+                                  placeholder="Digite a convenção..."
+                                  className="w-full px-2 py-1 border border-amber-300 rounded text-[11px] font-medium outline-none bg-white"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic block text-center">
+                              Não se aplica ({it.tipoReajuste === 'NAO_REAJUSTAVEL' ? 'Fixo' : 'Índice'})
+                            </span>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           <input
@@ -1508,7 +1960,9 @@ function NovoContratoForm() {
                             required
                             value={it.quantidade}
                             onChange={(e) => handleItemChange(idx, 'quantidade', e.target.value)}
-                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                            placeholder="1"
+                            title="Quantidade do posto no mês"
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -1518,11 +1972,20 @@ function NovoContratoForm() {
                             required
                             value={it.valorUnitario}
                             onChange={(e) => handleItemChange(idx, 'valorUnitario', e.target.value)}
-                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                            placeholder="0,00"
+                            title="Valor mensal unitário do posto (a)"
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
                           />
                         </td>
-                        <td className="py-2 px-3 font-semibold text-slate-900 text-right whitespace-nowrap">
-                          {subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        <td className="py-2 px-3 font-semibold text-slate-800 text-right whitespace-nowrap bg-blue-50/30">
+                          {totalAnual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className={`py-2 px-3 text-right whitespace-nowrap ${anosVigencia > 1 ? 'font-bold text-blue-900 bg-blue-100/40' : 'text-slate-400 bg-slate-50'}`}>
+                          {anosVigencia > 1 ? (
+                            totalPlurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-400">R$ 0,00</span>
+                          )}
                         </td>
                         <td className="py-2 px-2 text-center">
                           <button
@@ -1530,7 +1993,7 @@ function NovoContratoForm() {
                             onClick={() => handleRemoveItem(idx)}
                             disabled={itens.length === 1}
                             className="text-slate-400 hover:text-red-600 disabled:opacity-30 cursor-pointer p-1 rounded transition-colors"
-                            title="Remover item"
+                            title="Remover posto"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1548,7 +2011,7 @@ function NovoContratoForm() {
             const filtered = itens.filter((it) => {
               if (!itemSearch.trim()) return true;
               const q = itemSearch.toLowerCase();
-              return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || it.unidade.toLowerCase().includes(q);
+              return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || (it.cidade || '').toLowerCase().includes(q) || it.unidade.toLowerCase().includes(q);
             });
             const totalPages = Math.ceil(filtered.length / pageSize) || 1;
 
@@ -1581,16 +2044,16 @@ function NovoContratoForm() {
             );
           })()}
 
-          {/* Rodapé da Seção de Itens */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100">
-            <div className="flex items-center space-x-2">
+          {/* Rodapé da Seção de Itens com Resumo e Totais */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pt-3 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddItem}
                 className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Adicionar Linha Manual</span>
+                <span>Adicionar Posto/Item</span>
               </button>
 
               <button
@@ -1606,13 +2069,49 @@ function NovoContratoForm() {
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Upload de Planilha em Lote</span>
               </button>
+
+              <button
+                type="button"
+                onClick={sincronizarValorGlobal}
+                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-amber-200"
+                title="Sincronizar Valor Global com o cálculo dos postos"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Atualizar Valor Global</span>
+              </button>
             </div>
 
-            <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 flex items-center space-x-3 text-xs">
-              <span className="font-medium text-slate-600">Soma Total dos {itens.length} Itens:</span>
-              <span className="font-bold text-[#003366] text-base">
-                {totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
+            {/* Painel Consolidado de Valores */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center gap-4 text-xs">
+              <div className="flex flex-col text-right">
+                <span className="text-[10px] text-slate-500 font-medium">Soma Mensal dos Postos:</span>
+                <span className="font-semibold text-slate-700">
+                  {totaisConsolidados.mensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                </span>
+              </div>
+
+              <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+
+              <div className="flex flex-col text-right">
+                <span className="text-[10px] text-slate-500 font-medium">Total Anual (12 meses):</span>
+                <span className="font-semibold text-blue-900">
+                  {totaisConsolidados.anual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+
+              {anosVigencia > 1 && (
+                <>
+                  <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+                  <div className="flex flex-col text-right bg-blue-100/60 px-3 py-1 rounded-lg border border-blue-300">
+                    <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wide">
+                      Total Plurianual ({anosVigencia} anos) - Base Global:
+                    </span>
+                    <span className="font-black text-[#003366] text-sm">
+                      {totaisConsolidados.plurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1781,6 +2280,7 @@ function NovoContratoForm() {
                         <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
                           <tr>
                             <th className="py-2 px-2 text-center w-12">Item</th>
+                            <th className="py-2 px-2 text-center w-20">Cidade</th>
                             <th className="py-2 px-3 text-left">Descrição</th>
                             <th className="py-2 px-2 text-center w-16">Und</th>
                             <th className="py-2 px-2 text-right w-16">Qtd</th>
@@ -1792,6 +2292,7 @@ function NovoContratoForm() {
                           {previewItens.slice(0, 5).map((p, idx) => (
                             <tr key={idx} className="hover:bg-slate-50">
                               <td className="py-1.5 px-2 text-center font-bold text-slate-800">{p.numeroItem}</td>
+                              <td className="py-1.5 px-2 text-center text-blue-700 font-semibold">{p.cidade || 'Mossoró'}</td>
                               <td className="py-1.5 px-3 truncate max-w-xs">{p.descricao}</td>
                               <td className="py-1.5 px-2 text-center">{p.unidade}</td>
                               <td className="py-1.5 px-2 text-right">{parseFloat(p.quantidade).toLocaleString('pt-BR')}</td>

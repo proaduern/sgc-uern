@@ -318,17 +318,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Medição não encontrada.' }, { status: 404 });
     }
 
-    // Regra: Permitir excluir apenas faturas ainda não atestadas definitivamente
-    if (existing.dataRecebimentoDefinitivo !== null || existing.status === 'LIQUIDADO_PAGO') {
-      return NextResponse.json(
-        {
-          error:
-            'Não é permitido excluir faturas/medições que já receberam Ateste Definitivo ou foram liquidadas/pagas.',
-        },
-        { status: 400 }
-      );
-    }
-
+    // O Administrador tem permissão irrestrita para exclusão de medições/faturas (inclusive atestadas ou liquidadas)
     await prisma.medicaoDespesa.delete({ where: { id } });
 
     return NextResponse.json({ success: true, message: 'Medição/fatura excluída com sucesso.' });

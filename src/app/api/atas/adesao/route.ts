@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { canManageAtas } from '@/lib/rbac';
+import { canManageAtas, isAdminRole } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -159,3 +159,47 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Erro ao atualizar adesão.' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    if (!isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores da PROAD podem excluir adesões.' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body?.id;
+      } catch (e) {}
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da adesão é obrigatório.' }, { status: 400 });
+    }
+
+    const adesao = await prisma.ataAdesao.findUnique({
+      where: { id },
+    });
+
+    if (!adesao) {
+      return NextResponse.json({ error: 'Adesão não encontrada.' }, { status: 404 });
+    }
+
+    await prisma.ataAdesao.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: 'Adesão de carona excluída com sucesso.' });
+  } catch (error: any) {
+    console.error('Erro ao excluir adesão:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir adesão.' }, { status: 500 });
+  }
+}
+

@@ -134,6 +134,7 @@ model User {
   atasGerenciadas     AtaRegistroPreco[]
   fornecedor          Fornecedor?
   rascunhosContrato   ContratoRascunho[]
+  alteracoesCriadas   ContratoAlteracao[]
 
   @@map("usuarios")
 }
@@ -197,8 +198,11 @@ model Contrato {
   objeto                      String
   vigenciaInicio              DateTime
   vigenciaFim                 DateTime
+  anosVigencia                Int?           @default(1) // Duração do contrato em anos (1, 2, 3, etc.) para cálculo plurianual
   valorGlobal                 Float
   valorAtualizado             Float
+  valorBaseCalculoAditivos    Float?         @default(0.0) // Base atualizada para fins de limites legais (25% acréscimo / supressão)
+  ultimoProcedimentoAtualizacao String?      // Ex: "Apostilamento nº 01/2026 em 18/05/2026, retroagindo a 01/01/2026"
   tipoVigencia                TipoVigencia   @default(NAO_CONTINUADO)
   portariaContinuadosRef      String?
   portariaContinuadosIdSei    String?
@@ -228,6 +232,8 @@ model Contrato {
   alertas                     AlertaSistema[]
   despesasExecucao            DespesaExecucao[]
   planilhasCustos             ContratoPlanilhaCusto[]
+  alteracoes                  ContratoAlteracao[]
+  imrAvaliacoes               ImrAvaliacao[]
 
   @@map("contratos")
 }
@@ -252,6 +258,7 @@ model ContratoItem {
   contratoId            String
   contrato              Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
   numeroItem            Int
+  cidade                String?  @default("Mossoró") // Cidade de execução (Mossoró, Assú, Caicó, Patu, Pau dos Ferros, Natal)
   descricao             String
   tipoGrupo             String   @default("ITEM_INDIVIDUAL") // GRUPO_UNICO ou ITEM_INDIVIDUAL
   unidade               String
@@ -259,9 +266,14 @@ model ContratoItem {
   quantidadeAtual       Float
   valorUnitarioOriginal Float
   valorUnitarioAtual    Float
+  valorTotalAnual       Float?   @default(0.0) // Valor anual do posto: a * 12 * qtd
+  valorTotalPlurianual  Float?   @default(0.0) // Valor plurianual: a * 12 * anos * qtd (ou 0 se 1 ano)
   valorTotalOriginal    Float
   valorTotalAtual       Float
   limiteAcrescimoPercent Float   @default(25.0) // 25% para compras/serviços e 50% para obras
+  tipoReajuste          String   @default("REAJUSTE_INDICE") // REPACTUACAO_CCT, REAJUSTE_INDICE, NAO_REAJUSTAVEL
+  indiceReferencia      String?  // Ex: "CCT 2026", "SINAPI", "IPCA"
+  cctVinculada          String?  // Nome/Identificação da Convenção Coletiva vinculada (ex: "CCT Motoristas - SINDITRANS", "CCT Supervisores - SINDESP")
   planilhasCustos        ContratoPlanilhaCusto[]
 
   @@map("contrato_itens")
@@ -381,6 +393,7 @@ model TrabalhadorTerceirizado {
   banco            String?
   agencia          String?
   contaCorrente    String?
+  cctVinculada     String?  // Convenção Coletiva à qual o trabalhador está vinculado (ex: "CCT Motoristas")
   salarioBaseCct   Float
   beneficiosInfo   String?
   status           String   @default("ATIVO")
@@ -392,19 +405,21 @@ model TrabalhadorTerceirizado {
 }
 
 model ConvenioColetivo {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   contratoId         String
-  contrato           Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  contrato           Contrato  @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  nomeConvencao      String?   // Nome amigável (ex: "CCT Motoristas - SINDITRANS", "CCT Supervisores - SINDESP")
   numeroRegistroMte  String?
   sindicatoLaboral   String?
   sindicatoPatronal  String?
-  vigenciaInicio     DateTime
-  vigenciaFim        DateTime
-  dataAssinatura          DateTime?
-  arquivoPdfUrl           String?
+  dataBase           String?   // Mês da data-base (ex: "Maio", "Janeiro", "01/05")
+  vigenciaInicio     DateTime?
+  vigenciaFim        DateTime?
+  dataAssinatura     DateTime?
+  arquivoPdfUrl      String?
   categoriasProfissionais String?
   itensFiscalizacao       Json?    // Estrutura com salarios, beneficios, obrigacoesComPagamento, obrigacoesSemPagamento
-  createdAt               DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   funcoes                 ConvenioColetivoFuncao[]
 
@@ -612,5 +627,69 @@ model DespesaExecucao {
 
   @@map("despesas_execucao")
 }
+
+// 17. Registro de Alterações Contratuais com Versionamento Imutável (Histórico e Timeline)
+enum TipoAlteracaoContratual {
+  REAJUSTE_APOSTILAMENTO
+  REPACTUACAO_APOSTILAMENTO
+  REEQUILIBRIO_ADITIVO
+  ACRESCIMO_ADITIVO
+  SUPRESSAO_ADITIVO
+  PRORROGACAO_ADITIVO
+  OUTRAS_ADITIVO
+}
+
+model ContratoAlteracao {
+  id                        String                   @id @default(uuid())
+  contratoId                String
+  contrato                  Contrato                 @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  tipoAlteracao             TipoAlteracaoContratual
+  instrumento               String                   // APOSTILAMENTO ou TERMO_ADITIVO
+  numeroTermo               String                   // Ex: "Apostilamento nº 01/2026" ou "1º Termo Aditivo"
+  processoSei               String
+  documentoSeiId            String
+  dataAssinatura            DateTime
+  possuiEfeitoRetroativo    Boolean                  @default(false)
+  dataRetroatividade        DateTime?                // Data a partir da qual os novos valores produzem efeitos
+  valorAnterior             Float
+  valorAjuste               Float                    // Valor acrescentado (+) ou suprimido (-)
+  novoValorGlobal           Float
+  novaBaseCalculoAditivos   Float                    // Nova base para limites de 25% (ou 50%)
+  vigenciaAnterior          DateTime?
+  novaVigenciaFim           DateTime?
+  justificativa             String?
+  itensSnapshotAnterior     Json?                    // Snapshot dos itens antes da alteração
+  itensSnapshotAtualizado   Json?                    // Snapshot dos itens atualizados
+  calculoResidualJson       Json?                    // Demonstrativo das faturas recalculadas
+  valorResidualTotal        Float                    @default(0.0)
+  status                    String                   @default("ATIVO")
+  criadoPorId               String
+  criadoPor                 User                     @relation(fields: [criadoPorId], references: [id])
+  createdAt                 DateTime                 @default(now())
+
+  @@map("contrato_alteracoes")
+}
+
+// 18. Avaliações de IMR (Instrumento de Medição de Resultado - Anexo I IN 01/2026)
+model ImrAvaliacao {
+  id                 String   @id @default(uuid())
+  contratoId         String
+  contrato           Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  mesCompetencia     String   // MM/AAAA
+  localCampus        String   // Mossoró, Assú, Caicó, Patu, Pau dos Ferros, Natal
+  totalPontos        Float    @default(0.0)
+  percentualGlosa    Float    @default(0.0) // Calculado conforme tabela de pontuação
+  valorGlosa         Float    @default(0.0)
+  observacoes        String?
+  fiscalNome         String?
+  fiscalMatricula    String?
+  status             String   @default("CONCLUIDO") // RASCUNHO, CONCLUIDO, NOTIFICADO
+  itens              Json     // Lista detalhada das ocorrências, pontuações e docs SEI
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("imr_avaliacoes")
+}
+
 
 

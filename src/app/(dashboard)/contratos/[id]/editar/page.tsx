@@ -112,8 +112,11 @@ export default function EditarContratoPage() {
   const [itens, setItens] = useState<Array<{
     id?: string;
     numeroItem: number;
+    cidade?: string;
     descricao: string;
     unidade: string;
+    tipoReajuste?: string;
+    indiceReferencia?: string;
     quantidade: string;
     valorUnitario: string;
   }>>([]);
@@ -124,6 +127,7 @@ export default function EditarContratoPage() {
   const [importFileName, setImportFileName] = useState('');
   const [previewItens, setPreviewItens] = useState<Array<{
     numeroItem: number;
+    cidade?: string;
     descricao: string;
     unidade: string;
     quantidade: string;
@@ -207,10 +211,17 @@ export default function EditarContratoPage() {
               c.itens.map((it: any) => ({
                 id: it.id,
                 numeroItem: it.numeroItem,
+                cidade: it.cidade || 'Mossoró',
                 descricao: it.descricao,
                 unidade: it.unidade || 'UN',
                 quantidade: String(it.quantidadeAtual ?? it.quantidadeOriginal ?? 1),
                 valorUnitario: String(it.valorUnitarioAtual ?? it.valorUnitarioOriginal ?? 0),
+                tipoReajuste: it.tipoReajuste || (
+                  ['MÊS', 'MES', 'POSTO'].includes((it.unidade || '').toUpperCase()) && c.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+                    ? 'REPACTUACAO_CCT'
+                    : 'REAJUSTE_INDICE'
+                ),
+                indiceReferencia: it.indiceReferencia || '',
               }))
             );
             if (c.itens[0]?.tipoGrupo) {
@@ -218,7 +229,7 @@ export default function EditarContratoPage() {
             }
           } else {
             setItens([
-              { numeroItem: 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+              { numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
             ]);
           }
         })
@@ -287,7 +298,7 @@ export default function EditarContratoPage() {
   const handleAddItem = () => {
     setItens([
       ...itens,
-      { numeroItem: itens.length + 1, descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+      { numeroItem: itens.length + 1, cidade: 'Mossoró', descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
     ]);
   };
 
@@ -335,6 +346,7 @@ export default function EditarContratoPage() {
 
         const parsedList: Array<{
           numeroItem: number;
+          cidade?: string;
           descricao: string;
           unidade: string;
           quantidade: string;
@@ -345,6 +357,7 @@ export default function EditarContratoPage() {
         rows.forEach((row, index) => {
           const keys = Object.keys(row);
           let numeroItem = index + 1;
+          let cidade = 'Mossoró';
           let descricao = '';
           let unidade = 'UN';
           let quantidade = 1;
@@ -361,6 +374,8 @@ export default function EditarContratoPage() {
             if (norm === 'item' || norm === 'no' || norm === 'num' || norm === 'numero') {
               const p = parseInt(String(val).replace(/\D/g, ''));
               if (!isNaN(p) && p > 0) numeroItem = p;
+            } else if (norm.includes('cidade') || norm.includes('municipio') || norm.includes('campus') || norm.includes('local')) {
+              cidade = String(val || '').trim();
             } else if (norm.includes('desc') || norm.includes('especifica') || norm.includes('objeto') || norm.includes('material') || norm.includes('servico')) {
               descricao = String(val || '').trim();
             } else if (norm.includes('unid') || norm === 'und' || norm === 'un') {
@@ -375,6 +390,7 @@ export default function EditarContratoPage() {
           if (descricao || valorUnitario > 0 || quantidade > 0) {
             parsedList.push({
               numeroItem,
+              cidade: cidade || 'Mossoró',
               descricao: descricao || `Item ${numeroItem}`,
               unidade: unidade || 'UN',
               quantidade: String(quantidade || 1),
@@ -404,6 +420,7 @@ export default function EditarContratoPage() {
     if (importMode === 'REPLACE') {
       setItens(previewItens.map((p) => ({
         numeroItem: p.numeroItem,
+        cidade: p.cidade || 'Mossoró',
         descricao: p.descricao,
         unidade: p.unidade,
         quantidade: p.quantidade,
@@ -413,6 +430,7 @@ export default function EditarContratoPage() {
       const proximoNum = itens.length > 0 ? Math.max(...itens.map((i) => i.numeroItem)) + 1 : 1;
       const novos = previewItens.map((p, idx) => ({
         numeroItem: proximoNum + idx,
+        cidade: p.cidade || 'Mossoró',
         descricao: p.descricao,
         unidade: p.unidade,
         quantidade: p.quantidade,
@@ -641,9 +659,6 @@ export default function EditarContratoPage() {
                   <p className="text-[11px] text-slate-700">
                     <strong>Nome:</strong> {f.nomeRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
                   </p>
-                  <p className="text-[11px] text-slate-600 font-mono">
-                    <strong>CPF:</strong> {f.cpfRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
-                  </p>
                   <p className="text-[11px] text-slate-600">
                     <strong>Contato:</strong> {f.telefoneRepresentanteLegal || f.emailRepresentanteLegal || <span className="italic text-slate-400">Não informado</span>}
                   </p>
@@ -719,13 +734,13 @@ export default function EditarContratoPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-700">CPF do Representante</label>
+                    <label className="text-[11px] font-medium text-slate-700">E-mail do Representante</label>
                     <input
-                      type="text"
-                      value={supplierCpfRepresentante}
-                      onChange={(e) => setSupplierCpfRepresentante(e.target.value)}
-                      placeholder="000.000.000-00"
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none font-mono"
+                      type="email"
+                      value={supplierEmailRepresentante}
+                      onChange={(e) => setSupplierEmailRepresentante(e.target.value)}
+                      placeholder="representante@empresa.com"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
                     />
                   </div>
                   <div className="space-y-1">
@@ -997,6 +1012,56 @@ export default function EditarContratoPage() {
             <span>Regras de Reajuste e Interregno (Art. 63 da IN 01/2026)</span>
           </div>
 
+          {/* Banners Inteligentes de Reajuste / Repactuação */}
+          {indiceCct && (indiceIpca || indiceSetorial) && (
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-blue-50 rounded-xl border border-amber-300 text-xs text-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 font-bold text-amber-900">
+                <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Contrato Híbrido Detectado (Mão de Obra + Insumos/Serviços - Ex: Manutenção Predial):</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] pt-1">
+                <div className="bg-white/90 p-3 rounded-lg border border-amber-200">
+                  <span className="font-bold text-emerald-800 block mb-1">Trilha 1: Mão de Obra Residente (CCT)</span>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Sem exigência de interregno de 01 ano.</strong> A repactuação é admitida e produz efeitos tão logo exista nova Convenção Coletiva de Trabalho da categoria homologada/registrada.
+                  </p>
+                </div>
+                <div className="bg-white/90 p-3 rounded-lg border border-blue-200">
+                  <span className="font-bold text-blue-800 block mb-1">
+                    Trilha 2: Insumos, Materiais & Peças ({nomeIndiceSetorial || (indiceIpca ? 'IPCA' : 'Índice Setorial')})
+                  </span>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Sujeito ao interregno obrigatório de 01 ano</strong> (365 dias) a contar da Data do Orçamento Estimado da Licitação ou do último reajuste por índice.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {indiceCct && !indiceIpca && !indiceSetorial && (
+            <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1">
+              <div className="flex items-center space-x-1.5 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>Regime Exclusivo de Repactuação por Convenção Coletiva (CCT):</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                <strong>Não há interregno de 01 ano para repactuação.</strong> Conforme o Art. 135 da Lei 14.133/2021, a repactuação vincula-se ao registro da nova convenção coletiva ou data-base sindical, não subordinando-se à trava anual dos índices de preços.
+              </p>
+            </div>
+          )}
+
+          {!indiceCct && (indiceIpca || indiceSetorial) && (
+            <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-1">
+              <div className="flex items-center space-x-1.5 font-bold">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span>Regime de Reajuste em Sentido Estrito por Índice de Preços:</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Sujeito ao <strong>interregno obrigatório de 01 ano (365 dias)</strong> contado da data do orçamento estimado da licitação ou do último reajuste concedido.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1.5 max-w-sm">
             <label className="text-xs font-bold text-slate-700">Data do Orçamento Estimado da Licitação (Data-Base)</label>
             <input
@@ -1123,6 +1188,31 @@ export default function EditarContratoPage() {
             </div>
           )}
 
+          {/* Barra de Classificação Rápida de Itens em Lote */}
+          {itens.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+              <span className="font-semibold text-slate-700">Classificação da Regra de Reajuste em Lote:</span>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REPACTUACAO_CCT' })))}
+                  className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Marcar todos os itens como Mão de Obra Residente (CCT - Livre de Interregno)"
+                >
+                  Todos Mão de Obra (CCT)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REAJUSTE_INDICE' })))}
+                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Marcar todos os itens como Insumos/Serviços (Índice - Interregno de 1 ano)"
+                >
+                  Todos Insumos/Índice (1 ano)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Tabela de Itens */}
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs">
@@ -1130,10 +1220,12 @@ export default function EditarContratoPage() {
                 <tr>
                   <th className="py-2.5 px-3 w-14 text-center">Item</th>
                   <th className="py-2.5 px-3">Descrição Detalhada do Objeto / Serviço</th>
-                  <th className="py-2.5 px-3 w-20">Unidade</th>
-                  <th className="py-2.5 px-3 w-28">Quantidade</th>
-                  <th className="py-2.5 px-3 w-32">Valor Unit. (R$)</th>
-                  <th className="py-2.5 px-3 w-32 text-right">Subtotal (R$)</th>
+                  <th className="py-2.5 px-3 w-32 text-center">Cidade Execução</th>
+                  <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
+                  <th className="py-2.5 px-3 w-48 text-center">Regra Reajuste</th>
+                  <th className="py-2.5 px-3 w-24">Quantidade</th>
+                  <th className="py-2.5 px-3 w-28">Valor Unit. (R$)</th>
+                  <th className="py-2.5 px-3 w-28 text-right">Subtotal (R$)</th>
                   <th className="py-2.5 px-2 w-10 text-center"></th>
                 </tr>
               </thead>
@@ -1160,6 +1252,21 @@ export default function EditarContratoPage() {
                         />
                       </td>
                       <td className="py-2 px-3">
+                        <select
+                          value={item.cidade || 'Mossoró'}
+                          onChange={(e) => handleItemChange(globalIdx, 'cidade', e.target.value)}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                        >
+                          <option value="Mossoró">Mossoró</option>
+                          <option value="Assú">Assú</option>
+                          <option value="Caicó">Caicó</option>
+                          <option value="Patu">Patu</option>
+                          <option value="Pau dos Ferros">Pau dos Ferros</option>
+                          <option value="Natal">Natal</option>
+                          <option value="Geral/Todos">Geral/Todos</option>
+                        </select>
+                      </td>
+                      <td className="py-2 px-3">
                         <input
                           type="text"
                           value={item.unidade}
@@ -1167,6 +1274,17 @@ export default function EditarContratoPage() {
                           placeholder="UN"
                           className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs uppercase outline-none text-center"
                         />
+                      </td>
+                      <td className="py-2 px-3">
+                        <select
+                          value={item.tipoReajuste || 'REAJUSTE_INDICE'}
+                          onChange={(e) => handleItemChange(globalIdx, 'tipoReajuste', e.target.value)}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold outline-none focus:border-blue-600"
+                        >
+                          <option value="REPACTUACAO_CCT">Mão de Obra (CCT - Sem Interregno)</option>
+                          <option value="REAJUSTE_INDICE">Insumos/Serviços (Índice - 1 ano)</option>
+                          <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
+                        </select>
                       </td>
                       <td className="py-2 px-3">
                         <input

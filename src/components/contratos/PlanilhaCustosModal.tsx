@@ -164,6 +164,14 @@ export default function PlanilhaCustosModal({
     setLendoArquivo(true);
     setErro(null);
     setArquivoUpload(file);
+    const MAX_SIZE_BYTES = 4.5 * 1024 * 1024;
+    if (file.size > MAX_SIZE_BYTES) {
+      const tamanhoMB = (file.size / (1024 * 1024)).toFixed(1);
+      setErro(`O arquivo selecionado possui ${tamanhoMB} MB. O limite máximo para upload direto é de 4.5 MB. Por favor, comprima o arquivo antes de enviar.`);
+      setLendoArquivo(false);
+      return;
+    }
+
     try {
       // Se for arquivo PDF, utilizar o motor inteligente de extração de PDF
       if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
@@ -173,9 +181,21 @@ export default function PlanilhaCustosModal({
           method: 'POST',
           body: fd,
         });
-        const json = await res.json();
+
+        const contentType = res.headers.get('content-type') || '';
+        let json: any = null;
+
+        if (contentType.includes('application/json')) {
+          json = await res.json();
+        } else {
+          const text = await res.text();
+          if (res.status === 413) throw new Error('O arquivo PDF ultrapassa o limite de 4.5 MB. Comprima o PDF antes de enviar.');
+          if (res.status === 504) throw new Error('Tempo limite excedido ao processar o arquivo.');
+          throw new Error(`Erro do servidor (${res.status}). Não foi possível processar o arquivo.`);
+        }
+
         if (!res.ok) {
-          throw new Error(json.error || 'Erro ao processar PDF da planilha de custos');
+          throw new Error(json?.error || 'Erro ao processar PDF da planilha de custos');
         }
 
         const d = json.dados;

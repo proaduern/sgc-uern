@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { canManageAtas } from '@/lib/rbac';
+import { canManageAtas, isAdminRole } from '@/lib/rbac';
 
 export async function GET(
   request: NextRequest,
@@ -171,3 +171,51 @@ export async function PUT(
     return NextResponse.json({ error: error.message || 'Erro ao atualizar Ata' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    if (!isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores podem excluir Atas de Registro de Preço.' },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+
+    const existingAta = await prisma.ataRegistroPreco.findUnique({
+      where: { id },
+      select: { id: true, numeroAta: true, ano: true },
+    });
+
+    if (!existingAta) {
+      return NextResponse.json({ error: 'Ata de Registro de Preço não encontrada.' }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Excluir autorizações de carona (adesões)
+      await tx.ataAdesao.deleteMany({ where: { ataId: id } });
+      // 2. Excluir autorizações de execução (AEA)
+      await tx.ataAutorizacaoExecucao.deleteMany({ where: { ataId: id } });
+      // 3. Excluir itens da ata
+      await tx.ataItem.deleteMany({ where: { ataId: id } });
+      // 4. Excluir a ata propriamente dita
+      await tx.ataRegistroPreco.delete({ where: { id } });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Ata de Registro de Preço nº ${existingAta.numeroAta}/${existingAta.ano} excluída com sucesso.`,
+    });
+  } catch (error: any) {
+    console.error('Erro ao excluir ARP:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir Ata' }, { status: 500 });
+  }
+}
+

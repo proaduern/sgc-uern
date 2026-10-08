@@ -16,10 +16,14 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Edit3,
-  X
+  X,
+  Users,
+  MapPin
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import OficioLiberacaoModal from '@/components/conta-vinculada/OficioLiberacaoModal';
+import OficioCadastroModal from '@/components/conta-vinculada/OficioCadastroModal';
 
 export default function ContaVinculadaPage() {
   const [contratos, setContratos] = useState<any[]>([]);
@@ -27,12 +31,17 @@ export default function ContaVinculadaPage() {
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
   const [saldosPorRubrica, setSaldosPorRubrica] = useState<Record<string, number>>({});
   const [saldoTotal, setSaldoTotal] = useState(0);
+  const [trabalhadores, setTrabalhadores] = useState<any[]>([]);
+  const [saldosPorTrabalhador, setSaldosPorTrabalhador] = useState<Record<string, any>>({});
+  const [activeTab, setActiveTab] = useState<'extrato' | 'trabalhadores'>('extrato');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Modals
   const [showRetencaoModal, setShowRetencaoModal] = useState(false);
   const [showLiberacaoModal, setShowLiberacaoModal] = useState(false);
+  const [showOficioModal, setShowOficioModal] = useState(false);
+  const [showOficioCadastroModal, setShowOficioCadastroModal] = useState(false);
 
   // Estados de Edição
   const [showEditModal, setShowEditModal] = useState(false);
@@ -133,6 +142,8 @@ export default function ContaVinculadaPage() {
         setMovimentacoes(data.movimentacoes);
         setSaldosPorRubrica(data.saldosPorRubrica || {});
         setSaldoTotal(data.saldoTotal || 0);
+        setTrabalhadores(data.trabalhadores || []);
+        setSaldosPorTrabalhador(data.saldosPorTrabalhador || {});
       }
     } catch (e) {
       console.error(e);
@@ -304,16 +315,24 @@ export default function ContaVinculadaPage() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => setShowLiberacaoModal(true)}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-slate-200"
+            onClick={() => setShowOficioCadastroModal(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer"
           >
-            <Printer className="w-4 h-4 text-slate-600" />
-            <span>Autorizar Liberação (Emitir Ofício)</span>
+            <FileText className="w-4 h-4 text-blue-300" />
+            <span>Ofício Cadastro & Ficha BB</span>
+          </button>
+
+          <button
+            onClick={() => setShowOficioModal(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Emitir Ofício Bancário & Liberar</span>
           </button>
 
           <button
             onClick={() => setShowRetencaoModal(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
+            className="inline-flex items-center space-x-2 px-3.5 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
           >
             <Calculator className="w-4 h-4" />
             <span>Calcular Retenções do Mês</span>
@@ -385,101 +404,238 @@ export default function ContaVinculadaPage() {
         </div>
       </div>
 
-      {/* Extrato de Movimentações */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-            Extrato Detalhado de Retenções e Liberações:
-          </div>
-          <span className="text-xs text-slate-500 font-medium">
-            {movimentacoes.length} lançamentos registrados
+      {/* Abas de Visualização */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab('extrato')}
+          className={`pb-3 text-xs font-bold transition-colors flex items-center space-x-2 border-b-2 cursor-pointer ${
+            activeTab === 'extrato'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Extrato de Movimentações</span>
+          <span className="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-full font-bold">
+            {movimentacoes.length}
           </span>
-        </div>
+        </button>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-4">Competência</th>
-                <th className="py-3 px-4">Tipo</th>
-                <th className="py-3 px-4">Rubrica Provisionada</th>
-                <th className="py-3 px-4">Trabalhador Vinculado</th>
-                <th className="py-3 px-4">Valor (R$)</th>
-                <th className="py-3 px-4">Documento / Ofício</th>
-                <th className="py-3 px-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {loading ? (
+        <button
+          type="button"
+          onClick={() => setActiveTab('trabalhadores')}
+          className={`pb-3 text-xs font-bold transition-colors flex items-center space-x-2 border-b-2 cursor-pointer ${
+            activeTab === 'trabalhadores'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Saldos por Funcionário (Controle Individual)</span>
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+            {trabalhadores.length} funcionários
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'extrato' ? (
+        /* Extrato de Movimentações */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+              Extrato Detalhado de Retenções e Liberações:
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              {movimentacoes.length} lançamentos registrados
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400">
-                    Carregando extrato da conta vinculada...
-                  </td>
+                  <th className="py-3 px-4">Competência</th>
+                  <th className="py-3 px-4">Tipo</th>
+                  <th className="py-3 px-4">Rubrica Provisionada</th>
+                  <th className="py-3 px-4">Trabalhador Vinculado</th>
+                  <th className="py-3 px-4">Valor (R$)</th>
+                  <th className="py-3 px-4">Documento / Ofício</th>
+                  <th className="py-3 px-4 text-center">Ações</th>
                 </tr>
-              ) : movimentacoes.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400">
-                    Nenhuma movimentação registrada para este contrato. Clique em "Calcular Retenções do Mês".
-                  </td>
-                </tr>
-              ) : (
-                movimentacoes.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-2.5 px-4 font-mono font-bold text-slate-800">{m.competenciaMesAno}</td>
-                    <td className="py-2.5 px-4">
-                      {m.tipoOperacao === 'RETENCAO_ENTRADA' ? (
-                        <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                          <ArrowDownRight className="w-3 h-3 text-emerald-600" />
-                          <span>Retenção (+)</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center space-x-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                          <ArrowUpRight className="w-3 h-3 text-rose-600" />
-                          <span>Liberação (-)</span>
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 font-semibold text-slate-800">
-                      {getRubricaFormatada(m.rubrica)}
-                    </td>
-                    <td className="py-2.5 px-4">
-                      {m.trabalhador ? (
-                        <div>
-                          <span className="font-semibold text-slate-800">{m.trabalhador.nomeCompleto}</span>
-                          <span className="text-[10px] text-slate-400 block font-mono">{m.trabalhador.cpf}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 italic">Rateio Global</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 font-bold text-slate-900">
-                      {m.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </td>
-                    <td className="py-2.5 px-4 text-[11px] text-slate-500">
-                      {m.numeroOficio || 'Retenção em Fatura'}
-                    </td>
-                    <td className="py-2.5 px-4 text-center">
-                      {currentUser?.isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(m)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                          title="Editar Movimentação"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Editar</span>
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">Lançado</span>
-                      )}
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
+                      Carregando extrato da conta vinculada...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : movimentacoes.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
+                      Nenhuma movimentação registrada para este contrato. Clique em "Calcular Retenções do Mês".
+                    </td>
+                  </tr>
+                ) : (
+                  movimentacoes.map((m) => (
+                    <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-4 font-mono font-bold text-slate-800">{m.competenciaMesAno}</td>
+                      <td className="py-2.5 px-4">
+                        {m.tipoOperacao === 'RETENCAO_ENTRADA' ? (
+                          <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            <ArrowDownRight className="w-3 h-3 text-emerald-600" />
+                            <span>Retenção (+)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            <ArrowUpRight className="w-3 h-3 text-rose-600" />
+                            <span>Liberação (-)</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 font-semibold text-slate-800">
+                        {getRubricaFormatada(m.rubrica)}
+                      </td>
+                      <td className="py-2.5 px-4">
+                        {m.trabalhador ? (
+                          <div>
+                            <span className="font-semibold text-slate-800">{m.trabalhador.nomeCompleto}</span>
+                            <span className="text-[10px] text-slate-400 block font-mono">{m.trabalhador.cpf}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">Rateio Global</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 font-bold text-slate-900">
+                        {m.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td className="py-2.5 px-4 text-[11px] text-slate-500">
+                        {m.numeroOficio || 'Retenção em Fatura'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center">
+                        {currentUser?.isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(m)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Editar Movimentação"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Editar</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Lançado</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Aba de Saldos por Funcionário (Controle Individual Exigido) */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-2">
+                <Users className="w-4 h-4 text-blue-700" />
+                <span>Controle de Saldos Individuais por Funcionário (Art. 10 da Lei 10.841/2021)</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Os valores retidos na Conta Vinculada são discriminados por trabalhador. Ao enviar o ofício ao banco, o débito individual é computado.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowOficioModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Emitir Ofício e Debitar Trabalhadores</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">Funcionário</th>
+                  <th className="py-3 px-4">Função / Cargo</th>
+                  <th className="py-3 px-4">Campus / Local</th>
+                  <th className="py-3 px-4 text-right">Salário Base</th>
+                  <th className="py-3 px-4 text-right">Total Retido (+)</th>
+                  <th className="py-3 px-4 text-right">Total Liberado (-)</th>
+                  <th className="py-3 px-4 text-right">Saldo Bloqueado Atual</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                      Carregando funcionários do contrato...
+                    </td>
+                  </tr>
+                ) : trabalhadores.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                      Nenhum trabalhador cadastrado para este contrato. Cadastre trabalhadores na aba Mão de Obra para habilitar o controle individualizado.
+                    </td>
+                  </tr>
+                ) : (
+                  trabalhadores.map((t) => {
+                    const saldos = saldosPorTrabalhador[t.id] || { retido: 0, liberado: 0, saldo: 0 };
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-700">
+                          {t.funcao || 'Operacional'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span>{t.localidade || 'Campus Central Mossoró'}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700">
+                          {(t.salarioBase || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-emerald-700 font-mono">
+                          {saldos.retido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-rose-600 font-mono">
+                          {saldos.liberado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-blue-900 font-mono">
+                          {saldos.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {t.status === 'ATIVO' ? (
+                            <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Ativo</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                              <span>Inativo</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Modal Cálculo de Retenção Automática */}
       {showRetencaoModal && (
@@ -762,6 +918,30 @@ export default function ContaVinculadaPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal Emissão de Ofício Bancário com Cálculo Automático e Débito por Funcionário */}
+      {showOficioModal && (
+        <OficioLiberacaoModal
+          contrato={contratos.find((c) => c.id === selectedContratoId)}
+          trabalhadores={trabalhadores}
+          saldosPorTrabalhador={saldosPorTrabalhador}
+          onClose={() => setShowOficioModal(false)}
+          onSucesso={() => {
+            setShowOficioModal(false);
+            if (selectedContratoId) {
+              carregarMovimentacoes(selectedContratoId);
+            }
+          }}
+        />
+      )}
+
+      {/* Modal Emissão de Ofício de Cadastro de Convênio & Ficha Cadastral BB */}
+      {showOficioCadastroModal && (
+        <OficioCadastroModal
+          contrato={contratos.find((c) => c.id === selectedContratoId)}
+          onClose={() => setShowOficioCadastroModal(false)}
+        />
       )}
     </div>
   );

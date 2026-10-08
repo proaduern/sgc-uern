@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Calcular saldos acumulados por rubrica
+    // Calcular saldos acumulados por rubrica e por trabalhador
     const saldosPorRubrica: Record<string, number> = {
       FERIAS_8_33: 0,
       TERCO_FERIAS_2_78: 0,
@@ -66,25 +66,53 @@ export async function GET(request: NextRequest) {
       MULTA_RESCISORIA_FGTS: 0,
     };
 
+    const saldosPorTrabalhador: Record<string, { total: number; porRubrica: Record<string, number> }> = {};
     let saldoTotal = 0;
 
     for (const mov of movimentacoes) {
       const valor = mov.tipoOperacao === 'RETENCAO_ENTRADA' ? mov.valor : -mov.valor;
       saldosPorRubrica[mov.rubrica] = (saldosPorRubrica[mov.rubrica] || 0) + valor;
       saldoTotal += valor;
+
+      if (mov.trabalhadorId) {
+        if (!saldosPorTrabalhador[mov.trabalhadorId]) {
+          saldosPorTrabalhador[mov.trabalhadorId] = {
+            total: 0,
+            porRubrica: {
+              FERIAS_8_33: 0,
+              TERCO_FERIAS_2_78: 0,
+              DECIMO_TERCEIRO_8_33: 0,
+              FGTS_SOBRE_PROVISOES: 0,
+              MULTA_RESCISORIA_FGTS: 0,
+            },
+          };
+        }
+        saldosPorTrabalhador[mov.trabalhadorId].total += valor;
+        saldosPorTrabalhador[mov.trabalhadorId].porRubrica[mov.rubrica] =
+          (saldosPorTrabalhador[mov.trabalhadorId].porRubrica[mov.rubrica] || 0) + valor;
+      }
     }
+
+    const trabalhadores = contratoId
+      ? await prisma.trabalhadorTerceirizado.findMany({
+          where: { contratoId, status: 'ATIVO' },
+          orderBy: { nomeCompleto: 'asc' },
+        })
+      : [];
 
     return NextResponse.json({
       movimentacoes,
       saldosPorRubrica,
       saldoTotal,
+      saldosPorTrabalhador,
+      trabalhadores,
     });
   } catch (error: any) {
     return NextResponse.json({ error: 'Erro ao buscar dados da Conta Vinculada' }, { status: 500 });
   }
 }
 
-// Calcular e aplicar retenção mensal automática para todos os trabalhadores do contrato
+// Calcular e aplicar retenção mensal automática ou liberação por ofício para trabalhadores
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -98,7 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { contratoId, competenciaMesAno, tipoOperacao, rubrica, valor, trabalhadorId, numeroOficio, motivoLiberacao } = body;
+    const { contratoId, competenciaMesAno, tipoOperacao, rubrica, valor, trabalhadorId, numeroOficio, motivoLiberacao, liberacoes } = body;
 
     if (!contratoId) {
       return NextResponse.json({ error: 'Contrato ID é obrigatório.' }, { status: 400 });
@@ -111,7 +139,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Se for liberação manual
+    // Se for liberação em lote por trabalhador via Ofício Bancário
+    if (tipoOperacao === 'LIBERACAO_OFICIO_LOTE') {
+      if (!Array.isArray(liberacoes) || liberacoes.length === 0) {
+        return NextResponse.json({ error: 'Nenhuma liberação de trabalhador selecionada.' }, { status: 400 });
+      }
+
+      const registrosCriados = await prisma.$transaction(async (tx) => {
+        const registros = [];
+        for (const item of liberacoes) {
+          const valFloat = parseFloat(item.valor) || 0;
+          if (valFloat > 0) {
+            const m = await tx.contaVinculadaMovimentacao.create({
+              data: {
+                contratoId,
+                trabalhadorId: item.trabalhadorId || null,
+                competenciaMesAno: competenciaMesAno || '03/2026',
+                rubrica: item.rubrica || rubrica || 'DECIMO_TERCEIRO_8_33',
+                tipoOperacao: 'LIBERACAO_SAIDA',
+                valor: valFloat,
+                saldoAnterior: 0,
+                saldoAtual: 0,
+                numeroOficio: numeroOficio || 'OFÍCIO-PROAD/2026',
+                motivoLiberacao: motivoLiberacao || `Liberação de ${item.rubrica || rubrica} via ${numeroOficio || 'Ofício Bancário'}`,
+              },
+            });
+            registros.push(m);
+          }
+        }
+        return registros;
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `${registrosCriados.length} saídas debitadas por funcionário com sucesso.`,
+        movimentacoes: registrosCriados,
+      });
+    }
+
+    // Se for liberação manual simples
     if (tipoOperacao === 'LIBERACAO_SAIDA') {
       if (!valor || !rubrica) {
         return NextResponse.json({ error: 'Rubrica e Valor são obrigatórios para liberação.' }, { status: 400 });

@@ -395,17 +395,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Lançamento de despesa não encontrado.' }, { status: 404 });
     }
 
-    // Regra: Permitir excluir apenas despesas ainda não atestadas
-    if (existing.status === 'ATESTADA' || existing.status === 'PAGA' || existing.valorAtestado > 0) {
-      return NextResponse.json(
-        {
-          error:
-            'Não é permitido excluir despesas que já foram atestadas ou liquidadas. Apenas despesas abertas (provisionadas) podem ser excluídas.',
-        },
-        { status: 400 }
-      );
-    }
-
+    // O Administrador tem permissão irrestrita para exclusão de lançamentos de despesa (inclusive atestadas ou pagas)
     await prisma.despesaExecucao.delete({ where: { id } });
 
     return NextResponse.json({ success: true, message: 'Lançamento de despesa excluído com sucesso.' });

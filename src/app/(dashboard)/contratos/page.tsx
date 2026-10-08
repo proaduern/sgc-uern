@@ -21,9 +21,12 @@ import {
   UploadCloud,
   Bookmark,
   ArrowRight,
-  Edit3
+  Edit3,
+  Sparkles,
+  Trash2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import UploadInteligenteContratoModal from '@/components/contratos/UploadInteligenteContratoModal';
 
 export default function ContratosPage() {
   const [contratos, setContratos] = useState<any[]>([]);
@@ -32,6 +35,7 @@ export default function ContratosPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showUploadPdfModal, setShowUploadPdfModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
@@ -65,6 +69,27 @@ export default function ContratosPage() {
       carregarRascunhos();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDeleteContrato = async (c: any) => {
+    const ident = c.numeroContrato || c.processoSeiMae || 'este contrato';
+    if (
+      !confirm(
+        `ATENÇÃO ADMINISTRADOR:\nDeseja realmente EXCLUIR DEFINITIVAMENTE o Contrato "${ident}"?\n\nEsta ação excluirá em cascata todos os itens, medições, despesas por campus, aditivos e vinculações associadas a ele. Esta ação é irreversível.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/contratos/${c.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir contrato');
+      alert(data.message || 'Contrato excluído com sucesso!');
+      carregarContratos();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -198,13 +223,23 @@ export default function ContratosPage() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           {currentUser?.isAdmin && (
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-slate-200"
-            >
-              <UploadCloud className="w-4 h-4 text-slate-500" />
-              <span>Importar Planilha</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowUploadPdfModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-blue-200"
+              >
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span>Upload Inteligente (PDF)</span>
+              </button>
+
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-slate-200"
+              >
+                <UploadCloud className="w-4 h-4 text-slate-500" />
+                <span>Importar Planilha</span>
+              </button>
+            </>
           )}
 
           <button
@@ -464,13 +499,23 @@ export default function ContratosPage() {
                             <Eye className="w-4 h-4" />
                           </Link>
                           {currentUser?.isAdmin && (
-                            <Link
-                              href={`/contratos/${c.id}/editar`}
-                              className="p-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
-                              title="Editar Contrato e Itens"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </Link>
+                            <>
+                              <Link
+                                href={`/contratos/${c.id}/editar`}
+                                className="p-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
+                                title="Editar Contrato e Itens"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteContrato(c)}
+                                className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Excluir Contrato e Vínculos"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -569,6 +614,16 @@ export default function ContratosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Upload Inteligente de Contratos via PDF */}
+      <UploadInteligenteContratoModal
+        isOpen={showUploadPdfModal}
+        onClose={() => setShowUploadPdfModal(false)}
+        onSuccess={() => {
+          carregarContratos();
+          carregarRascunhos();
+        }}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { PDFParse } from 'pdf-parse';
+import { extractTextFromPdf } from './pdf-extractor';
 
 export interface PlanilhaCustosParsedData {
   funcao: string;
@@ -37,10 +37,7 @@ function parseCurrency(str: string | number): number {
 }
 
 export async function parsePlanilhaCustosPdf(buffer: Buffer): Promise<PlanilhaCustosParsedData> {
-  const parser = new (PDFParse as any)(new Uint8Array(buffer));
-  await parser.load();
-  const res = await parser.getText();
-  const text: string = res.text || '';
+  const text = await extractTextFromPdf(buffer);
 
   // 1. Dados do Posto
   let funcao = '';

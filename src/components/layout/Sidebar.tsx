@@ -15,7 +15,9 @@ import {
   BarChart3,
   ShieldCheck,
   Building2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Wrench,
+  Plane
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -88,6 +90,24 @@ export default function Sidebar({ role }: SidebarProps) {
       href: '/relatorios',
       icon: BarChart3,
       visible: isAdmin || isGestor || isFiscalAdm, // PROAD, Gestores e Fiscais Adm para Fechamento Contábil
+    },
+    {
+      name: 'Manutenção Predial (OS)',
+      href: '/manutencao-os',
+      icon: Wrench,
+      visible: isAdmin || isGestor || isFiscalAdm || isFiscalTecnico,
+    },
+    {
+      name: 'Viagens & Diárias',
+      href: '/diarias-integracao',
+      icon: Plane,
+      visible: isAdmin || isGestor || isFiscalAdm,
+    },
+    {
+      name: 'Planejamento (PCA)',
+      href: '/planejamento-pca',
+      icon: Layers,
+      visible: isAdmin || isGestor,
     },
   ];
 

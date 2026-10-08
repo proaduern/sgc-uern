@@ -348,6 +348,66 @@ export default function AtasPage() {
     }
   };
 
+  const handleDeleteAta = async (ata: any) => {
+    if (
+      !confirm(
+        `ATENÇÃO ADMINISTRADOR:\nDeseja realmente excluir a Ata de Registro de Preço nº ${ata.numeroAta}/${ata.ano}?\n\nEsta ação excluirá em cascata todos os itens registrados, autorizações de execução e caronas vinculadas a esta ata. Esta ação é irreversível.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/atas/${ata.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir ata');
+      alert(data.message || 'Ata excluída com sucesso!');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteAea = async (aea: any) => {
+    if (
+      !confirm(
+        `Deseja realmente excluir a Autorização de Execução nº ${aea.numeroAutorizacao} no valor de ${aea.valorTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}? Esta ação é irreversível.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/atas/autorizacoes?id=${aea.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir autorização');
+      alert(data.message || 'Autorização excluída com sucesso!');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteAdesao = async (adesao: any) => {
+    if (
+      !confirm(
+        `Deseja realmente excluir a Autorização de Carona para ${adesao.orgaoRequisitante} no valor de ${adesao.valorAdesao?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}? Esta ação é irreversível.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/atas/adesao?id=${adesao.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir adesão');
+      alert(data.message || 'Adesão excluída com sucesso!');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   // Abertura do Modal de Autorização de Execução (AEA)
   const handleOpenAeaModal = (preselectedAtaId?: string) => {
     const defaultAtaId = preselectedAtaId || (atas.length > 0 ? atas[0].id : '');
@@ -753,6 +813,17 @@ export default function AtasPage() {
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>Editar</span>
                       </button>
+
+                      {currentUser?.isAdmin && (
+                        <button
+                          onClick={() => handleDeleteAta(ata)}
+                          className="inline-flex items-center space-x-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                          title="Excluir Ata de Registro de Preços (Admin)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Excluir</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -923,13 +994,26 @@ export default function AtasPage() {
                           {new Date(aut.dataAutorizacao).toLocaleDateString('pt-BR')}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => setSelectedTermoAea(aut)}
-                            className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Imprimir Termo</span>
-                          </button>
+                          <div className="flex items-center justify-center space-x-1.5">
+                            <button
+                              onClick={() => setSelectedTermoAea(aut)}
+                              className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Imprimir Termo</span>
+                            </button>
+
+                            {currentUser?.isAdmin && (
+                              <button
+                                onClick={() => handleDeleteAea(aut)}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                title="Excluir Autorização de Execução da Ata (Admin)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Excluir</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1034,12 +1118,13 @@ export default function AtasPage() {
                     <th className="py-3 px-4 text-center">% da Ata</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-center">Data</th>
+                    <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {adesoes.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-400">
+                      <td colSpan={8} className="text-center py-8 text-slate-400">
                         Nenhuma carona solicitada ou autorizada.
                       </td>
                     </tr>
@@ -1077,6 +1162,18 @@ export default function AtasPage() {
                         </td>
                         <td className="py-3 px-4 text-center text-[11px] text-slate-500">
                           {ad.dataAprovacao ? new Date(ad.dataAprovacao).toLocaleDateString('pt-BR') : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {currentUser?.isAdmin && (
+                            <button
+                              onClick={() => handleDeleteAdesao(ad)}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                              title="Excluir Adesão de Carona (Admin)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Excluir</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))

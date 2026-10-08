@@ -516,7 +516,7 @@ export default function RelatoriosPage() {
         ['Contratada', contratoAtual.fornecedor?.razaoSocial || ''],
         ['CNPJ', contratoAtual.fornecedor?.cnpj || ''],
         ['Endereço Fornecedor', contratoAtual.fornecedor?.endereco || 'Não informado'],
-        ['Representante Legal (Signatário)', contratoAtual.fornecedor?.nomeRepresentanteLegal ? `${contratoAtual.fornecedor.nomeRepresentanteLegal} (CPF: ${contratoAtual.fornecedor.cpfRepresentanteLegal || '-'})` : 'Não informado'],
+        ['Representante Legal (Signatário)', contratoAtual.fornecedor?.nomeRepresentanteLegal || 'Não informado'],
         ['Preposto Operacional', contratoAtual.fornecedor?.nomePreposto ? `${contratoAtual.fornecedor.nomePreposto} (Tel: ${contratoAtual.fornecedor.telefonePreposto || '-'})` : 'Não informado'],
         ['Objeto', contratoAtual.objeto],
         ['Vigência', `${new Date(contratoAtual.vigenciaInicio).toLocaleDateString('pt-BR')} a ${new Date(contratoAtual.vigenciaFim).toLocaleDateString('pt-BR')}`],

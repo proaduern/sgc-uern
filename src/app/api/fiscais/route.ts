@@ -207,3 +207,54 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Erro ao atualizar designação' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores da PROAD podem excluir designações de fiscais.' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body?.id;
+      } catch (e) {}
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da designação é obrigatório.' }, { status: 400 });
+    }
+
+    const existing = await prisma.contratoResponsavel.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        contrato: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Designação não encontrada.' }, { status: 404 });
+    }
+
+    await prisma.contratoResponsavel.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Designação de ${existing.user?.nome} no Contrato ${existing.contrato?.numeroContrato || existing.contrato?.processoSeiMae} excluída com sucesso.`,
+    });
+  } catch (error: any) {
+    console.error('Erro ao excluir designação de fiscal:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir designação' }, { status: 500 });
+  }
+}
+

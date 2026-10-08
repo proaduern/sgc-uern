@@ -527,9 +527,12 @@ export default function ExecucaoPage() {
   };
 
   const handleDeleteDespesa = async (d: any) => {
+    const valorInfo = d.valorAtestado > 0
+      ? `atestado de ${d.valorAtestado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+      : `estimado de ${d.valorEstimado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
     if (
       !confirm(
-        `Tem certeza de que deseja excluir o lançamento de despesa aberta do processo SEI ${d.processoSeiDespesa} (${d.referencia} - ${d.cidade}) no valor estimado de ${d.valorEstimado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}? Esta ação é irreversível.`
+        `Tem certeza de que deseja excluir o lançamento de despesa do processo SEI ${d.processoSeiDespesa} (${d.referencia} - ${d.cidade}) com valor ${valorInfo}? Esta ação é irreversível.`
       )
     ) {
       return;
@@ -919,17 +922,15 @@ export default function ExecucaoPage() {
                               <Edit3 className="w-3 h-3" />
                               <span>Editar</span>
                             </button>
-                            {!m.dataRecebimentoDefinitivo && m.status !== 'LIQUIDADO_PAGO' && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteMedicao(m)}
-                                className="inline-flex items-center space-x-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                                title="Excluir Medição Não Atestada"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Excluir</span>
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMedicao(m)}
+                              className="inline-flex items-center space-x-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                              title="Excluir Medição / Fatura"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Excluir</span>
+                            </button>
                           </div>
                         )}
                       </td>
@@ -1717,17 +1718,15 @@ export default function ExecucaoPage() {
                                 <Edit3 className="w-3 h-3" />
                                 <span>Editar</span>
                               </button>
-                              {(d.status === 'ABERTA' || !d.dataAtesto || d.valorAtestado === 0) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDespesa(d)}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                                  title="Excluir Despesa em Aberto"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Excluir</span>
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDespesa(d)}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                                title="Excluir Lançamento de Despesa"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Excluir</span>
+                              </button>
                             </div>
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">Homologado</span>

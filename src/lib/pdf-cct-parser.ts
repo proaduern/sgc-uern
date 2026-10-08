@@ -1,4 +1,4 @@
-import { PDFParse } from 'pdf-parse';
+import { extractTextFromPdf } from './pdf-extractor';
 
 export interface CctParsedData {
   numeroRegistroMte: string;
@@ -56,10 +56,7 @@ function parseCurrency(str: string): number {
 }
 
 export async function parseCctPdf(buffer: Buffer): Promise<CctParsedData> {
-  const parser = new (PDFParse as any)(new Uint8Array(buffer));
-  await parser.load();
-  const res = await parser.getText();
-  const text: string = res.text || '';
+  const text = await extractTextFromPdf(buffer);
 
   // 1. Registro MTE
   let numeroRegistroMte = '';

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { canManageAtas } from '@/lib/rbac';
+import { canManageAtas, isAdminRole } from '@/lib/rbac';
 
 export async function GET(request: NextRequest) {
   try {
@@ -140,3 +140,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Erro ao emitir autorização de execução.' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    if (!isAdminRole(session.role)) {
+      return NextResponse.json(
+        { error: 'Apenas administradores podem excluir Autorizações de Execução de Ata.' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body?.id;
+      } catch (e) {}
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da autorização é obrigatório.' }, { status: 400 });
+    }
+
+    const aea = await prisma.ataAutorizacaoExecucao.findUnique({
+      where: { id },
+    });
+
+    if (!aea) {
+      return NextResponse.json({ error: 'Autorização de execução não encontrada.' }, { status: 404 });
+    }
+
+    await prisma.ataAutorizacaoExecucao.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: 'Autorização de execução excluída com sucesso.' });
+  } catch (error: any) {
+    console.error('Erro ao excluir autorização de ata:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir autorização.' }, { status: 500 });
+  }
+}
+

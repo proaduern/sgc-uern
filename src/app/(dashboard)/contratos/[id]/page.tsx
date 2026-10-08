@@ -24,10 +24,12 @@ import {
   Plus,
   Trash2,
   Calculator,
-  HelpCircle
+  HelpCircle,
+  MapPin
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
+import AlteracoesContratuaisSection from '@/components/contratos/AlteracoesContratuaisSection';
 
 export default function DetalhesContratoPage() {
   const router = useRouter();
@@ -44,6 +46,22 @@ export default function DetalhesContratoPage() {
   const [showPlanilhaModal, setShowPlanilhaModal] = useState(false);
   const [planilhaParaEditar, setPlanilhaParaEditar] = useState<any | null>(null);
   const [excluindoPlanilhaId, setExcluindoPlanilhaId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [excluindoContrato, setExcluindoContrato] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setCurrentUser({
+            ...d.user,
+            isAdmin: d.user.role === 'ADMIN_PROAD' || d.user.role === 'ADMIN_PARCIAL',
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const carregarContrato = () => {
     if (id) {
@@ -66,6 +84,30 @@ export default function DetalhesContratoPage() {
   useEffect(() => {
     carregarContrato();
   }, [id]);
+
+  const handleDeleteContrato = async () => {
+    if (!contrato) return;
+    const ident = contrato.numeroContrato || contrato.processoSeiMae || 'este contrato';
+    if (
+      !confirm(
+        `ATENÇÃO ADMINISTRADOR:\nDeseja realmente EXCLUIR DEFINITIVAMENTE o Contrato "${ident}"?\n\nEsta ação excluirá em cascata todos os itens, medições, despesas por campus, aditivos e vinculações associadas a ele. Esta ação é irreversível.`
+      )
+    ) {
+      return;
+    }
+
+    setExcluindoContrato(true);
+    try {
+      const res = await fetch(`/api/contratos/${contrato.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir contrato');
+      alert(data.message || 'Contrato excluído com sucesso!');
+      router.push('/contratos');
+    } catch (err: any) {
+      alert(err.message);
+      setExcluindoContrato(false);
+    }
+  };
 
   const handleDeletePlanilha = async (planilhaId: string) => {
     if (!confirm('Deseja realmente excluir esta planilha de composição de custos?')) return;
@@ -188,7 +230,7 @@ export default function DetalhesContratoPage() {
           </div>
         </div>
 
-        {/* Botão de Edição Principal */}
+        {/* Botões de Ação Principal */}
         <div className="flex items-center space-x-2.5 self-end sm:self-center">
           <Link
             href={`/contratos/${contrato.id}/editar`}
@@ -197,6 +239,19 @@ export default function DetalhesContratoPage() {
             <Edit3 className="w-4 h-4" />
             <span>Editar Contrato</span>
           </Link>
+
+          {currentUser?.isAdmin && (
+            <button
+              type="button"
+              disabled={excluindoContrato}
+              onClick={handleDeleteContrato}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+              title="Excluir Contrato e Vínculos"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{excluindoContrato ? 'Excluindo...' : 'Excluir Contrato'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -267,7 +322,7 @@ export default function DetalhesContratoPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
           <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 border-b border-slate-100 pb-2">
             <DollarSign className="w-4 h-4 text-blue-700" />
-            <span>Valores e Reajuste</span>
+            <span>Valores e Regras de Reajuste</span>
           </div>
           <div className="space-y-1 text-xs">
             <div>
@@ -282,6 +337,54 @@ export default function DetalhesContratoPage() {
                 {contrato.valorAtualizado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
             </div>
+
+            {/* Análise de Mão de Obra CCT vs Insumos/Índice */}
+            {(() => {
+              const itensCCT = contrato.itens?.filter((i: any) => i.tipoReajuste === 'REPACTUACAO_CCT') || [];
+              const itensIndice = contrato.itens?.filter((i: any) => i.tipoReajuste === 'REAJUSTE_INDICE' || !i.tipoReajuste) || [];
+              const totalCCT = itensCCT.reduce((acc: number, cur: any) => acc + (cur.valorTotalAtual || cur.valorTotalOriginal || 0), 0);
+              const totalIndice = itensIndice.reduce((acc: number, cur: any) => acc + (cur.valorTotalAtual || cur.valorTotalOriginal || 0), 0);
+              const isHibrido = itensCCT.length > 0 && itensIndice.length > 0;
+              const isExclusivoCCT = itensCCT.length > 0 && itensIndice.length === 0;
+
+              if (isHibrido) {
+                return (
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md">
+                      <span>⚖️ Contrato Híbrido (Mão de Obra CCT + Insumos)</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="p-1.5 bg-amber-50/70 border border-amber-200 rounded-md">
+                        <span className="font-bold text-amber-900 block">M.O. Terceirizada (CCT):</span>
+                        <span className="text-amber-800 font-semibold">{totalCCT.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        <span className="text-[10px] text-amber-700 block mt-0.5">⚡ Sem interregno de 1 ano</span>
+                      </div>
+                      <div className="p-1.5 bg-blue-50/70 border border-blue-200 rounded-md">
+                        <span className="font-bold text-blue-900 block">Insumos / Serviços:</span>
+                        <span className="text-blue-800 font-semibold">{totalIndice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        <span className="text-[10px] text-blue-700 block mt-0.5">⏱️ Interregno obrigatório 1 ano</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isExclusivoCCT) {
+                return (
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-md text-[11px]">
+                      <span className="font-bold text-amber-900 block">Repactuação Exclusiva CCT:</span>
+                      <span className="text-amber-800 text-[10px] block mt-0.5 leading-tight">
+                        Vinculada à convenção coletiva / data-base. <strong>Não há interregno de 01 ano</strong> para repactuação.
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+
             {contrato.indicesReajuste && contrato.indicesReajuste.length > 0 && (
               <div className="pt-1">
                 <span className="text-slate-500 block text-[11px]">Índices aplicáveis:</span>
@@ -403,7 +506,9 @@ export default function DetalhesContratoPage() {
               <tr>
                 <th className="py-2.5 px-3 w-14 text-center">Item</th>
                 <th className="py-2.5 px-3">Descrição Detalhada do Objeto / Serviço</th>
+                <th className="py-2.5 px-3 w-28 text-center">Cidade</th>
                 <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
+                <th className="py-2.5 px-3 w-36 text-center">Regra Reajuste</th>
                 <th className="py-2.5 px-3 w-24 text-right">Qtd Atual</th>
                 <th className="py-2.5 px-3 w-28 text-right">Valor Unit. (R$)</th>
                 <th className="py-2.5 px-3 w-32 text-right">Subtotal (R$)</th>
@@ -413,7 +518,7 @@ export default function DetalhesContratoPage() {
             <tbody className="divide-y divide-slate-100">
               {paginatedItens.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400">
+                  <td colSpan={9} className="text-center py-8 text-slate-400">
                     Nenhum item encontrado.
                   </td>
                 </tr>
@@ -426,8 +531,31 @@ export default function DetalhesContratoPage() {
                     <td className="py-2 px-3 text-slate-800">
                       {item.descricao}
                     </td>
+                    <td className="py-2 px-3 text-center">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        <MapPin className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>{item.cidade || 'Mossoró'}</span>
+                      </span>
+                    </td>
                     <td className="py-2 px-3 text-center font-semibold text-slate-600">
                       {item.unidade}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {item.tipoReajuste === 'REPACTUACAO_CCT' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200" title="Repactuação vinculada à Convenção Coletiva (Sem interregno de 1 ano)">
+                          <Briefcase className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span>Mão de Obra (CCT)</span>
+                        </span>
+                      ) : item.tipoReajuste === 'NAO_REAJUSTAVEL' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                          Preço Fixo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200" title="Reajuste por índice (Sujeito ao interregno de 1 ano)">
+                          <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                          <span>{item.indiceReferencia ? `${item.indiceReferencia} (1a)` : 'Índice (1 ano)'}</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 px-3 text-right font-medium text-slate-700">
                       {item.quantidadeAtual?.toLocaleString('pt-BR')}
@@ -473,6 +601,12 @@ export default function DetalhesContratoPage() {
           </div>
         )}
       </div>
+
+      {/* SEÇÃO: Alterações Contratuais, Timeline, Base de 25% e Resíduos Retroativos (Item 5 e Item 6) */}
+      <AlteracoesContratuaisSection
+        contratoId={contrato.id}
+        onAlteracaoRealizada={carregarContrato}
+      />
 
       {/* SEÇÃO: Planilhas de Composição de Custos e Formação de Preços (IN 05/2017 & IN 01/2026) */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">

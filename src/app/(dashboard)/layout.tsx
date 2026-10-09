@@ -29,7 +29,8 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
-      <ChatDrawer />
+      {/* Assistente de IA mantido no sistema, temporariamente oculto para futuros ajustes */}
+      {/* <ChatDrawer /> */}
     </div>
   );
 }

@@ -62,14 +62,14 @@ export default function Sidebar({ role }: SidebarProps) {
       visible: true,
     },
     {
-      name: 'Terceirização & CCT',
+      name: 'Módulo de Terceirização',
       href: '/terceirizacao',
-      icon: Briefcase,
+      icon: Users,
       visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
     },
     {
       name: 'Conta Vinculada',
-      href: '/conta-vinculada',
+      href: '/terceirizacao?tab=CONTA_VINCULADA',
       icon: PiggyBank,
       visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
     },

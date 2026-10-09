@@ -234,6 +234,7 @@ model Contrato {
   planilhasCustos             ContratoPlanilhaCusto[]
   alteracoes                  ContratoAlteracao[]
   imrAvaliacoes               ImrAvaliacao[]
+  frequenciasTrabalhadores    FrequenciaTrabalhador[]
 
   @@map("contratos")
 }
@@ -386,6 +387,9 @@ model TrabalhadorTerceirizado {
   nomeCompleto     String
   cpf              String
   funcao           String
+  campus           String?  // Ex: "Campus Central (Mossoró)", "Campus Natal", etc.
+  setorLotacao     String?  // Ex: "Complexo Cultural", "Prédio da Reitoria", "FAS"
+  jornada          String?  // Ex: "44h semanais", "Escala 12x36"
   sexo             String?
   dataNascimento   DateTime?
   dataAdmissao     DateTime
@@ -396,12 +400,50 @@ model TrabalhadorTerceirizado {
   cctVinculada     String?  // Convenção Coletiva à qual o trabalhador está vinculado (ex: "CCT Motoristas")
   salarioBaseCct   Float
   beneficiosInfo   String?
-  status           String   @default("ATIVO")
+  status           String   @default("ATIVO") // ATIVO, AFASTADO, DEMITIDO, SUBSTITUIDO
   createdAt        DateTime @default(now())
 
   movimentacoesContaVinculada ContaVinculadaMovimentacao[]
+  documentos                  DocumentoTrabalhador[]
+  frequencias                 FrequenciaTrabalhador[]
 
   @@map("trabalhadores_terceirizados")
+}
+
+model DocumentoTrabalhador {
+  id                String                  @id @default(uuid())
+  trabalhadorId     String
+  trabalhador       TrabalhadorTerceirizado @relation(fields: [trabalhadorId], references: [id], onDelete: Cascade)
+  tipoDocumento     String                  // CTPS_DIGITAL, ASO_ADMISSIONAL, ASO_PERIODICO, FICHA_REGISTRO, CONTA_BANCARIA, COMPROVANTE_ESCOLARIDADE, CERTIDAO_NEGATIVA, OUTROS
+  nomeArquivo       String
+  arquivoUrl        String
+  statusConferencia String                  @default("PENDENTE") // PENDENTE, CONFERIDO, INCONFORME
+  observacoes       String?
+  enviadoEm         DateTime                @default(now())
+
+  @@map("trabalhador_documentos")
+}
+
+model FrequenciaTrabalhador {
+  id                   String                  @id @default(uuid())
+  trabalhadorId        String
+  trabalhador          TrabalhadorTerceirizado @relation(fields: [trabalhadorId], references: [id], onDelete: Cascade)
+  contratoId           String
+  contrato             Contrato                @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  competenciaMesAno    String                  // Ex: "03/2026"
+  diasPrevistos        Int                     @default(30)
+  diasTrabalhados      Int                     @default(30)
+  faltasInjustificadas Int                     @default(0)
+  faltasJustificadas   Int                     @default(0)
+  diasSubstituidos     Int                     @default(0)
+  valorGlosaSugerida   Float                   @default(0.0)
+  statusApuracao       String                  @default("EM_APURACAO") // EM_APURACAO, CONFERIDO, APLICADO_MEDICAO
+  observacoes          String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@unique([trabalhadorId, competenciaMesAno])
+  @@map("trabalhador_frequencias")
 }
 
 model ConvenioColetivo {

@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
             fornecedor: true,
           },
         },
+        documentos: {
+          orderBy: { enviadoEm: 'desc' },
+        },
+        frequencias: {
+          orderBy: { competenciaMesAno: 'desc' },
+          take: 12,
+        },
       },
       orderBy: { nomeCompleto: 'asc' },
     });
@@ -123,6 +130,9 @@ export async function POST(request: NextRequest) {
       sexo,
       dataNascimento,
       dataAdmissao,
+      campus,
+      setorLotacao,
+      jornada,
       banco,
       agencia,
       contaCorrente,
@@ -145,6 +155,9 @@ export async function POST(request: NextRequest) {
         nomeCompleto,
         cpf: cleanCpf,
         funcao,
+        campus: campus || null,
+        setorLotacao: setorLotacao || null,
+        jornada: jornada || null,
         sexo: sexo || null,
         dataNascimento: dataNascimento ? new Date(dataNascimento) : null,
         dataAdmissao: new Date(dataAdmissao),
@@ -166,8 +179,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || !isAdminRole(session.role)) {
-      return NextResponse.json({ error: 'Apenas administradores da PROAD podem editar cadastros de trabalhadores.' }, { status: 403 });
+    if (!session || (!isAdminRole(session.role) && !canManageTerceirizacao(session.role))) {
+      return NextResponse.json({ error: 'Permissão insuficiente para editar trabalhadores.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -176,6 +189,9 @@ export async function PUT(request: NextRequest) {
       nomeCompleto,
       cpf,
       funcao,
+      campus,
+      setorLotacao,
+      jornada,
       sexo,
       dataNascimento,
       dataAdmissao,
@@ -200,6 +216,9 @@ export async function PUT(request: NextRequest) {
         ...(nomeCompleto ? { nomeCompleto } : {}),
         ...(cleanCpf ? { cpf: cleanCpf } : {}),
         ...(funcao ? { funcao } : {}),
+        ...(campus !== undefined ? { campus } : {}),
+        ...(setorLotacao !== undefined ? { setorLotacao } : {}),
+        ...(jornada !== undefined ? { jornada } : {}),
         ...(sexo !== undefined ? { sexo } : {}),
         ...(dataNascimento ? { dataNascimento: new Date(dataNascimento) } : {}),
         ...(dataAdmissao ? { dataAdmissao: new Date(dataAdmissao) } : {}),
@@ -217,5 +236,28 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao atualizar trabalhador:', error);
     return NextResponse.json({ error: error.message || 'Erro ao atualizar trabalhador' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || (!isAdminRole(session.role) && !canManageTerceirizacao(session.role))) {
+      return NextResponse.json({ error: 'Permissão insuficiente para remover trabalhador.' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID do trabalhador é obrigatório.' }, { status: 400 });
+    }
+
+    await prisma.trabalhadorTerceirizado.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: 'Trabalhador removido com sucesso.' });
+  } catch (error: any) {
+    console.error('Erro ao excluir trabalhador:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao excluir trabalhador' }, { status: 500 });
   }
 }

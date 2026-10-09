@@ -96,6 +96,12 @@ export default function ChatDrawer() {
     }
   };
 
+  // Assistente de IA mantido no sistema, porém temporariamente oculto para futuros ajustes
+  const OCULTAR_ASSISTENTE = true;
+  if (OCULTAR_ASSISTENTE) {
+    return null;
+  }
+
   return (
     <>
       {/* Botão Flutuante Discreto e Elegante */}

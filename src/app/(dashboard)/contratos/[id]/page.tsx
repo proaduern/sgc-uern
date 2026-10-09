@@ -25,7 +25,8 @@ import {
   Trash2,
   Calculator,
   HelpCircle,
-  MapPin
+  MapPin,
+  ArrowRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
@@ -254,6 +255,39 @@ export default function DetalhesContratoPage() {
           )}
         </div>
       </div>
+
+      {/* Banner de Ativação do Módulo de Terceirização & Mão de Obra */}
+      {contrato.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' && (
+        <div className="bg-gradient-to-r from-[#002244] via-[#003366] to-[#0a4580] text-white p-5 rounded-2xl shadow-md border border-blue-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start space-x-3.5">
+            <div className="p-3 bg-amber-400/20 text-amber-300 rounded-xl border border-amber-400/30 shrink-0">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-slate-950">
+                  Dedicação Exclusiva de Mão de Obra
+                </span>
+                <span className="text-[11px] text-blue-200">IN nº 01/2026 • Súmula 331 TST</span>
+              </div>
+              <h3 className="text-base font-bold text-white mt-1">
+                Cockpit de Gestão de Mão de Obra & Terceirização
+              </h3>
+              <p className="text-xs text-blue-100/90 mt-1 max-w-xl leading-relaxed">
+                Acesse o ambiente especializado para gerenciar o quadro de trabalhadores, documentos admissionais (ASO/CTPS), apuração de ponto/frequência (glosas), conta vinculada e CCT deste contrato.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/terceirizacao?contratoId=${contrato.id}`}
+            className="inline-flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all self-start sm:self-center shrink-0 cursor-pointer"
+          >
+            <Users className="w-4 h-4" />
+            <span>Gerenciar Mão de Obra</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
 
       {/* Grid de Informações Chave */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

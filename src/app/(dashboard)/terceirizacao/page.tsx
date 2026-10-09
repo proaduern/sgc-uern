@@ -34,13 +34,15 @@ import {
   Building2,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  TrendingUp
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import OficioLiberacaoModal from '@/components/conta-vinculada/OficioLiberacaoModal';
 import OficioCadastroModal from '@/components/conta-vinculada/OficioCadastroModal';
+import RepactuacoesTab from '@/components/terceirizacao/RepactuacoesTab';
 
-type ActiveTabType = 'TRABALHADORES' | 'DOCUMENTOS' | 'FREQUENCIA' | 'CONTA_VINCULADA' | 'CCT' | 'FOLHA_SIMULADA';
+type ActiveTabType = 'TRABALHADORES' | 'DOCUMENTOS' | 'FREQUENCIA' | 'CONTA_VINCULADA' | 'CCT' | 'FOLHA_SIMULADA' | 'REPACTUACOES';
 
 export default function TerceirizacaoPage() {
   return (
@@ -685,6 +687,19 @@ function TerceirizacaoContent() {
         >
           <Calculator className="w-4 h-4" />
           <span>Folha Analítica Simulada</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('REPACTUACOES')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all ${
+            activeTab === 'REPACTUACOES'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Repactuações & Retroativos</span>
         </button>
       </div>
 
@@ -1355,6 +1370,18 @@ function TerceirizacaoContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ABA 7: REPACTUAÇÕES & RETROATIVOS PROPORCIONAIS          */}
+      {/* ======================================================== */}
+      {activeTab === 'REPACTUACOES' && (
+        <RepactuacoesTab
+          contratoId={selectedContratoId}
+          contratoAtual={contratoAtual}
+          trabalhadores={trabalhadoresFiltrados}
+          currentUser={currentUser}
+        />
       )}
 
       {/* ======================================================== */}

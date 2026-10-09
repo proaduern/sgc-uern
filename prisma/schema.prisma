@@ -235,6 +235,7 @@ model Contrato {
   alteracoes                  ContratoAlteracao[]
   imrAvaliacoes               ImrAvaliacao[]
   frequenciasTrabalhadores    FrequenciaTrabalhador[]
+  repactuacoes                RepactuacaoCalculo[]
 
   @@map("contratos")
 }
@@ -406,6 +407,7 @@ model TrabalhadorTerceirizado {
   movimentacoesContaVinculada ContaVinculadaMovimentacao[]
   documentos                  DocumentoTrabalhador[]
   frequencias                 FrequenciaTrabalhador[]
+  repactuacoesItens           RepactuacaoMemoriaItem[]
 
   @@map("trabalhadores_terceirizados")
 }
@@ -731,6 +733,105 @@ model ImrAvaliacao {
   updatedAt          DateTime @updatedAt
 
   @@map("imr_avaliacoes")
+}
+
+// 19. Motor de Repactuação Proporcional à Execução Efetiva e Compliance Trabalhista
+enum StatusRepactuacao {
+  EM_APURACAO
+  AGUARDANDO_COMPROVACAO_TRABALHISTA
+  PARCIALMENTE_COMPROVADO
+  HOMOLOGADO_FISCAL
+  PAGO_FINALIZADO
+}
+
+enum StatusRepasse {
+  PENDENTE
+  COMPROVADO
+  REJEITADO
+}
+
+model RepactuacaoCalculo {
+  id                             String                     @id @default(uuid())
+  contratoId                     String
+  contrato                       Contrato                   @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  processoSei                    String
+  cctReferencia                  String
+  competenciaInicio              String                     // Ex: "01/2026"
+  competenciaFim                 String                     // Ex: "03/2026"
+  percentualContaVinculada       Float                      @default(11.11)
+  
+  // Totais Consolidados Auditáveis
+  valorNominalTeorico            Float                      // Cálculo teórico integral sem considerar faltas
+  valorGlosasFaltas              Float                      // Economia pública preservada (faltas e postos vagos)
+  valorJaRetidoContaVinculada    Float                      @default(0.0) // O que já havia sido retido no banco
+  valorSuplementarContaVinculada Float                      @default(0.0) // Apenas o complemento real devido à CV
+  valorBrutoEfetivoDevido        Float                      // Valor líquido total devido à empresa
+  valorComprovadoTrabalhadores   Float                      @default(0.0) // Parcela com repasse comprovado aos funcionários
+  valorBloqueadoPendente         Float                      @default(0.0) // Parcela travada por falta de comprovante
+  
+  status                         StatusRepactuacao          @default(EM_APURACAO)
+  dataHomologacaoFiscal          DateTime?
+  fiscalResponsavelNome          String?
+  fiscalResponsavelMatricula     String?
+  observacoes                    String?
+  
+  itens                          RepactuacaoMemoriaItem[]
+  comprovantes                   RepactuacaoComprovante[]
+  createdAt                      DateTime                   @default(now())
+  updatedAt                      DateTime                   @updatedAt
+
+  @@map("contratos_repactuacoes")
+}
+
+model RepactuacaoMemoriaItem {
+  id                          String                  @id @default(uuid())
+  repactuacaoId               String
+  repactuacao                 RepactuacaoCalculo      @relation(fields: [repactuacaoId], references: [id], onDelete: Cascade)
+  trabalhadorId               String
+  trabalhador                 TrabalhadorTerceirizado @relation(fields: [trabalhadorId], references: [id], onDelete: Cascade)
+  competenciaMesAno           String                  // MM/AAAA
+  funcao                      String
+  salarioAnterior             Float
+  salarioNovo                 Float
+  diasPrevistos               Int                     @default(30)
+  diasTrabalhados             Int                     @default(30)
+  faltasInjustificadas        Int                     @default(0)
+  fatorEfetividade            Float                   // Ex: 25/30 = 0.8333
+  
+  deltaSalarioNominal         Float
+  deltaCustoTotalPosto        Float
+  glosaFaltasRetroativo       Float
+  
+  // Conciliação da Conta Vinculada
+  retencaoCvJaRealizada       Float                   @default(0.0)
+  retencaoCvNovaTotal         Float                   @default(0.0)
+  retencaoCvSuplementarDevida Float                   @default(0.0)
+  
+  // Repasse aos Trabalhadores
+  valorDiferencaSalarioDevida Float
+  statusComprovacaoRepasse    StatusRepasse           @default(PENDENTE)
+  documentoComprovanteUrl     String?
+  dataConferenciaFiscal       DateTime?
+  observacaoFiscal            String?
+  createdAt                   DateTime                @default(now())
+
+  @@map("repactuacao_memoria_itens")
+}
+
+model RepactuacaoComprovante {
+  id                String             @id @default(uuid())
+  repactuacaoId     String
+  repactuacao       RepactuacaoCalculo @relation(fields: [repactuacaoId], references: [id], onDelete: Cascade)
+  tipoDocumento     String             // FOLHA_COMPLEMENTAR, HOLERITE_ASSINADO, COMPROVANTE_PIX_TED, ESOCIAL_S1200
+  nomeArquivo       String
+  arquivoUrl        String
+  competenciaRef    String?            // MM/AAAA
+  totalComprovado   Float?             @default(0.0)
+  statusConferencia String             @default("PENDENTE") // PENDENTE, HOMOLOGADO, INCONFORME
+  observacoes       String?
+  enviadoEm         DateTime           @default(now())
+
+  @@map("repactuacao_comprovantes")
 }
 
 

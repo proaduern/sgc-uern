@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole } from '@/lib/rbac';
+import { registrarAuditoria } from '@/lib/auditClient';
 
 export async function GET(
   request: NextRequest,
@@ -215,6 +216,41 @@ export async function PUT(
       }
     );
 
+    // Despachar log de alteração com diff
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'EDICAO',
+      entidade: 'Contrato',
+      entidadeId: id,
+      entidadeNome: `Contrato nº ${contratoAtualizado.numeroContrato || contratoExistente.numeroContrato}`,
+      descricao: `Alteração dos dados do contrato nº ${contratoAtualizado.numeroContrato || contratoExistente.numeroContrato}`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosAnteriores: {
+        numeroContrato: contratoExistente.numeroContrato,
+        tipoContrato: contratoExistente.tipoContrato,
+        objeto: contratoExistente.objeto,
+        valorGlobal: contratoExistente.valorGlobal,
+        vigenciaInicio: contratoExistente.vigenciaInicio,
+        vigenciaFim: contratoExistente.vigenciaFim,
+        status: contratoExistente.status,
+      },
+      dadosNovos: {
+        numeroContrato: contratoAtualizado.numeroContrato,
+        tipoContrato: contratoAtualizado.tipoContrato,
+        objeto: contratoAtualizado.objeto,
+        valorGlobal: contratoAtualizado.valorGlobal,
+        vigenciaInicio: contratoAtualizado.vigenciaInicio,
+        vigenciaFim: contratoAtualizado.vigenciaFim,
+        status: contratoAtualizado.status,
+      },
+      rota: `/api/contratos/${id}`,
+    });
+
     return NextResponse.json({ success: true, contrato: contratoAtualizado });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -281,6 +317,28 @@ export async function DELETE(
       await tx.contratoIndice.deleteMany({ where: { contratoId: id } });
       // 14. O contrato
       await tx.contrato.delete({ where: { id } });
+    });
+
+    // Despachar log de exclusão
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'EXCLUSAO',
+      entidade: 'Contrato',
+      entidadeId: id,
+      entidadeNome: `Contrato ${contrato.numeroContrato || contrato.processoSeiMae}`,
+      descricao: `Exclusão permanente do contrato ${contrato.numeroContrato || contrato.processoSeiMae} e seus lançamentos vinculados`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosAnteriores: {
+        id: contrato.id,
+        numeroContrato: contrato.numeroContrato,
+        processoSeiMae: contrato.processoSeiMae,
+      },
+      rota: `/api/contratos/${id}`,
     });
 
     return NextResponse.json({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole } from '@/lib/rbac';
+import { registrarAuditoria } from '@/lib/auditClient';
 
 export async function GET(request: NextRequest) {
   try {
@@ -295,6 +296,33 @@ export async function POST(request: NextRequest) {
     }, {
       maxWait: 15000,
       timeout: 30000,
+    });
+
+    // Despachar log para o cofre central de auditoria PROAD
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'CRIACAO',
+      entidade: 'Contrato',
+      entidadeId: novoContrato.id,
+      entidadeNome: `Contrato nº ${novoContrato.numeroContrato}/${novoContrato.anoContrato}`,
+      descricao: `Cadastro inicial do contrato nº ${novoContrato.numeroContrato}/${novoContrato.anoContrato}`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosNovos: {
+        numeroContrato: novoContrato.numeroContrato,
+        anoContrato: novoContrato.anoContrato,
+        tipoContrato: novoContrato.tipoContrato,
+        objeto: novoContrato.objeto,
+        valorGlobal: novoContrato.valorGlobal,
+        vigenciaInicio: novoContrato.vigenciaInicio,
+        vigenciaFim: novoContrato.vigenciaFim,
+        status: novoContrato.status,
+      },
+      rota: '/api/contratos',
     });
 
     return NextResponse.json({ success: true, contrato: novoContrato }, { status: 201 });

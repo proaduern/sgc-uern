@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { TipoAlteracaoContratual } from '@prisma/client';
+import { registrarAuditoria } from '@/lib/auditClient';
 
 export async function GET(
   request: NextRequest,
@@ -446,6 +447,32 @@ export async function POST(
       }
 
       return { alteracao, contratoAtualizado };
+    });
+
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'ADITIVO',
+      entidade: 'TermoAditivo',
+      entidadeId: resultado.alteracao.id,
+      entidadeNome: `${numeroTermo} (${contrato.numeroContrato || contrato.processoSeiMae})`,
+      descricao: `${numeroTermo} registrado: ${descProcedimento}. Ajuste de R$ ${valorAjuste}`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosAnteriores: {
+        valorGlobal: contrato.valorAtualizado || contrato.valorGlobal,
+        vigenciaFim: contrato.vigenciaFim,
+      },
+      dadosNovos: {
+        valorGlobal: resultado.contratoAtualizado.valorAtualizado,
+        vigenciaFim: resultado.contratoAtualizado.vigenciaFim,
+        numeroTermo,
+        tipoAlteracao,
+      },
+      rota: `/api/contratos/${contratoId}/alteracoes`,
     });
 
     return NextResponse.json({

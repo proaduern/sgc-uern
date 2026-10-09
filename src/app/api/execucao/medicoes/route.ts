@@ -7,6 +7,7 @@ import {
   canPerformProvisionalAttest,
   getUserDesignatedContext,
 } from '@/lib/rbac';
+import { registrarAuditoria } from '@/lib/auditClient';
 
 export async function GET(request: NextRequest) {
   try {
@@ -114,6 +115,32 @@ export async function POST(request: NextRequest) {
       include: {
         contrato: true,
       },
+    });
+
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'MEDICAO',
+      entidade: 'MedicaoDespesa',
+      entidadeId: medicao.id,
+      entidadeNome: `Medição ${medicao.referenciaMesAno} - NF ${medicao.numeroNotaFiscal || 'S/N'} (${medicao.contrato.numeroContrato || 'Contrato'})`,
+      descricao: `Lançamento de medição/fatura ref. ${medicao.referenciaMesAno} no valor de R$ ${medicao.valorNotaFiscal}`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosNovos: {
+        contratoId: medicao.contratoId,
+        referenciaMesAno: medicao.referenciaMesAno,
+        processoSeiDespesa: medicao.processoSeiDespesa,
+        numeroNotaFiscal: medicao.numeroNotaFiscal,
+        valorNotaFiscal: medicao.valorNotaFiscal,
+        valorGlosa: medicao.valorGlosa,
+        valorAtestadoFinal: medicao.valorAtestadoFinal,
+        status: medicao.status,
+      },
+      rota: '/api/execucao/medicoes',
     });
 
     return NextResponse.json({ success: true, medicao }, { status: 201 });
@@ -320,6 +347,29 @@ export async function DELETE(request: NextRequest) {
 
     // O Administrador tem permissão irrestrita para exclusão de medições/faturas (inclusive atestadas ou liquidadas)
     await prisma.medicaoDespesa.delete({ where: { id } });
+
+    registrarAuditoria({
+      sistema: 'SGC',
+      acao: 'EXCLUSAO',
+      entidade: 'MedicaoDespesa',
+      entidadeId: id,
+      entidadeNome: `Medição ${existing.referenciaMesAno} - NF ${existing.numeroNotaFiscal || 'S/N'}`,
+      descricao: `Exclusão de medição/fatura ref. ${existing.referenciaMesAno}`,
+      usuario: {
+        id: session.id,
+        nome: session.nome,
+        email: session.email,
+        role: session.role,
+      },
+      dadosAnteriores: {
+        id: existing.id,
+        contratoId: existing.contratoId,
+        referenciaMesAno: existing.referenciaMesAno,
+        valorNotaFiscal: existing.valorNotaFiscal,
+        status: existing.status,
+      },
+      rota: '/api/execucao/medicoes',
+    });
 
     return NextResponse.json({ success: true, message: 'Medição/fatura excluída com sucesso.' });
   } catch (error: any) {

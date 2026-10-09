@@ -304,8 +304,8 @@ export async function POST(request: NextRequest) {
       acao: 'CRIACAO',
       entidade: 'Contrato',
       entidadeId: novoContrato.id,
-      entidadeNome: `Contrato nº ${novoContrato.numeroContrato}/${novoContrato.anoContrato}`,
-      descricao: `Cadastro inicial do contrato nº ${novoContrato.numeroContrato}/${novoContrato.anoContrato}`,
+      entidadeNome: `Contrato nº ${novoContrato.numeroContrato || novoContrato.processoSeiMae}`,
+      descricao: `Cadastro inicial do contrato nº ${novoContrato.numeroContrato || novoContrato.processoSeiMae}`,
       usuario: {
         id: session.id,
         nome: session.nome,
@@ -314,7 +314,6 @@ export async function POST(request: NextRequest) {
       },
       dadosNovos: {
         numeroContrato: novoContrato.numeroContrato,
-        anoContrato: novoContrato.anoContrato,
         tipoContrato: novoContrato.tipoContrato,
         objeto: novoContrato.objeto,
         valorGlobal: novoContrato.valorGlobal,

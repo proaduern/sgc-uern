@@ -8,6 +8,7 @@ import {
   getUserDesignatedContext,
 } from '@/lib/rbac';
 import { registrarAuditoria } from '@/lib/auditClient';
+import { notificarPcaExecucao } from '@/lib/pca-integration-client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -223,6 +224,36 @@ export async function PATCH(request: NextRequest) {
       where: { id: medicaoId },
       data: updateData,
     });
+
+    // Retroalimentação em tempo real para o PCA (interoperabilidade sistêmica)
+    try {
+      const contrato = await prisma.contrato.findUnique({
+        where: { id: medicao.contratoId },
+        include: { itens: true, fornecedor: true },
+      });
+      if (contrato && (contrato.origemPcaConsolidacaoId || contrato.itens.some((i) => i.origemPcaItemId))) {
+        let statusExecucao: "RECEBIDO_PROVISORIO" | "RECEBIDO_DEFINITIVO" | "PAGO" | "EM_EXECUCAO" = "EM_EXECUCAO";
+        if (acao === "ATESTE_PROVISORIO") statusExecucao = "RECEBIDO_PROVISORIO";
+        else if (acao === "ATESTE_DEFINITIVO") statusExecucao = "RECEBIDO_DEFINITIVO";
+        else if (acao === "LIQUIDAR") statusExecucao = "PAGO";
+
+        notificarPcaExecucao({
+          contratoId: contrato.id,
+          numeroContrato: contrato.numeroContrato || undefined,
+          fornecedorNome: contrato.fornecedor.razaoSocial,
+          fornecedorCnpj: contrato.fornecedor.cnpj,
+          origemPcaConsolidacaoId: contrato.origemPcaConsolidacaoId,
+          itensOrigemPcaIds: contrato.itens.map((i) => i.origemPcaItemId),
+          statusExecucao,
+          dataRecebimentoProv: updated.dataRecebimentoProvisorio,
+          dataRecebimentoDef: updated.dataRecebimentoDefinitivo,
+          dataAtesto: updated.dataRecebimentoDefinitivo || updated.dataRecebimentoProvisorio,
+          numeroNotaFiscal: updated.numeroNotaFiscal,
+        }).catch((e) => console.warn("Aviso ao notificar PCA:", e));
+      }
+    } catch (e) {
+      console.warn("Falha silenciosa ao sincronizar execução com o PCA:", e);
+    }
 
     return NextResponse.json({ success: true, medicao: updated });
   } catch (error: any) {

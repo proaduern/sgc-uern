@@ -216,6 +216,7 @@ model Contrato {
   saldoInexequivelJustificativa String?
   fornecedorId                String
   fornecedor                  Fornecedor     @relation(fields: [fornecedorId], references: [id])
+  origemPcaConsolidacaoId     String?        // ID da consolidação técnica originária no PCA
   createdAt                   DateTime       @default(now())
   updatedAt                   DateTime       @updatedAt
 
@@ -276,6 +277,7 @@ model ContratoItem {
   tipoReajuste          String   @default("REAJUSTE_INDICE") // REPACTUACAO_CCT, REAJUSTE_INDICE, NAO_REAJUSTAVEL
   indiceReferencia      String?  // Ex: "CCT 2026", "SINAPI", "IPCA"
   cctVinculada          String?  // Nome/Identificação da Convenção Coletiva vinculada (ex: "CCT Motoristas - SINDITRANS", "CCT Supervisores - SINDESP")
+  origemPcaItemId       String?  // ID do ItemDfd ou ItemTecnico originário no PCA
   planilhasCustos        ContratoPlanilhaCusto[]
 
   @@map("contrato_itens")
@@ -318,6 +320,7 @@ model AtaRegistroPreco {
   indiceReajuste      String?    @default("IPCA")
   dataUltimoReajuste  DateTime?
   percentualUltimoReajuste Float?
+  origemPcaConsolidacaoId  String?    // ID da consolidação técnica originária no PCA
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
@@ -340,6 +343,7 @@ model AtaItem {
   quantidadeSaldo      Float
   valorUnitario        Float
   valorTotal           Float
+  origemPcaItemId      String?          // ID do ItemDfd ou ItemTecnico originário no PCA
 
   @@map("ata_itens")
 }

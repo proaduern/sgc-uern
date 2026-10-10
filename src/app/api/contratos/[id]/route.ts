@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole } from '@/lib/rbac';
 import { registrarAuditoria } from '@/lib/auditClient';
+import { notificarPcaExecucao } from '@/lib/pca-integration-client';
 
 export async function GET(
   request: NextRequest,
@@ -250,6 +251,32 @@ export async function PUT(
       },
       rota: `/api/contratos/${id}`,
     });
+
+    // Retroalimentação para o PCA caso o contrato tenha se originado de licitação do PCA
+    try {
+      if (contratoAtualizado.numeroContrato) {
+        const contratoCompleto = await prisma.contrato.findUnique({
+          where: { id: contratoAtualizado.id },
+          include: { itens: true, fornecedor: true },
+        });
+        if (
+          contratoCompleto &&
+          (contratoCompleto.origemPcaConsolidacaoId || contratoCompleto.itens.some((i) => i.origemPcaItemId))
+        ) {
+          notificarPcaExecucao({
+            contratoId: contratoCompleto.id,
+            numeroContrato: contratoCompleto.numeroContrato!,
+            fornecedorNome: contratoCompleto.fornecedor.razaoSocial,
+            fornecedorCnpj: contratoCompleto.fornecedor.cnpj,
+            origemPcaConsolidacaoId: contratoCompleto.origemPcaConsolidacaoId,
+            itensOrigemPcaIds: contratoCompleto.itens.map((i) => i.origemPcaItemId),
+            statusExecucao: "CONTRATADO",
+          }).catch((e) => console.warn("Aviso ao notificar formalização ao PCA:", e));
+        }
+      }
+    } catch (e) {
+      console.warn("Falha silenciosa ao sincronizar formalização do contrato com o PCA:", e);
+    }
 
     return NextResponse.json({ success: true, contrato: contratoAtualizado });
   } catch (error: any) {

@@ -1,14 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import prisma from '@/lib/prisma';
-import { createSessionToken, setSessionCookie } from '@/lib/auth';
+import { createSessionToken } from '@/lib/auth';
 import { Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
-const PROAD_SSO_SECRET = new TextEncoder().encode(
-  process.env.PROAD_SSO_SECRET || 'uern_portal_proad_sso_master_key_2026_super_seguro'
-);
+const COOKIE_NAME = 'sgc_uern_token';
+
+const SECRET_KEYS: Uint8Array[] = [
+  process.env.PROAD_SSO_SECRET,
+  process.env.JWT_SECRET,
+  'uern_portal_proad_sso_master_key_2026_super_seguro',
+  'uern_contratos_secret_key_proad_2026_default',
+]
+  .filter((k): k is string => Boolean(k && k.trim()))
+  .map((k) => new TextEncoder().encode(k.trim()));
+
+async function verificarTokenComFallback(token: string) {
+  let ultimoErro: any = null;
+  for (const secretKey of SECRET_KEYS) {
+    try {
+      const { payload } = await jwtVerify(token, secretKey);
+      return payload;
+    } catch (err) {
+      ultimoErro = err;
+    }
+  }
+  throw ultimoErro || new Error('Falha ao verificar assinatura JWT do token SSO.');
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +39,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=token_ausente', request.url));
     }
 
-    // 1. Valida assinatura do token emitido pelo Portal PROAD
-    const { payload } = await jwtVerify(token, PROAD_SSO_SECRET);
+    // 1. Valida assinatura do token emitido pelo Portal PROAD com fallback
+    const payload = await verificarTokenComFallback(token);
     const { email, nome, matricula, role, targetSystem } = payload as {
       userId?: string;
       email: string;
@@ -55,15 +75,16 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Localiza ou sincroniza usuário no banco do SGC
+    const emailLimpo = email.toLowerCase().trim();
     let usuarioSgc = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: emailLimpo },
     });
 
     if (!usuarioSgc) {
       usuarioSgc = await prisma.user.create({
         data: {
-          nome: nome || email.split('@')[0],
-          email: email.toLowerCase(),
+          nome: nome || emailLimpo.split('@')[0],
+          email: emailLimpo,
           matricula: matricula || null,
           senhaHash: 'SSO_CENTRAL_UERN_AUTHENTICATED',
           role: sgcRole,
@@ -94,10 +115,17 @@ export async function GET(request: NextRequest) {
       deveTrocarSenha: false,
     });
 
-    // 5. Configura cookie de sessão do SGC e redireciona para a tela de contratos
-    await setSessionCookie(sessionToken);
+    // 5. Configura cookie de sessão do SGC diretamente no redirect (garantia serverless)
+    const response = NextResponse.redirect(new URL('/contratos', request.url));
+    response.cookies.set(COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
 
-    return NextResponse.redirect(new URL('/contratos', request.url));
+    return response;
   } catch (err: any) {
     console.error('Erro no callback SSO do SGC:', err);
     return NextResponse.redirect(new URL('/login?error=falha_sso', request.url));

@@ -84,6 +84,59 @@ export async function GET(request: NextRequest) {
   }
 }
 
+function parseAndValidateDate(val: any, fieldLabel: string): Date {
+  if (!val) throw new Error(`Campo ${fieldLabel} é obrigatório.`);
+
+  let str = String(val).trim();
+
+  // Trata formato DD/MM/YYYY
+  const brMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,6})/);
+  if (brMatch) {
+    const dia = brMatch[1].padStart(2, '0');
+    const mes = brMatch[2].padStart(2, '0');
+    let ano = brMatch[3];
+    if (ano.length === 2) ano = `20${ano}`;
+    str = `${ano}-${mes}-${dia}`;
+  }
+
+  // Trata ano com erro de digitação/estouro de dígitos (ex: +020026 -> 2026, 20026 -> 2026, 02026 -> 2026)
+  const isoMatch = str.match(/^(\+?\d+)-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    let anoRaw = isoMatch[1].replace(/^\+/, '');
+    const mes = isoMatch[2].padStart(2, '0');
+    const dia = isoMatch[3].padStart(2, '0');
+
+    // Se ano tem 5 dígitos com 200xx ou 020xx
+    if (anoRaw.length === 5 && (anoRaw.startsWith('200') || anoRaw.startsWith('020'))) {
+      anoRaw = anoRaw.replace(/^0+/, '');
+      if (anoRaw.length === 5 && anoRaw.startsWith('200')) {
+        anoRaw = '20' + anoRaw.slice(3);
+      }
+    } else if (anoRaw.length > 4) {
+      anoRaw = anoRaw.slice(0, 4);
+    }
+
+    const anoNum = parseInt(anoRaw, 10);
+    if (isNaN(anoNum) || anoNum < 1950 || anoNum > 2100) {
+      throw new Error(`Data de ${fieldLabel} inválida: o ano (${anoNum}) deve estar entre 1950 e 2100.`);
+    }
+
+    str = `${anoRaw.padStart(4, '0')}-${mes}-${dia}T00:00:00.000Z`;
+  }
+
+  const d = new Date(str);
+  if (isNaN(d.getTime())) {
+    throw new Error(`Data de ${fieldLabel} inválida ("${val}").`);
+  }
+
+  const anoFinal = d.getUTCFullYear();
+  if (anoFinal < 1950 || anoFinal > 2100) {
+    throw new Error(`Data de ${fieldLabel} inválida: o ano (${anoFinal}) deve estar entre 1950 e 2100.`);
+  }
+
+  return d;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -131,6 +184,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sanitização e validação segura de datas contra erros de digitação (ex: +020026 -> 2026)
+    let dInicio: Date;
+    let dFim: Date;
+    let dOrcamento: Date | null = null;
+    try {
+      dInicio = parseAndValidateDate(vigenciaInicio, 'Início da Vigência');
+      dFim = parseAndValidateDate(vigenciaFim, 'Fim da Vigência');
+      if (dataOrcamentoEstimado) {
+        dOrcamento = parseAndValidateDate(dataOrcamentoEstimado, 'Data-Base do Orçamento');
+      }
+    } catch (dateErr: any) {
+      return NextResponse.json({ error: dateErr.message }, { status: 400 });
+    }
+
     let finalFornecedorId = fornecedorId;
 
     // Se fornecedor foi cadastrado no fluxo rápido
@@ -172,11 +239,9 @@ export async function POST(request: NextRequest) {
     // Calcular anos de vigência se não fornecido
     let anosVigenciaFinal = parseInt(anosVigencia, 10);
     if (isNaN(anosVigenciaFinal) || anosVigenciaFinal < 1) {
-      const d1 = new Date(vigenciaInicio);
-      const d2 = new Date(vigenciaFim);
-      if (!isNaN(d1.getTime()) && !isNaN(d2.getTime()) && d2 > d1) {
-        let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-        if (d2.getDate() >= d1.getDate() - 2) months += 1;
+      if (dFim > dInicio) {
+        let months = (dFim.getFullYear() - dInicio.getFullYear()) * 12 + (dFim.getMonth() - dInicio.getMonth());
+        if (dFim.getDate() >= dInicio.getDate() - 2) months += 1;
         anosVigenciaFinal = Math.max(1, Math.round(months / 12));
       } else {
         anosVigenciaFinal = 1;
@@ -193,8 +258,8 @@ export async function POST(request: NextRequest) {
           processoSeiMae,
           licitacaoProcedimento,
           objeto,
-          vigenciaInicio: new Date(vigenciaInicio),
-          vigenciaFim: new Date(vigenciaFim),
+          vigenciaInicio: dInicio,
+          vigenciaFim: dFim,
           anosVigencia: anosVigenciaFinal,
           valorGlobal: valorGlobalFloat,
           valorAtualizado: valorGlobalFloat,
@@ -205,7 +270,7 @@ export async function POST(request: NextRequest) {
           tipoContrato: tipoContrato || 'FORNECIMENTO_SIMPLES',
           tipoEmpreitada: tipoEmpreitada || 'PRECO_UNITARIO',
           tipoMedicao: tipoMedicao || 'MENSAL',
-          dataOrcamentoEstimado: dataOrcamentoEstimado ? new Date(dataOrcamentoEstimado) : null,
+          dataOrcamentoEstimado: dOrcamento,
           fornecedorId: finalFornecedorId,
         },
       });

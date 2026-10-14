@@ -912,8 +912,22 @@ export default function EditarContratoPage() {
               <label className="text-xs font-bold text-slate-700">Início da Vigência *</label>
               <input
                 type="date"
+                min="2000-01-01"
+                max="2099-12-31"
                 value={vigenciaInicio}
-                onChange={(e) => setVigenciaInicio(e.target.value)}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (val && val.includes('-')) {
+                    const parts = val.split('-');
+                    if (parts[0] && parts[0].length > 4) {
+                      const cleanYear = parts[0].length === 5 && parts[0].startsWith('200')
+                        ? '20' + parts[0].slice(3)
+                        : parts[0].slice(0, 4);
+                      val = `${cleanYear}-${parts[1] || '01'}-${parts[2] || '01'}`;
+                    }
+                  }
+                  setVigenciaInicio(val);
+                }}
                 required
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
               />
@@ -923,8 +937,22 @@ export default function EditarContratoPage() {
               <label className="text-xs font-bold text-slate-700">Fim da Vigência *</label>
               <input
                 type="date"
+                min="2000-01-01"
+                max="2099-12-31"
                 value={vigenciaFim}
-                onChange={(e) => setVigenciaFim(e.target.value)}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (val && val.includes('-')) {
+                    const parts = val.split('-');
+                    if (parts[0] && parts[0].length > 4) {
+                      const cleanYear = parts[0].length === 5 && parts[0].startsWith('200')
+                        ? '20' + parts[0].slice(3)
+                        : parts[0].slice(0, 4);
+                      val = `${cleanYear}-${parts[1] || '01'}-${parts[2] || '01'}`;
+                    }
+                  }
+                  setVigenciaFim(val);
+                }}
                 required
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
               />

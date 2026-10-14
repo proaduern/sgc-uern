@@ -1159,9 +1159,20 @@ function NovoContratoForm() {
               <input
                 type="date"
                 required
+                min="2000-01-01"
+                max="2099-12-31"
                 value={vigenciaInicio}
                 onChange={(e) => {
-                  const val = e.target.value;
+                  let val = e.target.value;
+                  if (val && val.includes('-')) {
+                    const parts = val.split('-');
+                    if (parts[0] && parts[0].length > 4) {
+                      const cleanYear = parts[0].length === 5 && parts[0].startsWith('200')
+                        ? '20' + parts[0].slice(3)
+                        : parts[0].slice(0, 4);
+                      val = `${cleanYear}-${parts[1] || '01'}-${parts[2] || '01'}`;
+                    }
+                  }
                   setVigenciaInicio(val);
                   if (val && vigenciaFim) {
                     setAnosVigencia(calcularAnosPorDatas(val, vigenciaFim));
@@ -1176,9 +1187,20 @@ function NovoContratoForm() {
               <input
                 type="date"
                 required
+                min="2000-01-01"
+                max="2099-12-31"
                 value={vigenciaFim}
                 onChange={(e) => {
-                  const val = e.target.value;
+                  let val = e.target.value;
+                  if (val && val.includes('-')) {
+                    const parts = val.split('-');
+                    if (parts[0] && parts[0].length > 4) {
+                      const cleanYear = parts[0].length === 5 && parts[0].startsWith('200')
+                        ? '20' + parts[0].slice(3)
+                        : parts[0].slice(0, 4);
+                      val = `${cleanYear}-${parts[1] || '01'}-${parts[2] || '01'}`;
+                    }
+                  }
                   setVigenciaFim(val);
                   if (vigenciaInicio && val) {
                     setAnosVigencia(calcularAnosPorDatas(vigenciaInicio, val));

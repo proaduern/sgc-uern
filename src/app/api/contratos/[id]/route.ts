@@ -73,6 +73,58 @@ export async function GET(
   }
 }
 
+function parseAndValidateDate(val: any, fieldLabel: string): Date {
+  if (!val) throw new Error(`Campo ${fieldLabel} é obrigatório.`);
+
+  let str = String(val).trim();
+
+  // Trata formato DD/MM/YYYY
+  const brMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,6})/);
+  if (brMatch) {
+    const dia = brMatch[1].padStart(2, '0');
+    const mes = brMatch[2].padStart(2, '0');
+    let ano = brMatch[3];
+    if (ano.length === 2) ano = `20${ano}`;
+    str = `${ano}-${mes}-${dia}`;
+  }
+
+  // Trata ano com erro de digitação/estouro de dígitos (ex: +020026 -> 2026, 20026 -> 2026, 02026 -> 2026)
+  const isoMatch = str.match(/^(\+?\d+)-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    let anoRaw = isoMatch[1].replace(/^\+/, '');
+    const mes = isoMatch[2].padStart(2, '0');
+    const dia = isoMatch[3].padStart(2, '0');
+
+    if (anoRaw.length === 5 && (anoRaw.startsWith('200') || anoRaw.startsWith('020'))) {
+      anoRaw = anoRaw.replace(/^0+/, '');
+      if (anoRaw.length === 5 && anoRaw.startsWith('200')) {
+        anoRaw = '20' + anoRaw.slice(3);
+      }
+    } else if (anoRaw.length > 4) {
+      anoRaw = anoRaw.slice(0, 4);
+    }
+
+    const anoNum = parseInt(anoRaw, 10);
+    if (isNaN(anoNum) || anoNum < 1950 || anoNum > 2100) {
+      throw new Error(`Data de ${fieldLabel} inválida: o ano (${anoNum}) deve estar entre 1950 e 2100.`);
+    }
+
+    str = `${anoRaw.padStart(4, '0')}-${mes}-${dia}T00:00:00.000Z`;
+  }
+
+  const d = new Date(str);
+  if (isNaN(d.getTime())) {
+    throw new Error(`Data de ${fieldLabel} inválida ("${val}").`);
+  }
+
+  const anoFinal = d.getUTCFullYear();
+  if (anoFinal < 1950 || anoFinal > 2100) {
+    throw new Error(`Data de ${fieldLabel} inválida: o ano (${anoFinal}) deve estar entre 1950 e 2100.`);
+  }
+
+  return d;
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -124,6 +176,18 @@ export async function PUT(
       itens,
     } = body;
 
+    let dInicioAtualizado = contratoExistente.vigenciaInicio;
+    let dFimAtualizado = contratoExistente.vigenciaFim;
+    let dOrcamentoAtualizado = contratoExistente.dataOrcamentoEstimado;
+
+    try {
+      if (vigenciaInicio) dInicioAtualizado = parseAndValidateDate(vigenciaInicio, 'Início da Vigência');
+      if (vigenciaFim) dFimAtualizado = parseAndValidateDate(vigenciaFim, 'Fim da Vigência');
+      if (dataOrcamentoEstimado) dOrcamentoAtualizado = parseAndValidateDate(dataOrcamentoEstimado, 'Data-Base do Orçamento');
+    } catch (dateErr: any) {
+      return NextResponse.json({ error: dateErr.message }, { status: 400 });
+    }
+
     const limiteLegalPadrao = tipoContrato === 'OBRA' ? 50.0 : 25.0;
     const vGlobal = valorGlobal !== undefined ? (parseFloat(valorGlobal) || 0) : contratoExistente.valorGlobal;
 
@@ -139,8 +203,8 @@ export async function PUT(
             processoSeiMae: processoSeiMae !== undefined ? processoSeiMae : contratoExistente.processoSeiMae,
             licitacaoProcedimento: licitacaoProcedimento !== undefined ? licitacaoProcedimento : contratoExistente.licitacaoProcedimento,
             objeto: objeto !== undefined ? objeto : contratoExistente.objeto,
-            vigenciaInicio: vigenciaInicio ? new Date(vigenciaInicio) : contratoExistente.vigenciaInicio,
-            vigenciaFim: vigenciaFim ? new Date(vigenciaFim) : contratoExistente.vigenciaFim,
+            vigenciaInicio: dInicioAtualizado,
+            vigenciaFim: dFimAtualizado,
             valorGlobal: vGlobal,
             tipoVigencia: tipoVigencia || contratoExistente.tipoVigencia,
             portariaContinuadosRef: portariaContinuadosRef !== undefined ? portariaContinuadosRef : contratoExistente.portariaContinuadosRef,
@@ -149,7 +213,7 @@ export async function PUT(
             tipoContrato: tipoContrato || contratoExistente.tipoContrato,
             tipoEmpreitada: tipoEmpreitada || contratoExistente.tipoEmpreitada,
             tipoMedicao: tipoMedicao || contratoExistente.tipoMedicao,
-            dataOrcamentoEstimado: dataOrcamentoEstimado ? new Date(dataOrcamentoEstimado) : null,
+            dataOrcamentoEstimado: dOrcamentoAtualizado,
             status: status || contratoExistente.status,
             fornecedorId: fornecedorId || contratoExistente.fornecedorId,
             updatedAt: new Date(),

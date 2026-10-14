@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -94,8 +94,10 @@ export default function EditarContratoPage() {
   const [portariaContinuadosIdSei, setPortariaContinuadosIdSei] = useState('');
   const [portariaContinuadosUrl, setPortariaContinuadosUrl] = useState('');
 
-  // Tipos
+  // Tipos & Regime de Execução
   const [tipoContrato, setTipoContrato] = useState('FORNECIMENTO_SIMPLES');
+  const [regimeExecucao, setRegimeExecucao] = useState<'SEM_DEDICACAO_EXCLUSIVA' | 'DEDICACAO_EXCLUSIVA' | 'MISTO'>('SEM_DEDICACAO_EXCLUSIVA');
+  const [anosVigencia, setAnosVigencia] = useState(1);
   const [tipoEmpreitada, setTipoEmpreitada] = useState('PRECO_UNITARIO');
   const [tipoMedicao, setTipoMedicao] = useState('MENSAL');
 
@@ -109,6 +111,7 @@ export default function EditarContratoPage() {
 
   // Módulo 2 - Itens
   const [tipoAgrupamento, setTipoAgrupamento] = useState('ITEM_INDIVIDUAL');
+  const [mistoFiltroCategoria, setMistoFiltroCategoria] = useState<'TODOS' | 'DEMO' | 'NAO_DEMO'>('TODOS');
   const [itens, setItens] = useState<Array<{
     id?: string;
     numeroItem: number;
@@ -117,8 +120,11 @@ export default function EditarContratoPage() {
     unidade: string;
     tipoReajuste?: string;
     indiceReferencia?: string;
+    cctVinculada?: string;
     quantidade: string;
+    quantidadeAnual?: string;
     valorUnitario: string;
+    categoriaItem?: 'DEMO' | 'NAO_DEMO';
   }>>([]);
 
   // Estados para Importação em Lote de Itens via Planilha
@@ -176,6 +182,16 @@ export default function EditarContratoPage() {
             setVigenciaFim(new Date(c.vigenciaFim).toISOString().split('T')[0]);
           }
 
+          if (c.vigenciaInicio && c.vigenciaFim) {
+            const d1 = new Date(c.vigenciaInicio);
+            const d2 = new Date(c.vigenciaFim);
+            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime()) && d2 > d1) {
+              let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+              if (d2.getDate() >= d1.getDate() - 2) months += 1;
+              setAnosVigencia(Math.max(1, Math.round(months / 12)));
+            }
+          }
+
           setValorGlobal(c.valorGlobal ? String(c.valorGlobal) : '0');
           setTipoVigencia(c.tipoVigencia || 'NAO_CONTINUADO');
           setPortariaContinuadosRef(c.portariaContinuadosRef || '');
@@ -183,6 +199,9 @@ export default function EditarContratoPage() {
           setPortariaContinuadosUrl(c.portariaContinuadosUrl || '');
 
           setTipoContrato(c.tipoContrato || 'FORNECIMENTO_SIMPLES');
+          const regCarregado = (c.regimeExecucao || (c.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'DEDICACAO_EXCLUSIVA' : 'SEM_DEDICACAO_EXCLUSIVA')) as any;
+          setRegimeExecucao(regCarregado);
+
           setTipoEmpreitada(c.tipoEmpreitada || 'PRECO_UNITARIO');
           setTipoMedicao(c.tipoMedicao || 'MENSAL');
 
@@ -215,13 +234,16 @@ export default function EditarContratoPage() {
                 descricao: it.descricao,
                 unidade: it.unidade || 'UN',
                 quantidade: String(it.quantidadeAtual ?? it.quantidadeOriginal ?? 1),
+                quantidadeAnual: String(it.quantidadeAnual ?? it.quantidadeAtual ?? 1),
                 valorUnitario: String(it.valorUnitarioAtual ?? it.valorUnitarioOriginal ?? 0),
+                categoriaItem: (it.categoriaItem || (regCarregado === 'DEDICACAO_EXCLUSIVA' ? 'DEMO' : 'NAO_DEMO')) as 'DEMO' | 'NAO_DEMO',
                 tipoReajuste: it.tipoReajuste || (
                   ['MÊS', 'MES', 'POSTO'].includes((it.unidade || '').toUpperCase()) && c.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
                     ? 'REPACTUACAO_CCT'
                     : 'REAJUSTE_INDICE'
                 ),
                 indiceReferencia: it.indiceReferencia || '',
+                cctVinculada: it.cctVinculada || '',
               }))
             );
             if (c.itens[0]?.tipoGrupo) {
@@ -229,7 +251,17 @@ export default function EditarContratoPage() {
             }
           } else {
             setItens([
-              { numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+              {
+                numeroItem: 1,
+                cidade: 'Mossoró',
+                descricao: '',
+                unidade: 'UN',
+                quantidade: '1',
+                quantidadeAnual: '1',
+                valorUnitario: '0',
+                categoriaItem: 'NAO_DEMO',
+                tipoReajuste: 'REAJUSTE_INDICE'
+              }
             ]);
           }
         })
@@ -295,12 +327,30 @@ export default function EditarContratoPage() {
     }
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = (forcedCategoria?: 'DEMO' | 'NAO_DEMO') => {
+    const isDemo = forcedCategoria
+      ? forcedCategoria === 'DEMO'
+      : regimeExecucao === 'DEDICACAO_EXCLUSIVA';
+
     setItens([
       ...itens,
-      { numeroItem: itens.length + 1, cidade: 'Mossoró', descricao: '', unidade: 'UN', quantidade: '1', valorUnitario: '0' }
+      {
+        numeroItem: itens.length + 1,
+        cidade: 'Mossoró',
+        descricao: '',
+        unidade: isDemo ? 'MÊS' : 'UN',
+        quantidade: isDemo ? '1' : '1',
+        quantidadeAnual: isDemo ? '12' : '1',
+        valorUnitario: '0',
+        tipoReajuste: isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
+        categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
+      }
     ]);
   };
+
+  const handleAddItemDemo = () => handleAddItem('DEMO');
+  const handleAddItemNaoDemo = () => handleAddItem('NAO_DEMO');
 
   const handleRemoveItem = (index: number) => {
     if (itens.length === 1) return;
@@ -310,17 +360,79 @@ export default function EditarContratoPage() {
   const handleItemChange = (index: number, field: string, value: string) => {
     const updated = [...itens];
     (updated[index] as any)[field] = value;
+    if (field === 'quantidadeAnual' && updated[index].categoriaItem !== 'DEMO') {
+      const qA = parseFloat(value) || 0;
+      updated[index].quantidade = String(anosVigencia > 1 ? qA * anosVigencia : qA);
+    }
     setItens(updated);
   };
 
-  const totalCalculadoItens = itens.reduce((acc, item) => {
-    const q = parseFloat(item.quantidade) || 0;
-    const v = parseFloat(item.valorUnitario) || 0;
-    return acc + q * v;
-  }, 0);
+  const calcularValoresItem = (it: {
+    quantidade: string;
+    quantidadeAnual?: string;
+    valorUnitario: string;
+    unidade?: string;
+    categoriaItem?: 'DEMO' | 'NAO_DEMO';
+  }) => {
+    const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+      ? true
+      : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+      ? false
+      : (it.categoriaItem === 'DEMO');
+
+    const v = parseFloat(it.valorUnitario) || 0;
+
+    if (isDemo) {
+      const q = parseFloat(it.quantidade) || 0;
+      const totalMensal = q * v;
+      const totalAnual = totalMensal * 12;
+      const totalPlurianual = anosVigencia > 1 ? totalMensal * 12 * anosVigencia : 0;
+      const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
+      return { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo: true };
+    } else {
+      const qAnual = parseFloat(it.quantidadeAnual || it.quantidade) || 0;
+      const totalAnual = qAnual * v;
+      const totalPlurianual = anosVigencia > 1 ? totalAnual * anosVigencia : 0;
+      const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
+      const totalMensal = totalAnual / 12;
+      return { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo: false };
+    }
+  };
+
+  const totaisConsolidados = useMemo(() => {
+    return itens.reduce(
+      (acc, it) => {
+        const { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo } = calcularValoresItem(it);
+        acc.mensal += totalMensal;
+        acc.anual += totalAnual;
+        acc.plurianual += totalPlurianual;
+        acc.global += totalEfetivo;
+        if (isDemo) {
+          acc.demoAnual += totalAnual;
+          acc.demoGlobal += totalEfetivo;
+        } else {
+          acc.naoDemoAnual += totalAnual;
+          acc.naoDemoGlobal += totalEfetivo;
+        }
+        return acc;
+      },
+      {
+        mensal: 0,
+        anual: 0,
+        plurianual: 0,
+        global: 0,
+        demoAnual: 0,
+        demoGlobal: 0,
+        naoDemoAnual: 0,
+        naoDemoGlobal: 0,
+      }
+    );
+  }, [itens, anosVigencia, regimeExecucao]);
+
+  const totalCalculadoItens = totaisConsolidados.global;
 
   const sincronizarValorGlobal = () => {
-    setValorGlobal(totalCalculadoItens.toFixed(2));
+    setValorGlobal(totaisConsolidados.global.toFixed(2));
   };
 
   // Processamento de Planilha
@@ -417,25 +529,32 @@ export default function EditarContratoPage() {
   const confirmarImportacao = () => {
     if (previewItens.length === 0) return;
 
-    if (importMode === 'REPLACE') {
-      setItens(previewItens.map((p) => ({
-        numeroItem: p.numeroItem,
+    const mapItemImportado = (p: typeof previewItens[0], idx: number) => {
+      const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+        ? true
+        : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+        ? false
+        : ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase());
+
+      return {
+        numeroItem: idx,
         cidade: p.cidade || 'Mossoró',
         descricao: p.descricao,
         unidade: p.unidade,
         quantidade: p.quantidade,
+        quantidadeAnual: p.quantidade,
         valorUnitario: p.valorUnitario,
-      })));
+        categoriaItem: (isDemo ? 'DEMO' : 'NAO_DEMO') as 'DEMO' | 'NAO_DEMO',
+        tipoReajuste: isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
+      };
+    };
+
+    if (importMode === 'REPLACE') {
+      setItens(previewItens.map((p, idx) => mapItemImportado(p, idx + 1)));
     } else {
       const proximoNum = itens.length > 0 ? Math.max(...itens.map((i) => i.numeroItem)) + 1 : 1;
-      const novos = previewItens.map((p, idx) => ({
-        numeroItem: proximoNum + idx,
-        cidade: p.cidade || 'Mossoró',
-        descricao: p.descricao,
-        unidade: p.unidade,
-        quantidade: p.quantidade,
-        valorUnitario: p.valorUnitario,
-      }));
+      const novos = previewItens.map((p, idx) => mapItemImportado(p, proximoNum + idx));
       setItens([...itens, ...novos]);
     }
 
@@ -485,15 +604,26 @@ export default function EditarContratoPage() {
         portariaContinuadosIdSei,
         portariaContinuadosUrl,
         tipoContrato,
+        regimeExecucao,
         tipoEmpreitada,
         tipoMedicao,
         dataOrcamentoEstimado: dataOrcamentoEstimado || null,
         fornecedorId,
         indices: listaIndices,
-        itens: itens.map((it) => ({
-          ...it,
-          tipoGrupo: tipoAgrupamento,
-        })),
+        itens: itens.map((it) => {
+          const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+            ? true
+            : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+            ? false
+            : (it.categoriaItem === 'DEMO');
+
+          return {
+            ...it,
+            categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
+            quantidadeAnual: parseFloat(it.quantidadeAnual || it.quantidade) || 0,
+            tipoGrupo: tipoAgrupamento,
+          };
+        }),
       };
 
       const res = await fetch(`/api/contratos/${id}`, {
@@ -989,7 +1119,18 @@ export default function EditarContratoPage() {
               <label className="text-xs font-bold text-slate-700">Tipo de Contrato *</label>
               <select
                 value={tipoContrato}
-                onChange={(e) => setTipoContrato(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTipoContrato(val);
+                  if (val === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO') {
+                    setRegimeExecucao('DEDICACAO_EXCLUSIVA');
+                  } else if (val === 'LOCACAO_IMOVEL') {
+                    setTipoVigencia('LOCACAO_IMOVEL');
+                    setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA');
+                  } else {
+                    setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA');
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-semibold text-slate-800"
               >
                 <option value="FORNECIMENTO_SIMPLES">Fornecimento Simples</option>
@@ -1029,6 +1170,70 @@ export default function EditarContratoPage() {
                 <option value="POR_DEMANDA">Por Demanda / Ordem de Serviço</option>
                 <option value="POR_EVENTO">Por Etapa / Evento</option>
               </select>
+            </div>
+          </div>
+
+          {/* Seletor de Regime de Execução de Mão de Obra */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Regime de Execução de Mão de Obra *
+              </label>
+              <span className="text-[11px] text-slate-400">
+                Determina o layout da planilha de itens e fórmulas de cálculo
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div
+                onClick={() => setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+                    ? 'border-blue-600 bg-blue-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">🛠️</span>
+                  <span className="text-xs font-bold text-slate-800">Sem Dedicação Exclusiva (Não DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Climatização, refrigeração, manutenção, aquisição de bens e serviços sem postos fixos. Fórmulas: <strong>Qtd Anual × Valor Unitário</strong>.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setRegimeExecucao('DEDICACAO_EXCLUSIVA')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+                    ? 'border-amber-600 bg-amber-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">👥</span>
+                  <span className="text-xs font-bold text-slate-800">Com Dedicação Exclusiva (DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Postos de trabalho terceirizados residentes vinculados à Convenção Coletiva (CCT) e Planilha da IN 05/2017.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setRegimeExecucao('MISTO')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'MISTO'
+                    ? 'border-indigo-600 bg-indigo-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">🔀</span>
+                  <span className="text-xs font-bold text-slate-800">Contrato Misto (DEMO + Não DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Mescla postos de trabalho residentes com fornecimento de peças, materiais ou serviços sob demanda, unificando no Valor Global.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1182,15 +1387,101 @@ export default function EditarContratoPage() {
                 <span>Importar Planilha</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Adicionar Item</span>
-              </button>
+              {regimeExecucao === 'MISTO' ? (
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAddItemNaoDemo}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-semibold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Item Não DEMO</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddItemDemo}
+                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Posto DEMO</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAddItem()}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Adicionar Posto' : 'Adicionar Item'}</span>
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* Banner Informativo do Regime de Execução */}
+          <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+            regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+              ? 'bg-blue-50/70 border-blue-200 text-blue-950'
+              : regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+              ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+              : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
+          }`}>
+            <div className="flex items-start sm:items-center space-x-2.5">
+              <span className="text-lg">
+                {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' ? '🛠️' : regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? '👥' : '🔀'}
+              </span>
+              <div>
+                <p className="font-bold">
+                  {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' && 'Regime: Sem Dedicação Exclusiva de Mão de Obra (Não DEMO)'}
+                  {regimeExecucao === 'DEDICACAO_EXCLUSIVA' && 'Regime: Com Dedicação Exclusiva de Mão de Obra (DEMO / Terceirização)'}
+                  {regimeExecucao === 'MISTO' && 'Regime: Contrato Misto (Postos DEMO + Serviços/Peças Não DEMO)'}
+                </p>
+                <p className="text-[11px] opacity-90 mt-0.5">
+                  {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' && (
+                    <>Cálculo: <strong>Total Anual = Qtd Anual × Valor Unitário</strong>, e <strong>Total Plurianual = Qtd Anual × Valor Unitário × {anosVigencia} anos</strong>.</>
+                  )}
+                  {regimeExecucao === 'DEDICACAO_EXCLUSIVA' && (
+                    <>Cálculo: <strong>Total Anual = Qtd × Valor Mensal × 12</strong>, e <strong>Total Plurianual = Qtd × Valor Mensal × 12 × {anosVigencia} anos</strong>.</>
+                  )}
+                  {regimeExecucao === 'MISTO' && (
+                    <>Consolidação de postos residentes e itens de serviços sob demanda no Valor Global.</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {regimeExecucao === 'MISTO' && (
+              <div className="flex items-center space-x-1.5 self-end sm:self-center bg-white p-1 rounded-lg border border-indigo-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('TODOS')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'TODOS' ? 'bg-indigo-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Todos ({itens.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('DEMO')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'DEMO' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  👥 DEMO ({itens.filter(i => i.categoriaItem === 'DEMO').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('NAO_DEMO')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'NAO_DEMO' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  🛠️ Não DEMO ({itens.filter(i => i.categoriaItem !== 'DEMO').length})
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Busca de Itens */}
@@ -1216,69 +1507,83 @@ export default function EditarContratoPage() {
             </div>
           )}
 
-          {/* Barra de Classificação Rápida de Itens em Lote */}
-          {itens.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-              <span className="font-semibold text-slate-700">Classificação da Regra de Reajuste em Lote:</span>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REPACTUACAO_CCT' })))}
-                  className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
-                  title="Marcar todos os itens como Mão de Obra Residente (CCT - Livre de Interregno)"
-                >
-                  Todos Mão de Obra (CCT)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setItens(itens.map((it) => ({ ...it, tipoReajuste: 'REAJUSTE_INDICE' })))}
-                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
-                  title="Marcar todos os itens como Insumos/Serviços (Índice - Interregno de 1 ano)"
-                >
-                  Todos Insumos/Índice (1 ano)
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Tabela de Itens */}
+          {/* Tabela de Itens Dinâmica */}
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
                 <tr>
-                  <th className="py-2.5 px-3 w-14 text-center">Item</th>
-                  <th className="py-2.5 px-3">Descrição Detalhada do Objeto / Serviço</th>
-                  <th className="py-2.5 px-3 w-32 text-center">Cidade Execução</th>
+                  <th className="py-2.5 px-3 w-12 text-center">Item</th>
+                  {regimeExecucao === 'MISTO' && (
+                    <th className="py-2.5 px-2.5 w-28 text-center">Categoria</th>
+                  )}
+                  <th className="py-2.5 px-3 min-w-[200px]">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Função / Posto de Mão de Obra' : 'Descrição do Objeto / Serviço'}
+                  </th>
+                  <th className="py-2.5 px-3 w-28 text-center">Cidade</th>
                   <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
-                  <th className="py-2.5 px-3 w-48 text-center">Regra Reajuste</th>
-                  <th className="py-2.5 px-3 w-24">Quantidade</th>
-                  <th className="py-2.5 px-3 w-28">Valor Unit. (R$)</th>
-                  <th className="py-2.5 px-3 w-28 text-right">Subtotal (R$)</th>
-                  <th className="py-2.5 px-2 w-10 text-center"></th>
+                  <th className="py-2.5 px-3 w-40 text-center">Regra Reajuste</th>
+                  <th className="py-2.5 px-3 w-28 text-right">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Qtd Postos/Mês' : 'Qtd Anual'}
+                  </th>
+                  <th className="py-2.5 px-3 w-28 text-right">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Valor Mensal (R$)' : 'Valor Unit. (R$)'}
+                  </th>
+                  <th className="py-2.5 px-3 w-28 text-right bg-blue-50/50">Total Anual</th>
+                  <th className={`py-2.5 px-3 w-32 text-right ${anosVigencia > 1 ? 'font-black text-blue-950 bg-blue-100/50' : 'text-slate-400 bg-slate-50'}`}>
+                    Total Plurianual ({anosVigencia > 1 ? `${anosVigencia}a` : '0'})
+                  </th>
+                  <th className="py-2.5 px-2 w-10 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedItens.map((item, idx) => {
                   const globalIdx = (currentPage - 1) * pageSize + idx;
-                  const q = parseFloat(item.quantidade) || 0;
-                  const v = parseFloat(item.valorUnitario) || 0;
-                  const subtotal = q * v;
+                  const { totalAnual, totalPlurianual, isDemo } = calcularValoresItem(item);
 
                   return (
                     <tr key={globalIdx} className="hover:bg-slate-50/60">
                       <td className="py-2 px-3 text-center font-bold text-slate-700">
                         {item.numeroItem}
                       </td>
+
+                      {regimeExecucao === 'MISTO' && (
+                        <td className="py-2 px-2.5 text-center">
+                          <select
+                            value={item.categoriaItem || 'NAO_DEMO'}
+                            onChange={(e) => {
+                              const novaCat = e.target.value as 'DEMO' | 'NAO_DEMO';
+                              handleItemChange(globalIdx, 'categoriaItem', novaCat);
+                              if (novaCat === 'DEMO') {
+                                handleItemChange(globalIdx, 'unidade', 'MÊS');
+                                handleItemChange(globalIdx, 'tipoReajuste', 'REPACTUACAO_CCT');
+                              } else {
+                                handleItemChange(globalIdx, 'unidade', 'UN');
+                                handleItemChange(globalIdx, 'tipoReajuste', 'REAJUSTE_INDICE');
+                              }
+                            }}
+                            className={`w-full px-1.5 py-1 rounded text-[10px] font-bold border ${
+                              item.categoriaItem === 'DEMO'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-blue-100 text-blue-900 border-blue-300'
+                            }`}
+                          >
+                            <option value="NAO_DEMO">🛠️ Não DEMO</option>
+                            <option value="DEMO">👥 DEMO</option>
+                          </select>
+                        </td>
+                      )}
+
                       <td className="py-2 px-3">
                         <input
                           type="text"
                           value={item.descricao}
                           onChange={(e) => handleItemChange(globalIdx, 'descricao', e.target.value)}
-                          placeholder="Descrição do item"
+                          placeholder={isDemo ? 'Posto de trabalho...' : 'Descrição do serviço ou material...'}
                           required
                           className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none"
                         />
                       </td>
+
                       <td className="py-2 px-3">
                         <select
                           value={item.cidade || 'Mossoró'}
@@ -1294,36 +1599,55 @@ export default function EditarContratoPage() {
                           <option value="Geral/Todos">Geral/Todos</option>
                         </select>
                       </td>
+
                       <td className="py-2 px-3">
                         <input
                           type="text"
                           value={item.unidade}
                           onChange={(e) => handleItemChange(globalIdx, 'unidade', e.target.value)}
-                          placeholder="UN"
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs uppercase outline-none text-center"
+                          placeholder={isDemo ? 'MÊS' : 'UN'}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs uppercase outline-none text-center font-bold"
                         />
                       </td>
+
                       <td className="py-2 px-3">
                         <select
-                          value={item.tipoReajuste || 'REAJUSTE_INDICE'}
+                          value={item.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE')}
                           onChange={(e) => handleItemChange(globalIdx, 'tipoReajuste', e.target.value)}
                           className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold outline-none focus:border-blue-600"
                         >
-                          <option value="REPACTUACAO_CCT">Mão de Obra (CCT - Sem Interregno)</option>
-                          <option value="REAJUSTE_INDICE">Insumos/Serviços (Índice - 1 ano)</option>
+                          <option value="REAJUSTE_INDICE">Insumos/Serviços (Índice)</option>
+                          <option value="REPACTUACAO_CCT">Mão de Obra (CCT)</option>
                           <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
                         </select>
                       </td>
+
                       <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          step="any"
-                          value={item.quantidade}
-                          onChange={(e) => handleItemChange(globalIdx, 'quantidade', e.target.value)}
-                          required
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none"
-                        />
+                        {isDemo ? (
+                          <input
+                            type="number"
+                            step="any"
+                            value={item.quantidade}
+                            onChange={(e) => handleItemChange(globalIdx, 'quantidade', e.target.value)}
+                            required
+                            placeholder="1"
+                            title="Quantidade do posto no mês"
+                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none text-right font-semibold"
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            step="any"
+                            value={item.quantidadeAnual || item.quantidade}
+                            onChange={(e) => handleItemChange(globalIdx, 'quantidadeAnual', e.target.value)}
+                            required
+                            placeholder="1"
+                            title="Quantidade anual estimada"
+                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none text-right font-semibold"
+                          />
+                        )}
                       </td>
+
                       <td className="py-2 px-3">
                         <input
                           type="number"
@@ -1331,18 +1655,31 @@ export default function EditarContratoPage() {
                           value={item.valorUnitario}
                           onChange={(e) => handleItemChange(globalIdx, 'valorUnitario', e.target.value)}
                           required
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                          placeholder="0,00"
+                          title={isDemo ? 'Valor mensal do posto' : 'Valor unitário'}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none text-right font-semibold"
                         />
                       </td>
-                      <td className="py-2 px-3 text-right font-bold text-slate-800">
-                        {subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+
+                      <td className="py-2 px-3 text-right font-bold text-slate-800 bg-blue-50/30 whitespace-nowrap">
+                        {totalAnual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
+
+                      <td className={`py-2 px-3 text-right whitespace-nowrap ${anosVigencia > 1 ? 'font-bold text-blue-900 bg-blue-100/40' : 'text-slate-400 bg-slate-50'}`}>
+                        {anosVigencia > 1 ? (
+                          totalPlurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        ) : (
+                          <span className="text-[11px] font-medium text-slate-400">R$ 0,00</span>
+                        )}
+                      </td>
+
                       <td className="py-2 px-2 text-center">
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(globalIdx)}
                           disabled={itens.length === 1}
                           className="p-1 text-slate-400 hover:text-red-600 rounded disabled:opacity-30 cursor-pointer"
+                          title="Remover item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1380,28 +1717,53 @@ export default function EditarContratoPage() {
           )}
 
           {/* Totalizador de Itens e Sincronização */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="space-y-1">
-              <div className="text-xs text-slate-600">
-                Soma dos {itens.length} itens calculados:{' '}
-                <strong className="text-slate-800 text-sm">
-                  {totalCalculadoItens.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </strong>
-              </div>
-              {Math.abs(totalCalculadoItens - (parseFloat(valorGlobal) || 0)) > 0.01 && (
-                <div className="text-[11px] text-amber-700 flex items-center space-x-1 font-semibold">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                  <span>
-                    Diferença de {(totalCalculadoItens - (parseFloat(valorGlobal) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em relação ao Valor Global do Contrato.
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            {regimeExecucao === 'MISTO' ? (
+              <div className="flex flex-wrap items-center gap-4">
+                <div>
+                  <span className="text-[10px] text-amber-800 font-bold uppercase block">Subtotal DEMO:</span>
+                  <span className="font-semibold text-slate-800">
+                    {totaisConsolidados.demoGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
                 </div>
-              )}
-            </div>
+                <div className="h-6 w-[1px] bg-slate-200 hidden sm:block" />
+                <div>
+                  <span className="text-[10px] text-blue-800 font-bold uppercase block">Subtotal Não DEMO:</span>
+                  <span className="font-semibold text-slate-800">
+                    {totaisConsolidados.naoDemoGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+                <div className="h-6 w-[1px] bg-slate-200 hidden sm:block" />
+                <div>
+                  <span className="text-[10px] text-indigo-900 font-bold uppercase block">Consolidado ({anosVigencia > 1 ? `${anosVigencia} anos` : '1 ano'}):</span>
+                  <span className="font-bold text-indigo-950 text-sm">
+                    {totaisConsolidados.global.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-xs text-slate-600">
+                  Soma calculada ({anosVigencia > 1 ? `Plurianual de ${anosVigencia} anos` : 'Anual de 1 ano'}):{' '}
+                  <strong className="text-slate-800 text-sm">
+                    {totaisConsolidados.global.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+                {Math.abs(totaisConsolidados.global - (parseFloat(valorGlobal) || 0)) > 0.05 && (
+                  <div className="text-[11px] text-amber-700 flex items-center space-x-1 font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    <span>
+                      Diferença de {(totaisConsolidados.global - (parseFloat(valorGlobal) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em relação ao Valor Global do Contrato.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
               onClick={sincronizarValorGlobal}
-              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold transition-all cursor-pointer self-end sm:self-center"
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer self-end sm:self-center"
             >
               Sincronizar com Valor Global
             </button>

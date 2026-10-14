@@ -92,8 +92,9 @@ function NovoContratoForm() {
   const [portariaContinuadosIdSei, setPortariaContinuadosIdSei] = useState('');
   const [portariaContinuadosUrl, setPortariaContinuadosUrl] = useState('');
 
-  // Tipos
+  // Tipos & Regime de Execução
   const [tipoContrato, setTipoContrato] = useState('FORNECIMENTO_SIMPLES');
+  const [regimeExecucao, setRegimeExecucao] = useState<'SEM_DEDICACAO_EXCLUSIVA' | 'DEDICACAO_EXCLUSIVA' | 'MISTO'>('SEM_DEDICACAO_EXCLUSIVA');
   const [tipoEmpreitada, setTipoEmpreitada] = useState('PRECO_UNITARIO');
   const [tipoMedicao, setTipoMedicao] = useState('MENSAL');
 
@@ -137,20 +138,35 @@ function NovoContratoForm() {
     });
   };
 
-  // Módulo 2 - Itens (Padrão: Terceirização com unidade mensal MÊS)
+  // Módulo 2 - Itens (Suporta DEMO, Não DEMO e Misto)
   const [tipoAgrupamento, setTipoAgrupamento] = useState('ITEM_INDIVIDUAL'); // GRUPO_UNICO ou ITEM_INDIVIDUAL
+  const [mistoFiltroCategoria, setMistoFiltroCategoria] = useState<'TODOS' | 'DEMO' | 'NAO_DEMO'>('TODOS');
   const [itens, setItens] = useState<Array<{
+    id?: string;
     numeroItem: number;
     cidade?: string;
     descricao: string;
     unidade: string;
     quantidade: string;
+    quantidadeAnual?: string;
     valorUnitario: string;
     tipoReajuste?: string;
     indiceReferencia?: string;
     cctVinculada?: string;
+    categoriaItem?: 'DEMO' | 'NAO_DEMO';
   }>>([
-    { numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'MÊS', quantidade: '1', valorUnitario: '0', tipoReajuste: 'REPACTUACAO_CCT', indiceReferencia: '', cctVinculada: 'CCT Motoristas (SINDITRANS)' }
+    {
+      numeroItem: 1,
+      cidade: 'Mossoró',
+      descricao: '',
+      unidade: 'UN',
+      quantidade: '1',
+      quantidadeAnual: '1',
+      valorUnitario: '0',
+      tipoReajuste: 'REAJUSTE_INDICE',
+      indiceReferencia: '',
+      categoriaItem: 'NAO_DEMO',
+    }
   ]);
 
   // Estados de Gerenciamento de Rascunho
@@ -181,6 +197,7 @@ function NovoContratoForm() {
     if (dados.portariaContinuadosIdSei !== undefined) setPortariaContinuadosIdSei(dados.portariaContinuadosIdSei || '');
     if (dados.portariaContinuadosUrl !== undefined) setPortariaContinuadosUrl(dados.portariaContinuadosUrl || '');
     if (dados.tipoContrato !== undefined) setTipoContrato(dados.tipoContrato || 'FORNECIMENTO_SIMPLES');
+    if (dados.regimeExecucao !== undefined) setRegimeExecucao(dados.regimeExecucao || 'SEM_DEDICACAO_EXCLUSIVA');
     if (dados.tipoEmpreitada !== undefined) setTipoEmpreitada(dados.tipoEmpreitada || 'PRECO_UNITARIO');
     if (dados.tipoMedicao !== undefined) setTipoMedicao(dados.tipoMedicao || 'MENSAL');
     if (dados.indiceIpca !== undefined) setIndiceIpca(!!dados.indiceIpca);
@@ -229,6 +246,7 @@ function NovoContratoForm() {
           portariaContinuadosIdSei,
           portariaContinuadosUrl,
           tipoContrato,
+          regimeExecucao,
           tipoEmpreitada,
           tipoMedicao,
           indiceIpca,
@@ -328,22 +346,31 @@ function NovoContratoForm() {
     return Math.max(1, Math.round(months / 12));
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = (forcedCategoria?: 'DEMO' | 'NAO_DEMO') => {
+    const isDemo = forcedCategoria
+      ? forcedCategoria === 'DEMO'
+      : regimeExecucao === 'DEDICACAO_EXCLUSIVA';
+
     setItens([
       ...itens,
       {
         numeroItem: itens.length + 1,
         cidade: 'Mossoró',
         descricao: '',
-        unidade: 'MÊS',
-        quantidade: '1',
+        unidade: isDemo ? 'MÊS' : 'UN',
+        quantidade: isDemo ? '1' : '1',
+        quantidadeAnual: isDemo ? '12' : '1',
         valorUnitario: '0',
-        tipoReajuste: 'REPACTUACAO_CCT',
+        tipoReajuste: isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE',
         indiceReferencia: '',
-        cctVinculada: convencoes[0]?.nomeConvencao || '',
+        cctVinculada: isDemo ? (convencoes[0]?.nomeConvencao || '') : '',
+        categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
       }
     ]);
   };
+
+  const handleAddItemDemo = () => handleAddItem('DEMO');
+  const handleAddItemNaoDemo = () => handleAddItem('NAO_DEMO');
 
   const handleRemoveItem = (index: number) => {
     if (itens.length === 1) return;
@@ -353,38 +380,79 @@ function NovoContratoForm() {
   const handleItemChange = (index: number, field: string, value: string) => {
     const updated = [...itens];
     (updated[index] as any)[field] = value;
+    // Se mudar quantidade anual em Não DEMO, sincronizar quantidade total
+    if (field === 'quantidadeAnual' && updated[index].categoriaItem !== 'DEMO') {
+      const qA = parseFloat(value) || 0;
+      updated[index].quantidade = String(anosVigencia > 1 ? qA * anosVigencia : qA);
+    }
     setItens(updated);
   };
 
-  // Cálculo individual de cada item: Mensal, Anual (x12), Plurianual (x12 x anos se anos > 1) e Efetivo
-  const calcularValoresItem = (it: { quantidade: string; valorUnitario: string; unidade?: string }) => {
-    const q = parseFloat(it.quantidade) || 0;
+  // Cálculo individual de cada item:
+  // - DEMO: Total Mensal (q * v), Total Anual (x12), Plurianual (x12 x anos se anos > 1)
+  // - Não DEMO: Total Anual (qAnual * v), Plurianual (qAnual * v * anos se anos > 1)
+  const calcularValoresItem = (it: {
+    quantidade: string;
+    quantidadeAnual?: string;
+    valorUnitario: string;
+    unidade?: string;
+    categoriaItem?: 'DEMO' | 'NAO_DEMO';
+  }) => {
+    const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+      ? true
+      : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+      ? false
+      : (it.categoriaItem === 'DEMO');
+
     const v = parseFloat(it.valorUnitario) || 0;
-    const unidadeNorm = (it.unidade || 'MÊS').trim().toUpperCase();
-    const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes(unidadeNorm);
 
-    const totalMensal = q * v;
-    const totalAnual = isMensal ? totalMensal * 12 : totalMensal;
-    const totalPlurianual = anosVigencia > 1 ? (isMensal ? totalMensal * 12 * anosVigencia : totalMensal * anosVigencia) : 0;
-    const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
-
-    return { totalMensal, totalAnual, totalPlurianual, totalEfetivo };
+    if (isDemo) {
+      const q = parseFloat(it.quantidade) || 0;
+      const totalMensal = q * v;
+      const totalAnual = totalMensal * 12;
+      const totalPlurianual = anosVigencia > 1 ? totalMensal * 12 * anosVigencia : 0;
+      const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
+      return { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo: true };
+    } else {
+      const qAnual = parseFloat(it.quantidadeAnual || it.quantidade) || 0;
+      const totalAnual = qAnual * v;
+      const totalPlurianual = anosVigencia > 1 ? totalAnual * anosVigencia : 0;
+      const totalEfetivo = anosVigencia > 1 ? totalPlurianual : totalAnual;
+      const totalMensal = totalAnual / 12;
+      return { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo: false };
+    }
   };
 
   // Totais consolidados de todos os itens do contrato
   const totaisConsolidados = useMemo(() => {
     return itens.reduce(
       (acc, it) => {
-        const { totalMensal, totalAnual, totalPlurianual, totalEfetivo } = calcularValoresItem(it);
+        const { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo } = calcularValoresItem(it);
         acc.mensal += totalMensal;
         acc.anual += totalAnual;
         acc.plurianual += totalPlurianual;
         acc.global += totalEfetivo;
+        if (isDemo) {
+          acc.demoAnual += totalAnual;
+          acc.demoGlobal += totalEfetivo;
+        } else {
+          acc.naoDemoAnual += totalAnual;
+          acc.naoDemoGlobal += totalEfetivo;
+        }
         return acc;
       },
-      { mensal: 0, anual: 0, plurianual: 0, global: 0 }
+      {
+        mensal: 0,
+        anual: 0,
+        plurianual: 0,
+        global: 0,
+        demoAnual: 0,
+        demoGlobal: 0,
+        naoDemoAnual: 0,
+        naoDemoGlobal: 0,
+      }
     );
-  }, [itens, anosVigencia]);
+  }, [itens, anosVigencia, regimeExecucao]);
 
   // Valor total calculado para fins de valor global do contrato: plurianual se anos > 1, senão anual
   const totalCalculadoItens = totaisConsolidados.global;
@@ -524,34 +592,35 @@ function NovoContratoForm() {
 
     let novaLista: typeof itens = [];
 
+    const mapItemImportado = (p: typeof previewItens[0], idx: number) => {
+      const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+        ? true
+        : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+        ? false
+        : ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase());
+
+      return {
+        numeroItem: idx,
+        cidade: p.cidade || 'Mossoró',
+        descricao: p.descricao,
+        unidade: p.unidade,
+        quantidade: p.quantidade,
+        quantidadeAnual: p.quantidade,
+        valorUnitario: p.valorUnitario,
+        categoriaItem: (isDemo ? 'DEMO' : 'NAO_DEMO') as 'DEMO' | 'NAO_DEMO',
+        tipoReajuste: isDemo
+          ? 'REPACTUACAO_CCT'
+          : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
+        cctVinculada: isDemo ? (convencoes[0]?.nomeConvencao || '') : '',
+      };
+    };
+
     if (importMode === 'REPLACE') {
-      novaLista = previewItens.map((p, idx) => ({
-        numeroItem: idx + 1,
-        cidade: p.cidade || 'Mossoró',
-        descricao: p.descricao,
-        unidade: p.unidade,
-        quantidade: p.quantidade,
-        valorUnitario: p.valorUnitario,
-        tipoReajuste: ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase()) || (indiceCct && !indiceSetorial && !indiceIpca)
-          ? 'REPACTUACAO_CCT'
-          : 'REAJUSTE_INDICE',
-        indiceReferencia: '',
-      }));
+      novaLista = previewItens.map((p, idx) => mapItemImportado(p, idx + 1));
     } else {
-      // APPEND
       const startNum = itens.length;
-      const adicionados = previewItens.map((p, idx) => ({
-        numeroItem: startNum + idx + 1,
-        cidade: p.cidade || 'Mossoró',
-        descricao: p.descricao,
-        unidade: p.unidade,
-        quantidade: p.quantidade,
-        valorUnitario: p.valorUnitario,
-        tipoReajuste: ['MÊS', 'MES', 'POSTO'].includes((p.unidade || '').toUpperCase()) || (indiceCct && !indiceSetorial && !indiceIpca)
-          ? 'REPACTUACAO_CCT'
-          : 'REAJUSTE_INDICE',
-        indiceReferencia: '',
-      }));
+      const adicionados = previewItens.map((p, idx) => mapItemImportado(p, startNum + idx + 1));
       novaLista = [...itens, ...adicionados];
     }
 
@@ -577,8 +646,46 @@ function NovoContratoForm() {
     }, 6000);
   };
 
-  // Download do Modelo Oficial de Itens / Postos de Terceirização
+  // Download do Modelo Oficial de Itens Conforme Regime
   const baixarModeloItens = () => {
+    if (regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA') {
+      const dadosModelo = [
+        {
+          Item: 1,
+          Cidade: 'Mossoró',
+          Descricao_Item_Servico: 'Manutenção preventiva em ar-condicionado Split (até 24.000 BTUs)',
+          Unidade_Medida: 'SERVIÇO',
+          Regra_Reajuste: 'REAJUSTE_INDICE',
+          Quantidade_Anual: 120,
+          Valor_Unitario: 85.00,
+        },
+        {
+          Item: 2,
+          Cidade: 'Mossoró',
+          Descricao_Item_Servico: 'Troca de compressor rotativo 30.000 BTUs',
+          Unidade_Medida: 'UN',
+          Regra_Reajuste: 'REAJUSTE_INDICE',
+          Quantidade_Anual: 15,
+          Valor_Unitario: 650.00,
+        },
+        {
+          Item: 3,
+          Cidade: 'Caicó',
+          Descricao_Item_Servico: 'Carga completa de gás refrigerante ecológico R-410A',
+          Unidade_Medida: 'KG',
+          Regra_Reajuste: 'REAJUSTE_INDICE',
+          Quantidade_Anual: 40,
+          Valor_Unitario: 140.00,
+        },
+      ];
+      const ws = XLSX.utils.json_to_sheet(dadosModelo);
+      ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 55 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Itens_Servicos_UERN');
+      XLSX.writeFile(wb, 'Modelo_Itens_Sem_Ded_Exclusiva_UERN.xlsx');
+      return;
+    }
+
     const dadosModelo = [
       {
         Item: 1,
@@ -642,18 +749,19 @@ function NovoContratoForm() {
   const exportarItensParaExcel = () => {
     if (itens.length === 0) return;
     const dados = itens.map((it) => {
-      const { totalMensal, totalAnual, totalPlurianual, totalEfetivo } = calcularValoresItem(it);
+      const { totalMensal, totalAnual, totalPlurianual, totalEfetivo, isDemo } = calcularValoresItem(it);
       return {
         Item: it.numeroItem,
-        Funcao_Posto: it.descricao,
+        Categoria: isDemo ? 'Mão de Obra (DEMO)' : 'Serviços/Insumos (Não DEMO)',
+        Descricao: it.descricao,
         Cidade: it.cidade || 'Mossoró',
         Unidade: it.unidade,
-        Regra_Reajuste: it.tipoReajuste || 'REPACTUACAO_CCT',
+        Regra_Reajuste: it.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
         Convencao_CCT: it.cctVinculada || '',
-        Qtd_Postos_Mes: parseFloat(it.quantidade) || 0,
-        Valor_Mensal_Unitario: parseFloat(it.valorUnitario) || 0,
-        Total_Mensal: totalMensal,
-        Total_Anual_12m: totalAnual,
+        Qtd_Mes_ou_Anual: isDemo ? (parseFloat(it.quantidade) || 0) : (parseFloat(it.quantidadeAnual || it.quantidade) || 0),
+        Valor_Unitario: parseFloat(it.valorUnitario) || 0,
+        Total_Mensal: isDemo ? totalMensal : totalAnual / 12,
+        Total_Anual: totalAnual,
         Total_Plurianual: anosVigencia > 1 ? totalPlurianual : 0,
         Valor_Global_Considerado: totalEfetivo,
       };
@@ -661,27 +769,40 @@ function NovoContratoForm() {
     const ws = XLSX.utils.json_to_sheet(dados);
     ws['!cols'] = [
       { wch: 8 },
+      { wch: 25 },
       { wch: 40 },
       { wch: 16 },
       { wch: 10 },
       { wch: 22 },
       { wch: 30 },
       { wch: 16 },
-      { wch: 22 },
       { wch: 18 },
-      { wch: 20 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 18 },
       { wch: 22 },
-      { wch: 24 },
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Postos_Contratados');
-    XLSX.writeFile(wb, `Postos_Contrato_${numeroContrato || 'Rascunho'}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Itens_Contratados');
+    XLSX.writeFile(wb, `Itens_Contrato_${numeroContrato || 'Rascunho'}.xlsx`);
   };
 
   // Limpar Todos os Itens
   const handleLimparItens = () => {
     if (confirm('Deseja realmente limpar todos os itens/postos cadastrados?')) {
-      setItens([{ numeroItem: 1, cidade: 'Mossoró', descricao: '', unidade: 'MÊS', quantidade: '1', valorUnitario: '0', tipoReajuste: 'REPACTUACAO_CCT', indiceReferencia: '' }]);
+      const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA';
+      setItens([{
+        numeroItem: 1,
+        cidade: 'Mossoró',
+        descricao: '',
+        unidade: isDemo ? 'MÊS' : 'UN',
+        quantidade: isDemo ? '1' : '1',
+        quantidadeAnual: isDemo ? '12' : '1',
+        valorUnitario: '0',
+        tipoReajuste: isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE',
+        indiceReferencia: '',
+        categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO'
+      }]);
       setCurrentPage(1);
     }
   };
@@ -725,6 +846,7 @@ function NovoContratoForm() {
         portariaContinuadosIdSei,
         portariaContinuadosUrl,
         tipoContrato,
+        regimeExecucao,
         tipoEmpreitada,
         tipoMedicao,
         dataOrcamentoEstimado: dataOrcamentoEstimado || null,
@@ -732,11 +854,21 @@ function NovoContratoForm() {
         fornecedorNovo: isNovoFornecedor ? fornecedorNovo : null,
         indices: listaIndices,
         convencoes: convencoes.filter((c) => c.nomeConvencao?.trim()),
-        itens: itens.map((it) => ({
-          ...it,
-          tipoGrupo: tipoAgrupamento,
-          cctVinculada: it.tipoReajuste === 'REPACTUACAO_CCT' ? (it.cctVinculada || convencoes[0]?.nomeConvencao || null) : null,
-        })),
+        itens: itens.map((it) => {
+          const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+            ? true
+            : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+            ? false
+            : (it.categoriaItem === 'DEMO');
+
+          return {
+            ...it,
+            categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
+            quantidadeAnual: parseFloat(it.quantidadeAnual || it.quantidade) || 0,
+            tipoGrupo: tipoAgrupamento,
+            cctVinculada: it.tipoReajuste === 'REPACTUACAO_CCT' ? (it.cctVinculada || convencoes[0]?.nomeConvencao || null) : null,
+          };
+        }),
       };
 
       const res = await fetch('/api/contratos', {
@@ -1303,8 +1435,25 @@ function NovoContratoForm() {
               <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Contrato</label>
               <select
                 value={tipoContrato}
-                onChange={(e) => setTipoContrato(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTipoContrato(val);
+                  if (val === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO') {
+                    setRegimeExecucao('DEDICACAO_EXCLUSIVA');
+                    setItens((prev) => prev.map((it) => ({
+                      ...it,
+                      unidade: it.unidade === 'UN' ? 'MÊS' : it.unidade,
+                      tipoReajuste: 'REPACTUACAO_CCT',
+                      categoriaItem: 'DEMO'
+                    })));
+                  } else if (val === 'LOCACAO_IMOVEL') {
+                    setTipoVigencia('LOCACAO_IMOVEL');
+                    setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA');
+                  } else {
+                    setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA');
+                  }
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-semibold"
               >
                 <option value="FORNECIMENTO_SIMPLES">Fornecimento Simples (Material)</option>
                 <option value="FORNECIMENTO_CONTINUADO">Fornecimento Continuado (Material)</option>
@@ -1332,6 +1481,70 @@ function NovoContratoForm() {
                 <option value="CONTRATACAO_SEMI_INTEGRADA">Contratação Semi-Integrada</option>
                 <option value="FORNECIMENTO_SERVICO_ASSOCIADO">Fornecimento e Serviço Associado</option>
               </select>
+            </div>
+          </div>
+
+          {/* Seletor de Regime de Execução de Mão de Obra */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Regime de Execução de Mão de Obra *
+              </label>
+              <span className="text-[11px] text-slate-400">
+                Determina o layout da planilha de itens e fórmulas de cálculo
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div
+                onClick={() => setRegimeExecucao('SEM_DEDICACAO_EXCLUSIVA')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+                    ? 'border-blue-600 bg-blue-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">🛠️</span>
+                  <span className="text-xs font-bold text-slate-800">Sem Dedicação Exclusiva (Não DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Climatização, refrigeração, manutenção predial, aquisição de bens, serviços técnicos e locações. Planilha por <strong>Qtd Anual × Valor Unitário</strong>.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setRegimeExecucao('DEDICACAO_EXCLUSIVA')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+                    ? 'border-amber-600 bg-amber-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">👥</span>
+                  <span className="text-xs font-bold text-slate-800">Com Dedicação Exclusiva (DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Terceirização de postos residentes (vigilância, limpeza, portaria, motoristas) vinculados a CCT e Planilha IN 05/2017.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setRegimeExecucao('MISTO')}
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  regimeExecucao === 'MISTO'
+                    ? 'border-indigo-600 bg-indigo-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">🔀</span>
+                  <span className="text-xs font-bold text-slate-800">Contrato Misto (DEMO + Não DEMO)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Combina postos de trabalho residentes com fornecimento de peças, materiais ou serviços sob demanda, consolidando ambos no Valor Global.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1830,22 +2043,102 @@ function NovoContratoForm() {
             </div>
           )}
 
-          {/* Tabela de Itens com Lançamento Mensal, Anual e Plurianual */}
+          {/* Banner Informativo do Regime de Execução */}
+          <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+            regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA'
+              ? 'bg-blue-50/70 border-blue-200 text-blue-950'
+              : regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+              ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+              : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
+          }`}>
+            <div className="flex items-start sm:items-center space-x-2.5">
+              <span className="text-lg">
+                {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' ? '🛠️' : regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? '👥' : '🔀'}
+              </span>
+              <div>
+                <p className="font-bold">
+                  {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' && 'Regime: Sem Dedicação Exclusiva de Mão de Obra (Não DEMO)'}
+                  {regimeExecucao === 'DEDICACAO_EXCLUSIVA' && 'Regime: Com Dedicação Exclusiva de Mão de Obra (DEMO / Terceirização)'}
+                  {regimeExecucao === 'MISTO' && 'Regime: Contrato Misto (Postos DEMO + Serviços/Peças Não DEMO)'}
+                </p>
+                <p className="text-[11px] opacity-90 mt-0.5">
+                  {regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' && (
+                    <>Estrutura: <strong>Cidade, Item, Unidade de Medida, Quantidade Anual e Valor Unitário</strong>. O sistema calcula: <strong>Total Anual = Qtd Anual × Valor Unitário</strong>, e <strong>Total Plurianual = Qtd Anual × Valor Unitário × {anosVigencia} anos</strong>.</>
+                  )}
+                  {regimeExecucao === 'DEDICACAO_EXCLUSIVA' && (
+                    <>Estrutura: <strong>Função/Posto, Cidade, Unidade (MÊS), CCT, Qtd Postos/Mês e Valor Mensal</strong>. O sistema calcula: <strong>Total Anual = Qtd × Valor Mensal × 12</strong>, e <strong>Total Plurianual = Qtd × Valor Mensal × 12 × {anosVigencia} anos</strong>.</>
+                  )}
+                  {regimeExecucao === 'MISTO' && (
+                    <>Combine postos residentes vinculados a CCT com itens de serviços e peças sob demanda. O sistema consolida ambas as categorias no <strong>Valor Global</strong>.</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {regimeExecucao === 'MISTO' && (
+              <div className="flex items-center space-x-1.5 self-end sm:self-center bg-white p-1 rounded-lg border border-indigo-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('TODOS')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'TODOS' ? 'bg-indigo-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Todos ({itens.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('DEMO')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'DEMO' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  👥 DEMO ({itens.filter(i => i.categoriaItem === 'DEMO').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMistoFiltroCategoria('NAO_DEMO')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                    mistoFiltroCategoria === 'NAO_DEMO' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  🛠️ Não DEMO ({itens.filter(i => i.categoriaItem !== 'DEMO').length})
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tabela de Itens Dinâmica Conforme Regime */}
           <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
             <table className="w-full text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3 w-14 text-center">Item</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">Função / Posto de Mão de Obra</th>
-                  <th className="py-2.5 px-3 w-28 text-center">Cidade Execução</th>
-                  <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
+                  <th className="py-2.5 px-3 w-12 text-center">Item</th>
+                  {regimeExecucao === 'MISTO' && (
+                    <th className="py-2.5 px-2.5 w-28 text-center">Categoria</th>
+                  )}
+                  <th className="py-2.5 px-3 min-w-[220px]">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Função / Posto de Mão de Obra' : 'Descrição do Item / Objeto / Serviço'}
+                  </th>
+                  <th className="py-2.5 px-3 w-28 text-center">Cidade</th>
+                  <th className="py-2.5 px-3 w-24 text-center">Unidade</th>
                   <th className="py-2.5 px-3 w-32 text-center">Regra Reajuste</th>
-                  <th className="py-2.5 px-3 min-w-[170px] text-center" title="Convenção Coletiva de Trabalho vinculada a este posto (Multi-CCT)">Convenção Vinculada (CCT)</th>
-                  <th className="py-2.5 px-3 w-24 text-right" title="Quantidade do posto no mês">Qtd Posto/Mês</th>
-                  <th className="py-2.5 px-3 w-32 text-right" title="Valor mensal unitário do posto (a)">Valor Mensal Unit. (a)</th>
-                  <th className="py-2.5 px-3 w-32 text-right bg-blue-50/50" title="Valor Total Anual: Quantidade x Valor Mensal x 12">Total Anual (a * 12)</th>
-                  <th className={`py-2.5 px-3 w-36 text-right ${anosVigencia > 1 ? 'bg-blue-100/50 text-blue-950 font-black' : 'bg-slate-50 text-slate-400'}`} title="Valor Plurianual: Quantidade x Valor Mensal x 12 x Anos (Base do Contrato se > 1 ano)">
-                    Total Plurianual ({anosVigencia > 1 ? `a * ${anosVigencia * 12}` : '0'})
+                  {(regimeExecucao === 'DEDICACAO_EXCLUSIVA' || regimeExecucao === 'MISTO') && (
+                    <th className="py-2.5 px-3 min-w-[170px] text-center" title="Convenção Coletiva de Trabalho vinculada a postos DEMO">
+                      Convenção (CCT)
+                    </th>
+                  )}
+                  <th className="py-2.5 px-3 w-28 text-right" title="Quantidade mensal para DEMO ou quantidade anual para Não DEMO">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Qtd Postos/Mês' : 'Qtd Anual'}
+                  </th>
+                  <th className="py-2.5 px-3 w-32 text-right" title="Valor unitário ou mensal">
+                    {regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Valor Mensal (R$)' : 'Valor Unit. (R$)'}
+                  </th>
+                  <th className="py-2.5 px-3 w-32 text-right bg-blue-50/50" title="Total Anual do Item">
+                    Total Anual
+                  </th>
+                  <th className={`py-2.5 px-3 w-36 text-right ${anosVigencia > 1 ? 'bg-blue-100/50 text-blue-950 font-black' : 'bg-slate-50 text-slate-400'}`} title="Total para toda a vigência do contrato">
+                    Total Plurianual ({anosVigencia > 1 ? `${anosVigencia} anos` : '0'})
                   </th>
                   <th className="py-2.5 px-2 w-12 text-center">Ações</th>
                 </tr>
@@ -1855,6 +2148,10 @@ function NovoContratoForm() {
                   const filtered = itens
                     .map((item, originalIndex) => ({ ...item, originalIndex }))
                     .filter((item) => {
+                      if (regimeExecucao === 'MISTO') {
+                        if (mistoFiltroCategoria === 'DEMO' && item.categoriaItem !== 'DEMO') return false;
+                        if (mistoFiltroCategoria === 'NAO_DEMO' && item.categoriaItem === 'DEMO') return false;
+                      }
                       if (!itemSearch.trim()) return true;
                       const q = itemSearch.toLowerCase();
                       return (
@@ -1871,8 +2168,8 @@ function NovoContratoForm() {
                   if (paginated.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={11} className="text-center py-6 text-slate-400 text-xs">
-                          Nenhum posto/item encontrado com o filtro "{itemSearch}".
+                        <td colSpan={regimeExecucao === 'MISTO' ? 12 : 11} className="text-center py-6 text-slate-400 text-xs">
+                          Nenhum item encontrado com os filtros atuais.
                         </td>
                       </tr>
                     );
@@ -1880,21 +2177,53 @@ function NovoContratoForm() {
 
                   return paginated.map((it) => {
                     const idx = it.originalIndex;
-                    const { totalAnual, totalPlurianual } = calcularValoresItem(it);
+                    const { totalAnual, totalPlurianual, isDemo } = calcularValoresItem(it);
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-2 px-3 font-bold text-slate-800 text-center">{it.numeroItem}</td>
+
+                        {/* Coluna de Categoria para Regime MISTO */}
+                        {regimeExecucao === 'MISTO' && (
+                          <td className="py-2 px-2.5 text-center">
+                            <select
+                              value={it.categoriaItem || 'NAO_DEMO'}
+                              onChange={(e) => {
+                                const novaCat = e.target.value as 'DEMO' | 'NAO_DEMO';
+                                handleItemChange(idx, 'categoriaItem', novaCat);
+                                if (novaCat === 'DEMO') {
+                                  handleItemChange(idx, 'unidade', 'MÊS');
+                                  handleItemChange(idx, 'tipoReajuste', 'REPACTUACAO_CCT');
+                                } else {
+                                  handleItemChange(idx, 'unidade', 'UN');
+                                  handleItemChange(idx, 'tipoReajuste', 'REAJUSTE_INDICE');
+                                }
+                              }}
+                              className={`w-full px-1.5 py-1 rounded text-[10px] font-bold border ${
+                                it.categoriaItem === 'DEMO'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-blue-100 text-blue-900 border-blue-300'
+                              }`}
+                            >
+                              <option value="NAO_DEMO">🛠️ Não DEMO</option>
+                              <option value="DEMO">👥 DEMO</option>
+                            </select>
+                          </td>
+                        )}
+
+                        {/* Descrição do Item */}
                         <td className="py-2 px-3">
                           <input
                             type="text"
                             required
                             value={it.descricao}
                             onChange={(e) => handleItemChange(idx, 'descricao', e.target.value)}
-                            placeholder="Ex: Motorista Categoria B, Vigia..."
+                            placeholder={isDemo ? 'Ex: Motorista B, Vigia, Recepcionista...' : 'Ex: Manutenção preventiva ar-condicionado, Peça X, Insumo Y...'}
                             className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 focus:bg-white"
                           />
                         </td>
+
+                        {/* Cidade de Execução */}
                         <td className="py-2 px-3">
                           <select
                             value={it.cidade || 'Mossoró'}
@@ -1910,83 +2239,118 @@ function NovoContratoForm() {
                             <option value="Geral/Todos">Geral/Todos</option>
                           </select>
                         </td>
+
+                        {/* Unidade de Medida */}
                         <td className="py-2 px-3">
                           <input
                             type="text"
                             value={it.unidade}
                             onChange={(e) => handleItemChange(idx, 'unidade', e.target.value)}
-                            placeholder="MÊS"
+                            placeholder={isDemo ? 'MÊS' : 'UN'}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-center uppercase outline-none focus:border-blue-600 focus:bg-white font-bold"
                           />
                         </td>
+
+                        {/* Regra de Reajuste */}
                         <td className="py-2 px-3">
                           <select
-                            value={it.tipoReajuste || 'REPACTUACAO_CCT'}
+                            value={it.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE')}
                             onChange={(e) => handleItemChange(idx, 'tipoReajuste', e.target.value)}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-[11px] font-semibold outline-none focus:border-blue-600 bg-white"
                           >
-                            <option value="REPACTUACAO_CCT">Mão de Obra (CCT)</option>
-                            <option value="REAJUSTE_INDICE">Insumos/Serviços (1a)</option>
-                            <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
+                            {isDemo ? (
+                              <>
+                                <option value="REPACTUACAO_CCT">Mão de Obra (CCT)</option>
+                                <option value="REAJUSTE_INDICE">Insumos/Serviços (1a)</option>
+                                <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="REAJUSTE_INDICE">Índice (IPCA/Setorial)</option>
+                                <option value="NAO_REAJUSTAVEL">Não Reajustável</option>
+                                <option value="REPACTUACAO_CCT">Mão de Obra (CCT)</option>
+                              </>
+                            )}
                           </select>
                         </td>
-                        <td className="py-2 px-3">
-                          {it.tipoReajuste === 'REPACTUACAO_CCT' ? (
-                            <div className="space-y-1">
-                              <select
-                                value={
-                                  convencoes.some((c) => c.nomeConvencao === it.cctVinculada)
-                                    ? it.cctVinculada
-                                    : (it.cctVinculada ? '__OUTRA__' : (convencoes[0]?.nomeConvencao || ''))
-                                }
-                                onChange={(e) => {
-                                  if (e.target.value === '__OUTRA__') {
-                                    handleItemChange(idx, 'cctVinculada', 'Nova CCT');
-                                  } else {
-                                    handleItemChange(idx, 'cctVinculada', e.target.value);
-                                    handleItemChange(idx, 'indiceReferencia', e.target.value);
+
+                        {/* Convenção Vinculada (somente visível se houver suporte a CCT) */}
+                        {(regimeExecucao === 'DEDICACAO_EXCLUSIVA' || regimeExecucao === 'MISTO') && (
+                          <td className="py-2 px-3">
+                            {it.tipoReajuste === 'REPACTUACAO_CCT' ? (
+                              <div className="space-y-1">
+                                <select
+                                  value={
+                                    convencoes.some((c) => c.nomeConvencao === it.cctVinculada)
+                                      ? it.cctVinculada
+                                      : (it.cctVinculada ? '__OUTRA__' : (convencoes[0]?.nomeConvencao || ''))
                                   }
-                                }}
-                                className="w-full px-2 py-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-[11px] font-semibold text-amber-950 outline-none focus:border-amber-600"
-                              >
-                                {convencoes.map((c, cI) => (
-                                  <option key={cI} value={c.nomeConvencao}>
-                                    {c.nomeConvencao || `CCT ${cI + 1}`} {c.dataBase ? `(${c.dataBase})` : ''}
-                                  </option>
-                                ))}
-                                <option value="__OUTRA__">✏️ Outra CCT...</option>
-                              </select>
-                              {(!convencoes.some((c) => c.nomeConvencao === it.cctVinculada) && it.cctVinculada) && (
-                                <input
-                                  type="text"
-                                  value={it.cctVinculada}
                                   onChange={(e) => {
-                                    handleItemChange(idx, 'cctVinculada', e.target.value);
-                                    handleItemChange(idx, 'indiceReferencia', e.target.value);
+                                    if (e.target.value === '__OUTRA__') {
+                                      handleItemChange(idx, 'cctVinculada', 'Nova CCT');
+                                    } else {
+                                      handleItemChange(idx, 'cctVinculada', e.target.value);
+                                      handleItemChange(idx, 'indiceReferencia', e.target.value);
+                                    }
                                   }}
-                                  placeholder="Digite a convenção..."
-                                  className="w-full px-2 py-1 border border-amber-300 rounded text-[11px] font-medium outline-none bg-white"
-                                />
-                              )}
-                            </div>
+                                  className="w-full px-2 py-1.5 border border-amber-300 bg-amber-50/50 rounded-lg text-[11px] font-semibold text-amber-950 outline-none focus:border-amber-600"
+                                >
+                                  {convencoes.map((c, cI) => (
+                                    <option key={cI} value={c.nomeConvencao}>
+                                      {c.nomeConvencao || `CCT ${cI + 1}`} {c.dataBase ? `(${c.dataBase})` : ''}
+                                    </option>
+                                  ))}
+                                  <option value="__OUTRA__">✏️ Outra CCT...</option>
+                                </select>
+                                {(!convencoes.some((c) => c.nomeConvencao === it.cctVinculada) && it.cctVinculada) && (
+                                  <input
+                                    type="text"
+                                    value={it.cctVinculada}
+                                    onChange={(e) => {
+                                      handleItemChange(idx, 'cctVinculada', e.target.value);
+                                      handleItemChange(idx, 'indiceReferencia', e.target.value);
+                                    }}
+                                    placeholder="Digite a convenção..."
+                                    className="w-full px-2 py-1 border border-amber-300 rounded text-[11px] font-medium outline-none bg-white"
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic block text-center">
+                                Não se aplica ({it.tipoReajuste === 'NAO_REAJUSTAVEL' ? 'Fixo' : 'Índice'})
+                              </span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Quantidade (Mensal para DEMO ou Anual para Não DEMO) */}
+                        <td className="py-2 px-3">
+                          {isDemo ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={it.quantidade}
+                              onChange={(e) => handleItemChange(idx, 'quantidade', e.target.value)}
+                              placeholder="1"
+                              title="Quantidade do posto no mês"
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                            />
                           ) : (
-                            <span className="text-[10px] text-slate-400 italic block text-center">
-                              Não se aplica ({it.tipoReajuste === 'NAO_REAJUSTAVEL' ? 'Fixo' : 'Índice'})
-                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={it.quantidadeAnual || it.quantidade}
+                              onChange={(e) => handleItemChange(idx, 'quantidadeAnual', e.target.value)}
+                              placeholder="1"
+                              title="Quantidade total estimada por ano"
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
+                            />
                           )}
                         </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            required
-                            value={it.quantidade}
-                            onChange={(e) => handleItemChange(idx, 'quantidade', e.target.value)}
-                            placeholder="1"
-                            title="Quantidade do posto no mês"
-                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
-                          />
-                        </td>
+
+                        {/* Valor Unitário / Mensal */}
                         <td className="py-2 px-3">
                           <input
                             type="number"
@@ -1995,13 +2359,17 @@ function NovoContratoForm() {
                             value={it.valorUnitario}
                             onChange={(e) => handleItemChange(idx, 'valorUnitario', e.target.value)}
                             placeholder="0,00"
-                            title="Valor mensal unitário do posto (a)"
+                            title={isDemo ? 'Valor mensal unitário do posto (a)' : 'Valor unitário por unidade de medida'}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-right font-semibold outline-none focus:border-blue-600 focus:bg-white"
                           />
                         </td>
+
+                        {/* Total Anual Calculado */}
                         <td className="py-2 px-3 font-semibold text-slate-800 text-right whitespace-nowrap bg-blue-50/30">
                           {totalAnual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </td>
+
+                        {/* Total Plurianual */}
                         <td className={`py-2 px-3 text-right whitespace-nowrap ${anosVigencia > 1 ? 'font-bold text-blue-900 bg-blue-100/40' : 'text-slate-400 bg-slate-50'}`}>
                           {anosVigencia > 1 ? (
                             totalPlurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -2009,13 +2377,15 @@ function NovoContratoForm() {
                             <span className="text-[11px] font-medium text-slate-400">R$ 0,00</span>
                           )}
                         </td>
+
+                        {/* Ações */}
                         <td className="py-2 px-2 text-center">
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
                             disabled={itens.length === 1}
                             className="text-slate-400 hover:text-red-600 disabled:opacity-30 cursor-pointer p-1 rounded transition-colors"
-                            title="Remover posto"
+                            title="Remover item"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2031,6 +2401,10 @@ function NovoContratoForm() {
           {/* Paginação para Planilhas com Muitos Itens */}
           {(() => {
             const filtered = itens.filter((it) => {
+              if (regimeExecucao === 'MISTO') {
+                if (mistoFiltroCategoria === 'DEMO' && it.categoriaItem !== 'DEMO') return false;
+                if (mistoFiltroCategoria === 'NAO_DEMO' && it.categoriaItem === 'DEMO') return false;
+              }
               if (!itemSearch.trim()) return true;
               const q = itemSearch.toLowerCase();
               return it.descricao.toLowerCase().includes(q) || String(it.numeroItem).includes(q) || (it.cidade || '').toLowerCase().includes(q) || it.unidade.toLowerCase().includes(q);
@@ -2066,17 +2440,38 @@ function NovoContratoForm() {
             );
           })()}
 
-          {/* Rodapé da Seção de Itens com Resumo e Totais */}
+          {/* Rodapé da Seção de Itens com Ações de Adição e Resumo Consolidado */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pt-3 border-t border-slate-100">
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Adicionar Posto/Item</span>
-              </button>
+              {regimeExecucao === 'MISTO' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAddItemNaoDemo}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Item Não DEMO (Serviço/Peça)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddItemDemo}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-amber-300"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Posto DEMO (Mão de Obra)</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAddItem()}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{regimeExecucao === 'DEDICACAO_EXCLUSIVA' ? 'Adicionar Posto de Trabalho' : 'Adicionar Item / Serviço'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2089,49 +2484,101 @@ function NovoContratoForm() {
                 className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-emerald-200"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Upload de Planilha em Lote</span>
+                <span>Upload em Lote (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={sincronizarValorGlobal}
                 className="inline-flex items-center space-x-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-amber-200"
-                title="Sincronizar Valor Global com o cálculo dos postos"
+                title="Sincronizar Valor Global com o cálculo dos itens"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Atualizar Valor Global</span>
+                <span>Sincronizar Valor Global</span>
               </button>
             </div>
 
             {/* Painel Consolidado de Valores */}
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center gap-4 text-xs">
-              <div className="flex flex-col text-right">
-                <span className="text-[10px] text-slate-500 font-medium">Soma Mensal dos Postos:</span>
-                <span className="font-semibold text-slate-700">
-                  {totaisConsolidados.mensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
-                </span>
-              </div>
-
-              <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
-
-              <div className="flex flex-col text-right">
-                <span className="text-[10px] text-slate-500 font-medium">Total Anual (12 meses):</span>
-                <span className="font-semibold text-blue-900">
-                  {totaisConsolidados.anual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </span>
-              </div>
-
-              {anosVigencia > 1 && (
+              {regimeExecucao === 'MISTO' ? (
                 <>
-                  <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
-                  <div className="flex flex-col text-right bg-blue-100/60 px-3 py-1 rounded-lg border border-blue-300">
-                    <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wide">
-                      Total Plurianual ({anosVigencia} anos) - Base Global:
-                    </span>
-                    <span className="font-black text-[#003366] text-sm">
-                      {totaisConsolidados.plurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-amber-800 font-bold uppercase">Subtotal DEMO:</span>
+                    <span className="font-semibold text-slate-800">
+                      {totaisConsolidados.demoGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </span>
                   </div>
+                  <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-blue-800 font-bold uppercase">Subtotal Não DEMO:</span>
+                    <span className="font-semibold text-slate-800">
+                      {totaisConsolidados.naoDemoGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                  <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+                  <div className="flex flex-col text-right bg-indigo-100/70 px-3 py-1 rounded-lg border border-indigo-300">
+                    <span className="text-[10px] text-indigo-950 font-bold uppercase tracking-wide">
+                      Total Consolidado ({anosVigencia > 1 ? `${anosVigencia} anos` : '1 ano'}):
+                    </span>
+                    <span className="font-black text-indigo-950 text-sm">
+                      {totaisConsolidados.global.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                </>
+              ) : regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' ? (
+                <>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-slate-500 font-medium">Soma Anual dos Itens:</span>
+                    <span className="font-semibold text-slate-800">
+                      {totaisConsolidados.anual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/ano
+                    </span>
+                  </div>
+
+                  {anosVigencia > 1 && (
+                    <>
+                      <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+                      <div className="flex flex-col text-right bg-blue-100/60 px-3 py-1 rounded-lg border border-blue-300">
+                        <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wide">
+                          Total Plurianual ({anosVigencia} anos) - Base Global:
+                        </span>
+                        <span className="font-black text-[#003366] text-sm">
+                          {totaisConsolidados.plurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-slate-500 font-medium">Soma Mensal dos Postos:</span>
+                    <span className="font-semibold text-slate-700">
+                      {totaisConsolidados.mensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                    </span>
+                  </div>
+
+                  <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-slate-500 font-medium">Total Anual (12 meses):</span>
+                    <span className="font-semibold text-blue-900">
+                      {totaisConsolidados.anual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+
+                  {anosVigencia > 1 && (
+                    <>
+                      <div className="h-7 w-[1px] bg-slate-200 hidden sm:block" />
+                      <div className="flex flex-col text-right bg-blue-100/60 px-3 py-1 rounded-lg border border-blue-300">
+                        <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wide">
+                          Total Plurianual ({anosVigencia} anos) - Base Global:
+                        </span>
+                        <span className="font-black text-[#003366] text-sm">
+                          {totaisConsolidados.plurianual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

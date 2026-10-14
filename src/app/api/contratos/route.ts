@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
       portariaContinuadosIdSei,
       portariaContinuadosUrl,
       tipoContrato,
+      regimeExecucao, // 'DEDICACAO_EXCLUSIVA' | 'SEM_DEDICACAO_EXCLUSIVA' | 'MISTO'
       tipoEmpreitada,
       tipoMedicao,
       dataOrcamentoEstimado,
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
       fornecedorNovo, // { razaoSocial, cnpj, email, telefone, nomePreposto }
       indices, // Array<{ tipoIndice, nomeIndiceSetorial?, justificativaSetorial? }>
       convencoes, // Array<{ nomeConvencao, sindicatoLaboral?, sindicatoPatronal?, numeroRegistroMte?, dataBase?, vigenciaInicio?, vigenciaFim? }>
-      itens, // Array<{ numeroItem, descricao, tipoGrupo, unidade, quantidade, valorUnitario, cctVinculada? }>
+      itens, // Array<{ numeroItem, descricao, tipoGrupo, unidade, quantidade, valorUnitario, categoriaItem?, quantidadeAnual?, cctVinculada? }>
     } = body;
 
     // Validações Essenciais
@@ -268,6 +269,11 @@ export async function POST(request: NextRequest) {
           portariaContinuadosIdSei,
           portariaContinuadosUrl,
           tipoContrato: tipoContrato || 'FORNECIMENTO_SIMPLES',
+          regimeExecucao: regimeExecucao || (
+            tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+              ? 'DEDICACAO_EXCLUSIVA'
+              : 'SEM_DEDICACAO_EXCLUSIVA'
+          ),
           tipoEmpreitada: tipoEmpreitada || 'PRECO_UNITARIO',
           tipoMedicao: tipoMedicao || 'MENSAL',
           dataOrcamentoEstimado: dOrcamento,
@@ -311,20 +317,40 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Cadastrar Itens do Contrato com cálculo de valores mensais, anuais e plurianuais
+      // Cadastrar Itens do Contrato (Suporte a DEMO, Não DEMO e Misto)
       if (itens && Array.isArray(itens) && itens.length > 0) {
         const itensParaInserir = itens.map((item: any, i: number) => {
-          const qtd = parseFloat(item.quantidade) || 0;
-          const vUnit = parseFloat(item.valorUnitario) || 0;
-          const unidadeNorm = (item.unidade || 'MÊS').trim().toUpperCase();
-          const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes(unidadeNorm);
+          const isDemo = item.categoriaItem === 'DEMO' || (
+            item.categoriaItem !== 'NAO_DEMO' && (
+              regimeExecucao === 'DEDICACAO_EXCLUSIVA' ||
+              c.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+            )
+          );
 
-          // Valor Anual: a * 12 * qtd (se mensal) ou qtd * vUnit
-          const totalAnual = isMensal ? qtd * vUnit * 12 : qtd * vUnit;
-          // Valor Plurianual: a * 12 * anos * qtd (se anos > 1), senão 0
-          const totalPlurianual = anosVigenciaFinal > 1 ? (isMensal ? qtd * vUnit * 12 * anosVigenciaFinal : qtd * vUnit * anosVigenciaFinal) : 0;
-          // Valor total efetivo considerado para fins de contrato: plurianual se anos > 1, senão anual
-          const totalItemEfetivo = anosVigenciaFinal > 1 ? totalPlurianual : totalAnual;
+          const vUnit = parseFloat(item.valorUnitario) || 0;
+          let qtd = parseFloat(item.quantidade) || 0;
+          let qtdAnual = parseFloat(item.quantidadeAnual) || 0;
+
+          let totalAnual = 0;
+          let totalPlurianual = 0;
+          let totalItemEfetivo = 0;
+
+          if (isDemo) {
+            // Regime DEMO: Quantidade = postos no mês; ValorUnitário = valor mensal do posto
+            totalAnual = qtd * vUnit * 12;
+            totalPlurianual = anosVigenciaFinal > 1 ? totalAnual * anosVigenciaFinal : 0;
+            totalItemEfetivo = anosVigenciaFinal > 1 ? totalPlurianual : totalAnual;
+          } else {
+            // Regime NÃO DEMO (Serviços Unitários / Fornecimento / Bens):
+            if (qtdAnual === 0 && qtd > 0) {
+              qtdAnual = qtd;
+            }
+            // Quantidade total contratada é qtdAnual * anosVigencia
+            qtd = anosVigenciaFinal > 1 ? qtdAnual * anosVigenciaFinal : qtdAnual;
+            totalAnual = qtdAnual * vUnit;
+            totalPlurianual = anosVigenciaFinal > 1 ? qtdAnual * vUnit * anosVigenciaFinal : 0;
+            totalItemEfetivo = anosVigenciaFinal > 1 ? totalPlurianual : totalAnual;
+          }
 
           return {
             contratoId: c.id,
@@ -332,14 +358,12 @@ export async function POST(request: NextRequest) {
             cidade: item.cidade || 'Mossoró',
             descricao: item.descricao || `Item ${i + 1}`,
             tipoGrupo: item.tipoGrupo || 'ITEM_INDIVIDUAL',
-            unidade: item.unidade || 'MÊS',
-            tipoReajuste: item.tipoReajuste || (
-              ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes((item.unidade || '').toUpperCase()) && c.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
-                ? 'REPACTUACAO_CCT'
-                : 'REAJUSTE_INDICE'
-            ),
+            unidade: item.unidade || (isDemo ? 'MÊS' : 'UN'),
+            categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
+            quantidadeAnual: qtdAnual,
+            tipoReajuste: item.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
             indiceReferencia: item.cctVinculada || item.indiceReferencia || null,
-            cctVinculada: item.cctVinculada || (item.tipoReajuste === 'REPACTUACAO_CCT' ? item.indiceReferencia : null) || null,
+            cctVinculada: isDemo ? (item.cctVinculada || item.indiceReferencia || null) : null,
             quantidadeOriginal: qtd,
             quantidadeAtual: qtd,
             valorUnitarioOriginal: vUnit,

@@ -208,6 +208,7 @@ model Contrato {
   portariaContinuadosIdSei    String?
   portariaContinuadosUrl      String?
   tipoContrato                TipoContrato   @default(FORNECIMENTO_SIMPLES)
+  regimeExecucao              String?        @default("SEM_DEDICACAO_EXCLUSIVA") // DEDICACAO_EXCLUSIVA, SEM_DEDICACAO_EXCLUSIVA, MISTO
   tipoEmpreitada              TipoEmpreitada @default(PRECO_UNITARIO)
   tipoMedicao                 TipoMedicao    @default(MENSAL)
   dataOrcamentoEstimado       DateTime?      // Data base para reajuste (interregno 1 ano)
@@ -265,6 +266,8 @@ model ContratoItem {
   descricao             String
   tipoGrupo             String   @default("ITEM_INDIVIDUAL") // GRUPO_UNICO ou ITEM_INDIVIDUAL
   unidade               String
+  categoriaItem         String?  @default("NAO_DEMO") // DEMO (Mão de Obra Residente / Posto) ou NAO_DEMO (Serviço Unitário / Insumo / Material)
+  quantidadeAnual       Float?   @default(0.0) // Quantidade anual estimada (para Não DEMO / Fornecimento)
   quantidadeOriginal    Float
   quantidadeAtual       Float
   valorUnitarioOriginal Float

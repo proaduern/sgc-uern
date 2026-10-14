@@ -167,6 +167,7 @@ export async function PUT(
       portariaContinuadosIdSei,
       portariaContinuadosUrl,
       tipoContrato,
+      regimeExecucao,
       tipoEmpreitada,
       tipoMedicao,
       dataOrcamentoEstimado,
@@ -191,6 +192,8 @@ export async function PUT(
     const limiteLegalPadrao = tipoContrato === 'OBRA' ? 50.0 : 25.0;
     const vGlobal = valorGlobal !== undefined ? (parseFloat(valorGlobal) || 0) : contratoExistente.valorGlobal;
 
+    const anosVigenciaContrato = contratoExistente.anosVigencia || 1;
+
     const contratoAtualizado = await prisma.$transaction(
       async (tx) => {
         // 1. Atualizar campos principais do contrato
@@ -211,6 +214,7 @@ export async function PUT(
             portariaContinuadosIdSei: portariaContinuadosIdSei !== undefined ? portariaContinuadosIdSei : contratoExistente.portariaContinuadosIdSei,
             portariaContinuadosUrl: portariaContinuadosUrl !== undefined ? portariaContinuadosUrl : contratoExistente.portariaContinuadosUrl,
             tipoContrato: tipoContrato || contratoExistente.tipoContrato,
+            regimeExecucao: regimeExecucao !== undefined ? regimeExecucao : contratoExistente.regimeExecucao,
             tipoEmpreitada: tipoEmpreitada || contratoExistente.tipoEmpreitada,
             tipoMedicao: tipoMedicao || contratoExistente.tipoMedicao,
             dataOrcamentoEstimado: dOrcamentoAtualizado,
@@ -240,10 +244,37 @@ export async function PUT(
         if (itens && Array.isArray(itens) && itens.length > 0) {
           await tx.contratoItem.deleteMany({ where: { contratoId: id } });
 
+          const regimeFinal = atualizado.regimeExecucao || 'SEM_DEDICACAO_EXCLUSIVA';
+
           const itensParaInserir = itens.map((item: any, i: number) => {
-            const qtd = parseFloat(item.quantidade || item.quantidadeAtual || item.quantidadeOriginal) || 0;
+            const isDemo = item.categoriaItem === 'DEMO' || (
+              item.categoriaItem !== 'NAO_DEMO' && (
+                regimeFinal === 'DEDICACAO_EXCLUSIVA' ||
+                atualizado.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+              )
+            );
+
             const vUnit = parseFloat(item.valorUnitario || item.valorUnitarioAtual || item.valorUnitarioOriginal) || 0;
-            const totalItem = qtd * vUnit;
+            let qtd = parseFloat(item.quantidade || item.quantidadeAtual || item.quantidadeOriginal) || 0;
+            let qtdAnual = parseFloat(item.quantidadeAnual) || 0;
+
+            let totalAnual = 0;
+            let totalPlurianual = 0;
+            let totalItemEfetivo = 0;
+
+            if (isDemo) {
+              totalAnual = qtd * vUnit * 12;
+              totalPlurianual = anosVigenciaContrato > 1 ? totalAnual * anosVigenciaContrato : 0;
+              totalItemEfetivo = anosVigenciaContrato > 1 ? totalPlurianual : totalAnual;
+            } else {
+              if (qtdAnual === 0 && qtd > 0) {
+                qtdAnual = qtd;
+              }
+              qtd = anosVigenciaContrato > 1 ? qtdAnual * anosVigenciaContrato : qtdAnual;
+              totalAnual = qtdAnual * vUnit;
+              totalPlurianual = anosVigenciaContrato > 1 ? qtdAnual * vUnit * anosVigenciaContrato : 0;
+              totalItemEfetivo = anosVigenciaContrato > 1 ? totalPlurianual : totalAnual;
+            }
 
             return {
               contratoId: id,
@@ -251,19 +282,20 @@ export async function PUT(
               cidade: item.cidade || 'Mossoró',
               descricao: item.descricao || `Item ${i + 1}`,
               tipoGrupo: item.tipoGrupo || 'ITEM_INDIVIDUAL',
-              unidade: item.unidade || 'UN',
-              tipoReajuste: item.tipoReajuste || (
-                ['MÊS', 'MES', 'POSTO'].includes((item.unidade || '').toUpperCase()) && atualizado.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
-                  ? 'REPACTUACAO_CCT'
-                  : 'REAJUSTE_INDICE'
-              ),
-              indiceReferencia: item.indiceReferencia || null,
+              unidade: item.unidade || (isDemo ? 'MÊS' : 'UN'),
+              categoriaItem: isDemo ? 'DEMO' : 'NAO_DEMO',
+              quantidadeAnual: qtdAnual,
+              tipoReajuste: item.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
+              indiceReferencia: item.cctVinculada || item.indiceReferencia || null,
+              cctVinculada: isDemo ? (item.cctVinculada || item.indiceReferencia || null) : null,
               quantidadeOriginal: qtd,
               quantidadeAtual: qtd,
               valorUnitarioOriginal: vUnit,
               valorUnitarioAtual: vUnit,
-              valorTotalOriginal: totalItem,
-              valorTotalAtual: totalItem,
+              valorTotalAnual: totalAnual,
+              valorTotalPlurianual: totalPlurianual,
+              valorTotalOriginal: totalItemEfetivo,
+              valorTotalAtual: totalItemEfetivo,
               limiteAcrescimoPercent: limiteLegalPadrao,
             };
           });

@@ -338,6 +338,16 @@ export default function DetalhesContratoPage() {
               </span>
             </div>
             <div>
+              <span className="text-slate-500">Mão de Obra: </span>
+              <span className="font-semibold text-indigo-700">
+                {contrato.regimeExecucao === 'DEDICACAO_EXCLUSIVA'
+                  ? 'Dedicação Exclusiva (DEMO)'
+                  : contrato.regimeExecucao === 'MISTO'
+                  ? 'Regime Misto (DEMO + Não DEMO)'
+                  : 'Sem Dedicação Exclusiva (Não DEMO)'}
+              </span>
+            </div>
+            <div>
               <span className="text-slate-500">Tipo: </span>
               <span className="font-semibold text-slate-700">
                 {contrato.tipoContrato?.replace(/_/g, ' ')}
@@ -543,7 +553,9 @@ export default function DetalhesContratoPage() {
                 <th className="py-2.5 px-3 w-28 text-center">Cidade</th>
                 <th className="py-2.5 px-3 w-20 text-center">Unidade</th>
                 <th className="py-2.5 px-3 w-36 text-center">Regra Reajuste</th>
-                <th className="py-2.5 px-3 w-24 text-right">Qtd Atual</th>
+                <th className="py-2.5 px-3 w-28 text-right">
+                  {contrato.regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' ? 'Qtd Anual' : 'Qtd'}
+                </th>
                 <th className="py-2.5 px-3 w-28 text-right">Valor Unit. (R$)</th>
                 <th className="py-2.5 px-3 w-32 text-right">Subtotal (R$)</th>
                 <th className="py-2.5 px-3 w-24 text-center">Limite Adit.</th>
@@ -563,7 +575,20 @@ export default function DetalhesContratoPage() {
                       {item.numeroItem}
                     </td>
                     <td className="py-2 px-3 text-slate-800">
-                      {item.descricao}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {contrato.regimeExecucao === 'MISTO' && (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              item.categoriaItem === 'DEMO'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-blue-100 text-blue-800 border border-blue-200'
+                            }`}
+                          >
+                            {item.categoriaItem === 'DEMO' ? 'DEMO' : 'NÃO DEMO'}
+                          </span>
+                        )}
+                        <span>{item.descricao}</span>
+                      </div>
                     </td>
                     <td className="py-2 px-3 text-center">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
@@ -592,7 +617,17 @@ export default function DetalhesContratoPage() {
                       )}
                     </td>
                     <td className="py-2 px-3 text-right font-medium text-slate-700">
-                      {item.quantidadeAtual?.toLocaleString('pt-BR')}
+                      {item.categoriaItem === 'NAO_DEMO' || contrato.regimeExecucao === 'SEM_DEDICACAO_EXCLUSIVA' ? (
+                        <div>
+                          <span>{(item.quantidadeAnual ?? item.quantidadeAtual)?.toLocaleString('pt-BR')}</span>
+                          <span className="block text-[10px] text-slate-400 font-normal">anual</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span>{item.quantidadeAtual?.toLocaleString('pt-BR')}</span>
+                          <span className="block text-[10px] text-amber-600 font-normal">postos</span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 px-3 text-right font-medium text-slate-700">
                       {item.valorUnitarioAtual?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

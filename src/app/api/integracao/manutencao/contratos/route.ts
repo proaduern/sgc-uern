@@ -12,18 +12,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chave de integração PROAD inválida.' }, { status: 401 });
     }
 
-    // Busca contratos ativos de manutenção predial ou serviços relacionados
+    const { searchParams } = new URL(request.url);
+    const tipo = searchParams.get('tipo')?.toUpperCase();
+
+    // Filtros de busca no SGC
+    let objetoFilters: any[] = [
+      { objeto: { contains: 'manutenção', mode: 'insensitive' } },
+      { objeto: { contains: 'predial', mode: 'insensitive' } },
+      { objeto: { contains: 'climatiza', mode: 'insensitive' } },
+      { objeto: { contains: 'refrigera', mode: 'insensitive' } },
+      { objeto: { contains: 'ar condicionado', mode: 'insensitive' } },
+      { objeto: { contains: 'ar-condicionado', mode: 'insensitive' } },
+      { numeroContrato: { contains: '14/2025' } },
+      { numeroContrato: { contains: '03/2025' } },
+    ];
+
+    if (tipo === 'CLIMATIZACAO') {
+      objetoFilters = [
+        { objeto: { contains: 'climatiza', mode: 'insensitive' } },
+        { objeto: { contains: 'refrigera', mode: 'insensitive' } },
+        { objeto: { contains: 'ar condicionado', mode: 'insensitive' } },
+        { objeto: { contains: 'ar-condicionado', mode: 'insensitive' } },
+        { numeroContrato: { contains: '14/2025' } },
+      ];
+    }
+
+    // Busca contratos ativos no SGC
     const contratos = await prisma.contrato.findMany({
       where: {
         status: 'ATIVO',
-        OR: [
-          { objeto: { contains: 'manutenção', mode: 'insensitive' } },
-          { objeto: { contains: 'predial', mode: 'insensitive' } },
-          { numeroContrato: { contains: '14/2025' } },
-          { numeroContrato: { contains: '03/2025' } },
-        ],
+        OR: objetoFilters,
       },
       include: {
+        itens: {
+          orderBy: { numeroItem: 'asc' },
+        },
         fornecedor: {
           select: {
             id: true,
@@ -77,6 +100,14 @@ export async function GET(request: NextRequest) {
         fornecedor: c.fornecedor,
         totalOrdensServico: c.ordensServico.length,
         status: c.status,
+        itens: c.itens.map((it) => ({
+          id: it.id,
+          numeroItem: it.numeroItem,
+          descricao: it.descricao,
+          unidadeMedida: it.unidade,
+          valorUnitario: it.valorUnitarioAtual,
+          saldoQuantidade: it.quantidadeAtual,
+        })),
       };
     });
 

@@ -15,34 +15,52 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo')?.toUpperCase();
 
-    // Filtros de busca no SGC
-    let objetoFilters: any[] = [
-      { objeto: { contains: 'manutenção', mode: 'insensitive' } },
-      { objeto: { contains: 'predial', mode: 'insensitive' } },
-      { objeto: { contains: 'climatiza', mode: 'insensitive' } },
-      { objeto: { contains: 'refrigera', mode: 'insensitive' } },
-      { objeto: { contains: 'ar condicionado', mode: 'insensitive' } },
-      { objeto: { contains: 'ar-condicionado', mode: 'insensitive' } },
-      { numeroContrato: { contains: '14/2025' } },
-      { numeroContrato: { contains: '03/2025' } },
-    ];
+    // Filtros rigorosos e separados por tipo de contrato no SGC
+    let whereClause: any = {
+      status: 'ATIVO',
+    };
 
     if (tipo === 'CLIMATIZACAO') {
-      objetoFilters = [
+      whereClause.OR = [
         { objeto: { contains: 'climatiza', mode: 'insensitive' } },
         { objeto: { contains: 'refrigera', mode: 'insensitive' } },
         { objeto: { contains: 'ar condicionado', mode: 'insensitive' } },
         { objeto: { contains: 'ar-condicionado', mode: 'insensitive' } },
-        { numeroContrato: { contains: '14/2025' } },
+        { numeroContrato: { contains: '11/2026' } },
+      ];
+    } else if (tipo === 'PREDIAL') {
+      whereClause.AND = [
+        {
+          OR: [
+            { objeto: { contains: 'predial', mode: 'insensitive' } },
+            { objeto: { contains: 'civil', mode: 'insensitive' } },
+            { objeto: { contains: 'reforma', mode: 'insensitive' } },
+            { objeto: { contains: 'alvenaria', mode: 'insensitive' } },
+            { numeroContrato: { contains: '14/2025' } },
+            { numeroContrato: { contains: '03/2025' } },
+          ],
+        },
+        {
+          NOT: [
+            { objeto: { contains: 'climatiza', mode: 'insensitive' } },
+            { objeto: { contains: 'refrigera', mode: 'insensitive' } },
+            { objeto: { contains: 'ar condicionado', mode: 'insensitive' } },
+            { objeto: { contains: 'ar-condicionado', mode: 'insensitive' } },
+          ],
+        },
+      ];
+    } else {
+      // Se não especificado tipo, lista contratos de manutenção geral
+      whereClause.OR = [
+        { objeto: { contains: 'manutenção', mode: 'insensitive' } },
+        { objeto: { contains: 'predial', mode: 'insensitive' } },
+        { objeto: { contains: 'climatiza', mode: 'insensitive' } },
       ];
     }
 
     // Busca contratos ativos no SGC
     const contratos = await prisma.contrato.findMany({
-      where: {
-        status: 'ATIVO',
-        OR: objetoFilters,
-      },
+      where: whereClause,
       include: {
         itens: {
           orderBy: { numeroItem: 'asc' },
@@ -61,10 +79,14 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             numeroOs: true,
+            ano: true,
+            descricaoServico: true,
+            processoSeiDespesa: true,
             valorEstimado: true,
             status: true,
             createdAt: true,
           },
+          orderBy: { createdAt: 'desc' },
         },
         medicoes: {
           select: {
@@ -99,6 +121,16 @@ export async function GET(request: NextRequest) {
         percentualConsumido: Number(((totalEmpenhadoOs / c.valorAtualizado) * 100).toFixed(2)),
         fornecedor: c.fornecedor,
         totalOrdensServico: c.ordensServico.length,
+        ordensServico: c.ordensServico.map((os) => ({
+          id: os.id,
+          numeroOs: os.numeroOs,
+          ano: os.ano,
+          descricaoServico: os.descricaoServico,
+          processoSeiDespesa: os.processoSeiDespesa,
+          valorEstimado: os.valorEstimado,
+          status: os.status,
+          createdAt: os.createdAt,
+        })),
         status: c.status,
         itens: c.itens.map((it) => ({
           id: it.id,
@@ -114,6 +146,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
+      tipoConsultado: tipo || 'TODOS',
+      totalContratos: contratosFormatados.length,
       contratos: contratosFormatados,
     });
   } catch (error: any) {

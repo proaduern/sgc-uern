@@ -57,8 +57,14 @@ export async function GET(request: NextRequest) {
     // 2. Mapeia role do Portal para o enum Role do SGC
     let sgcRole: Role = Role.FISCAL_TECNICO;
     const roleUpper = (role || '').toUpperCase();
+    const emailLimpo = email.toLowerCase().trim();
 
-    if (roleUpper === 'ADMIN_PROAD' || roleUpper === 'ADMIN') {
+    if (
+      roleUpper === 'ADMIN_PROAD' ||
+      roleUpper === 'ADMIN' ||
+      emailLimpo === 'adj.proad@uern.br' ||
+      emailLimpo === 'pedroreboucas@uern.br'
+    ) {
       sgcRole = Role.ADMIN_PROAD;
     } else if (roleUpper === 'GESTOR') {
       sgcRole = Role.GESTOR;
@@ -75,7 +81,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Localiza ou sincroniza usuário no banco do SGC
-    const emailLimpo = email.toLowerCase().trim();
     let usuarioSgc = await prisma.user.findUnique({
       where: { email: emailLimpo },
     });

@@ -91,12 +91,7 @@ export default function Sidebar({ role }: SidebarProps) {
       icon: BarChart3,
       visible: isAdmin || isGestor || isFiscalAdm, // PROAD, Gestores e Fiscais Adm para Fechamento Contábil
     },
-    {
-      name: 'Manutenção Predial (OS)',
-      href: '/manutencao-os',
-      icon: Wrench,
-      visible: isAdmin || isGestor || isFiscalAdm || isFiscalTecnico,
-    },
+
     {
       name: 'Viagens & Diárias',
       href: '/diarias-integracao',

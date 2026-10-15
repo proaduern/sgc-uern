@@ -120,8 +120,9 @@ export async function GET(request: NextRequest) {
       deveTrocarSenha: false,
     });
 
-    // 5. Configura cookie de sessão do SGC diretamente no redirect (garantia serverless)
-    const response = NextResponse.redirect(new URL('/contratos', request.url));
+    const isTreino = searchParams.get('treinamento') === '1';
+    const redirectTarget = isTreino ? '/contratos?treinamento=1' : '/contratos';
+    const response = NextResponse.redirect(new URL(redirectTarget, request.url));
     response.cookies.set(COOKIE_NAME, sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

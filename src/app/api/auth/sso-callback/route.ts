@@ -74,16 +74,34 @@ export async function GET(request: NextRequest) {
       sgcRole = Role.FISCAL_SETORIAL;
     } else if (roleUpper === 'GESTOR_ATA') {
       sgcRole = Role.GESTOR_ATA;
+    } else if (roleUpper === 'SUPLENTE') {
+      sgcRole = Role.SUPLENTE;
     } else if (roleUpper === 'FORNECEDOR') {
       sgcRole = Role.FORNECEDOR;
     } else if (roleUpper === 'FISCAL_TECNICO') {
       sgcRole = Role.FISCAL_TECNICO;
     }
 
-    // 3. Localiza ou sincroniza usuário no banco do SGC
+    // 3. Localiza ou sincroniza usuário no banco do SGC (por e-mail ou matrícula para evitar duplicidade)
     let usuarioSgc = await prisma.user.findUnique({
       where: { email: emailLimpo },
     });
+
+    if (!usuarioSgc && matricula) {
+      const matDigits = matricula.replace(/\D/g, '');
+      const matSemZeros = matDigits.length >= 2
+        ? `${matDigits.slice(0, -1).replace(/^0+/, '') || '0'}-${matDigits.slice(-1)}`
+        : matricula;
+      usuarioSgc = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { matricula },
+            { matricula: matSemZeros },
+            { matricula: matDigits },
+          ],
+        },
+      });
+    }
 
     if (!usuarioSgc) {
       usuarioSgc = await prisma.user.create({
@@ -98,11 +116,12 @@ export async function GET(request: NextRequest) {
         },
       });
     } else {
-      // Atualiza role e matrícula se alteradas no portal central
+      // Atualiza role, e-mail e matrícula no registro existente preservando todos os vínculos de contratos
       usuarioSgc = await prisma.user.update({
         where: { id: usuarioSgc.id },
         data: {
           nome: nome || usuarioSgc.nome,
+          email: emailLimpo,
           matricula: matricula || usuarioSgc.matricula,
           role: sgcRole,
           ativo: true,

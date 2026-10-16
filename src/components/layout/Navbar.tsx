@@ -34,6 +34,7 @@ export default function Navbar({ user }: NavbarProps) {
     const rolesMap: Record<string, string> = {
       ADMIN_PROAD: 'Administrador Geral (PROAD)',
       ADMIN_PARCIAL: 'Administrador Parcial',
+      USUARIO: 'Servidor / Gestão Contratual',
       GESTOR: 'Gestor de Contrato',
       SUPLENTE: 'Suplente de Gestor',
       FISCAL_ADMINISTRATIVO: 'Fiscal Administrativo',

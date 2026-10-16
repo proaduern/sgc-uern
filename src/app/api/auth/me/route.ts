@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import {
   isAdminRole,
@@ -6,6 +7,7 @@ import {
   canManageAtas,
   canPerformDefinitiveAttest,
   canPerformProvisionalAttest,
+  canPerformAdministrativeReceipt,
   canIssueOrder,
   canManageContaVinculada,
   canManageTerceirizacao,
@@ -23,6 +25,18 @@ export async function GET() {
     const isAdmin = isAdminRole(session.role);
     const isGestorAta = isGestorAtaRole(session.role);
 
+    // Consulta os papéis dinâmicos que o usuário exerce em cada contrato ativo
+    const designacoes = await prisma.contratoResponsavel.findMany({
+      where: { userId: session.id, ativo: true },
+      select: { contratoId: true, tipoAtuacao: true, campusSetor: true },
+    });
+
+    const rolesNoUsuario = Array.from(new Set(designacoes.map((d) => d.tipoAtuacao.toString())));
+    const hasGestor = rolesNoUsuario.includes('GESTOR') || rolesNoUsuario.includes('SUPLENTE');
+    const hasFiscalAdm = rolesNoUsuario.includes('FISCAL_ADMINISTRATIVO');
+    const hasFiscalTecnico = rolesNoUsuario.includes('FISCAL_TECNICO');
+    const hasFiscalSetorial = rolesNoUsuario.includes('FISCAL_SETORIAL');
+
     return NextResponse.json({
       user: {
         id: session.id,
@@ -32,17 +46,23 @@ export async function GET() {
         role: session.role,
         isAdmin,
         isGestorAta,
-        isGestor: session.role === 'GESTOR' || session.role === 'SUPLENTE',
-        isFiscalAdm: session.role === 'FISCAL_ADMINISTRATIVO',
-        isFiscalTecnico: session.role === 'FISCAL_TECNICO',
-        isFiscalSetorial: session.role === 'FISCAL_SETORIAL',
+        isGestor: isAdmin || session.role === 'GESTOR' || session.role === 'SUPLENTE' || hasGestor,
+        isFiscalAdm: isAdmin || session.role === 'FISCAL_ADMINISTRATIVO' || hasFiscalAdm,
+        isFiscalTecnico: isAdmin || session.role === 'FISCAL_TECNICO' || hasFiscalTecnico,
+        isFiscalSetorial: isAdmin || session.role === 'FISCAL_SETORIAL' || hasFiscalSetorial,
         canManageAtas: canManageAtas(session.role),
-        canDefinitiveAttest: canPerformDefinitiveAttest(session.role),
-        canProvisionalAttest: canPerformProvisionalAttest(session.role),
-        canIssueOrder: canIssueOrder(session.role),
-        canManageContaVinculada: canManageContaVinculada(session.role),
-        canManageTerceirizacao: canManageTerceirizacao(session.role),
+        // Nomenclatura aderente à Lei 14.133/2021
+        canDefinitiveAttest: isAdmin || canPerformDefinitiveAttest(session.role, rolesNoUsuario),
+        canDefinitiveReceipt: isAdmin || canPerformDefinitiveAttest(session.role, rolesNoUsuario),
+        canProvisionalAttest: isAdmin || canPerformProvisionalAttest(session.role, rolesNoUsuario),
+        canTechnicalReceipt: isAdmin || canPerformProvisionalAttest(session.role, rolesNoUsuario),
+        canAdministrativeReceipt: isAdmin || canPerformAdministrativeReceipt(session.role, rolesNoUsuario),
+        // O Fiscal Administrativo e Gestor podem emitir OS e gerir Conta Vinculada
+        canIssueOrder: isAdmin || canIssueOrder(session.role, rolesNoUsuario),
+        canManageContaVinculada: isAdmin || canManageContaVinculada(session.role, rolesNoUsuario),
+        canManageTerceirizacao: isAdmin || canManageTerceirizacao(session.role, rolesNoUsuario),
         designatedContractIds: contractIds,
+        designacoes,
         campusSetor,
       },
     });

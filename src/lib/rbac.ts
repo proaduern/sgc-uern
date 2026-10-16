@@ -25,43 +25,55 @@ export function canManageAtas(role: string): boolean {
   return isAdminRole(role) || role === 'GESTOR_ATA';
 }
 
-export function canPerformDefinitiveAttest(role: string): boolean {
-  return isAdminRole(role) || role === 'GESTOR' || role === 'SUPLENTE';
+export function canPerformDefinitiveAttest(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'GESTOR' || role === 'SUPLENTE') return true;
+  return contractRoles.some((r) => r === 'GESTOR' || r === 'SUPLENTE');
 }
 
-export function canPerformProvisionalAttest(role: string): boolean {
-  return (
-    isAdminRole(role) ||
-    role === 'FISCAL_ADMINISTRATIVO' ||
-    role === 'FISCAL_TECNICO' ||
-    role === 'FISCAL_SETORIAL'
+export const canPerformDefinitiveReceipt = canPerformDefinitiveAttest;
+
+export function canPerformProvisionalAttest(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'FISCAL_TECNICO' || role === 'FISCAL_SETORIAL' || role === 'FISCAL_ADMINISTRATIVO') return true;
+  return contractRoles.some(
+    (r) => r === 'FISCAL_TECNICO' || r === 'FISCAL_SETORIAL' || r === 'FISCAL_ADMINISTRATIVO'
   );
 }
 
-export function canIssueOrder(role: string): boolean {
-  return (
-    isAdminRole(role) ||
-    role === 'GESTOR' ||
-    role === 'SUPLENTE' ||
-    role === 'FISCAL_ADMINISTRATIVO'
+export const canPerformTechnicalReceipt = canPerformProvisionalAttest;
+
+/**
+ * Recebimento Provisório Administrativo Complementar (Art. 140 da Lei 14.133/2021)
+ * Competência do Fiscal Administrativo para conferir regularidade documental, certidões e encargos trabalhistas
+ */
+export function canPerformAdministrativeReceipt(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'FISCAL_ADMINISTRATIVO') return true;
+  return contractRoles.includes('FISCAL_ADMINISTRATIVO');
+}
+
+export function canIssueOrder(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'GESTOR' || role === 'SUPLENTE' || role === 'FISCAL_ADMINISTRATIVO') return true;
+  return contractRoles.some(
+    (r) => r === 'GESTOR' || r === 'SUPLENTE' || r === 'FISCAL_ADMINISTRATIVO'
   );
 }
 
-export function canManageContaVinculada(role: string): boolean {
-  return (
-    isAdminRole(role) ||
-    role === 'GESTOR' ||
-    role === 'SUPLENTE' ||
-    role === 'FISCAL_ADMINISTRATIVO'
+export function canManageContaVinculada(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'GESTOR' || role === 'SUPLENTE' || role === 'FISCAL_ADMINISTRATIVO') return true;
+  return contractRoles.some(
+    (r) => r === 'GESTOR' || r === 'SUPLENTE' || r === 'FISCAL_ADMINISTRATIVO'
   );
 }
 
-export function canManageTerceirizacao(role: string): boolean {
-  return (
-    isAdminRole(role) ||
-    role === 'GESTOR' ||
-    role === 'SUPLENTE' ||
-    role === 'FISCAL_ADMINISTRATIVO'
+export function canManageTerceirizacao(role: string, contractRoles: string[] = []): boolean {
+  if (isAdminRole(role)) return true;
+  if (role === 'GESTOR' || role === 'SUPLENTE' || role === 'FISCAL_ADMINISTRATIVO') return true;
+  return contractRoles.some(
+    (r) => r === 'GESTOR' || r === 'SUPLENTE' || r === 'FISCAL_ADMINISTRATIVO'
   );
 }
 

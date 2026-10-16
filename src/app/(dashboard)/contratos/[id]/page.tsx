@@ -256,6 +256,63 @@ export default function DetalhesContratoPage() {
         </div>
       </div>
 
+      {/* Banner de Atuação do Usuário neste Contrato */}
+      {(() => {
+        const minhaDesignacao = contrato.responsaveis?.filter(
+          (r: any) => r.userId === currentUser?.id && r.ativo !== false
+        ) || [];
+
+        if (minhaDesignacao.length === 0 && !currentUser?.isAdmin) return null;
+
+        const rolesNomes: Record<string, string> = {
+          GESTOR: 'Gestor do Contrato (Competência: Recebimento Definitivo, Emissão de OS, Gestão Global)',
+          SUPLENTE: 'Gestor Suplente (Competência: Recebimento Definitivo na ausência do titular, Emissão de OS)',
+          FISCAL_ADMINISTRATIVO: 'Fiscal Administrativo (Competência: Recebimento Provisório Adm/Docs, Emissão de OS, Gestão de Conta Vinculada)',
+          FISCAL_TECNICO: 'Fiscal Técnico (Competência: Recebimento Provisório Técnico do objeto, Glosas e Medições)',
+          FISCAL_SETORIAL: 'Fiscal Setorial (Competência: Acompanhamento setorial nos Campi/Setores e apoio à fiscalização técnica)',
+        };
+
+        return (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
+            <div className="flex items-start space-x-3">
+              <div className="p-2 bg-blue-600 text-white rounded-xl shadow-sm">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-blue-900">
+                    Sua Atuação Formal neste Contrato
+                  </h3>
+                  {currentUser?.isAdmin && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full border border-blue-200">
+                      Administrador PROAD
+                    </span>
+                  )}
+                </div>
+                {minhaDesignacao.length > 0 ? (
+                  <div className="mt-1 space-y-1">
+                    {minhaDesignacao.map((d: any, idx: number) => (
+                      <div key={idx} className="text-xs text-blue-800 flex items-center space-x-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                        <span className="font-semibold">{rolesNomes[d.tipoAtuacao] || d.tipoAtuacao}</span>
+                        {d.campusSetor && <span className="text-blue-600">({d.campusSetor})</span>}
+                        {d.portariaDesignacao && (
+                          <span className="text-[11px] text-blue-500 font-mono">Portaria: {d.portariaDesignacao}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Você possui acesso de supervisão geral como Administrador PROAD.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Banner de Ativação do Módulo de Terceirização & Mão de Obra */}
       {contrato.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' && (
         <div className="bg-gradient-to-r from-[#002244] via-[#003366] to-[#0a4580] text-white p-5 rounded-2xl shadow-md border border-blue-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

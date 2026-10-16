@@ -14,12 +14,18 @@ export async function GET(request: NextRequest) {
     const whereClause: any = {};
 
     if (!isAdminRole(session.role)) {
-      if (!canManageContaVinculada(session.role)) {
-        return NextResponse.json({ error: 'Acesso restrito ao Gestor e Fiscal Administrativo do Contrato.' }, { status: 403 });
-      }
-      const { contractIds } = await getUserDesignatedContext(session.id);
+      const designacoes = await prisma.contratoResponsavel.findMany({
+        where: {
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+        select: { contratoId: true },
+      });
+      const authorizedContractIds = Array.from(new Set(designacoes.map((d) => d.contratoId)));
+
       if (contratoId) {
-        if (!contractIds.includes(contratoId)) {
+        if (!authorizedContractIds.includes(contratoId)) {
           return NextResponse.json({
             movimentacoes: [],
             saldosPorRubrica: {
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
         }
         whereClause.contratoId = contratoId;
       } else {
-        whereClause.contratoId = { in: contractIds };
+        whereClause.contratoId = { in: authorizedContractIds };
       }
     } else if (contratoId) {
       whereClause.contratoId = contratoId;
@@ -118,13 +124,6 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (!isAdminRole(session.role) && !canManageContaVinculada(session.role)) {
-      return NextResponse.json(
-        { error: 'Seu perfil não possui permissão para movimentar a Conta Vinculada.' },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { contratoId, competenciaMesAno, tipoOperacao, rubrica, valor, trabalhadorId, numeroOficio, motivoLiberacao, liberacoes } = body;
 
@@ -133,9 +132,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isAdminRole(session.role)) {
-      const { contractIds } = await getUserDesignatedContext(session.id);
-      if (!contractIds.includes(contratoId)) {
-        return NextResponse.json({ error: 'Não autorizado para este contrato.' }, { status: 403 });
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+
+      if (!resp) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
       }
     }
 

@@ -54,8 +54,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=token_invalido_destino', request.url));
     }
 
-    // 2. Mapeia role do Portal para o enum Role do SGC
-    let sgcRole: Role = Role.FISCAL_TECNICO;
+    // 2. Mapeia role do Portal para o enum Role do SGC (Apenas ADMIN_PROAD, FORNECEDOR ou USUARIO)
+    // Os papéis finos de Gestor/Fiscal são dinâmicos por contrato na tabela contrato_responsaveis
+    let sgcRole: Role = Role.USUARIO;
     const roleUpper = (role || '').toUpperCase();
     const emailLimpo = email.toLowerCase().trim();
 
@@ -66,20 +67,10 @@ export async function GET(request: NextRequest) {
       emailLimpo === 'pedroreboucas@uern.br'
     ) {
       sgcRole = Role.ADMIN_PROAD;
-    } else if (roleUpper === 'GESTOR') {
-      sgcRole = Role.GESTOR;
-    } else if (roleUpper === 'FISCAL_ADM' || roleUpper === 'FISCAL_ADMINISTRATIVO') {
-      sgcRole = Role.FISCAL_ADMINISTRATIVO;
-    } else if (roleUpper === 'FISCAL_SETORIAL') {
-      sgcRole = Role.FISCAL_SETORIAL;
-    } else if (roleUpper === 'GESTOR_ATA') {
-      sgcRole = Role.GESTOR_ATA;
-    } else if (roleUpper === 'SUPLENTE') {
-      sgcRole = Role.SUPLENTE;
     } else if (roleUpper === 'FORNECEDOR') {
       sgcRole = Role.FORNECEDOR;
-    } else if (roleUpper === 'FISCAL_TECNICO') {
-      sgcRole = Role.FISCAL_TECNICO;
+    } else {
+      sgcRole = Role.USUARIO;
     }
 
     // 3. Localiza ou sincroniza usuário no banco do SGC (por e-mail ou matrícula para evitar duplicidade)

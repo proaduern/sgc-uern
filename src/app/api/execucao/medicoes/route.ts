@@ -5,6 +5,7 @@ import {
   isAdminRole,
   canPerformDefinitiveAttest,
   canPerformProvisionalAttest,
+  canPerformAdministrativeReceipt,
   getUserDesignatedContext,
 } from '@/lib/rbac';
 import { registrarAuditoria } from '@/lib/auditClient';
@@ -172,47 +173,66 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Medição não encontrada.' }, { status: 404 });
     }
 
+    let contractRoles: string[] = [];
     if (!isAdminRole(session.role)) {
-      const { contractIds } = await getUserDesignatedContext(session.id);
-      if (!contractIds.includes(medicao.contratoId)) {
+      const userDesignacoes = await prisma.contratoResponsavel.findMany({
+        where: { contratoId: medicao.contratoId, userId: session.id, ativo: true },
+        select: { tipoAtuacao: true },
+      });
+      contractRoles = userDesignacoes.map((d) => d.tipoAtuacao.toString());
+
+      if (contractRoles.length === 0) {
         return NextResponse.json(
-          { error: 'Você não tem permissão para atestar despesas deste contrato.' },
+          { error: 'Você não possui designação formal para atuar neste contrato.' },
           { status: 403 }
         );
       }
     }
 
-    // Ações: ATESTE_PROVISORIO (Fiscal Técnico), ATESTE_DEFINITIVO (Gestor), ENVIAR_PAGAMENTO
+    // Ações segundo a Lei 14.133/2021 e IN 01/2026 UERN:
+    // 1. RECEBIMENTO_PROVISORIO_TECNICO (Fiscal Técnico)
+    // 2. RECEBIMENTO_PROVISORIO_ADMINISTRATIVO (Fiscal Administrativo - certidões, encargos, regularidade)
+    // 3. RECEBIMENTO_DEFINITIVO (Gestor do Contrato / Suplente)
+    // 4. ENVIAR_PAGAMENTO / LIQUIDAR (PROAD ou Gestor)
     const updateData: any = {};
 
-    if (acao === 'ATESTE_PROVISORIO') {
-      if (!canPerformProvisionalAttest(session.role)) {
+    if (acao === 'RECEBIMENTO_PROVISORIO_TECNICO' || acao === 'ATESTE_PROVISORIO') {
+      if (!canPerformProvisionalAttest(session.role, contractRoles)) {
         return NextResponse.json(
-          { error: 'Você não possui permissão para emitir Ateste Provisório.' },
+          { error: 'Apenas o Fiscal Técnico (ou Fiscal Setorial/PROAD) pode emitir o Recebimento Provisório Técnico.' },
           { status: 403 }
         );
       }
       updateData.dataRecebimentoProvisorio = new Date();
-      updateData.status = 'ATESTE_PROVISORIO_TECNICO';
+      updateData.status = 'RECEBIMENTO_PROVISORIO_TECNICO';
       if (valorGlosa !== undefined) {
         const glosa = parseFloat(valorGlosa) || 0;
         updateData.valorGlosa = glosa;
         updateData.motivoGlosa = motivoGlosa || null;
         updateData.valorAtestadoFinal = Math.max(0, (medicao.valorNotaFiscal || 0) - glosa);
       }
-    } else if (acao === 'ATESTE_DEFINITIVO') {
-      if (!canPerformDefinitiveAttest(session.role)) {
+    } else if (acao === 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO' || acao === 'CONFERENCIA_ADMINISTRATIVA') {
+      if (!canPerformAdministrativeReceipt(session.role, contractRoles)) {
         return NextResponse.json(
-          { error: 'O Ateste Definitivo é privativo do Gestor do Contrato (ou PROAD).' },
+          { error: 'Apenas o Fiscal Administrativo do contrato (ou PROAD) pode emitir o Recebimento Provisório Administrativo Complementar.' },
+          { status: 403 }
+        );
+      }
+      updateData.status = 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO';
+    } else if (acao === 'RECEBIMENTO_DEFINITIVO' || acao === 'ATESTE_DEFINITIVO') {
+      if (!canPerformDefinitiveAttest(session.role, contractRoles)) {
+        return NextResponse.json(
+          { error: 'O Recebimento Definitivo é privativo do Gestor do Contrato / Suplente (ou PROAD).' },
           { status: 403 }
         );
       }
       updateData.dataRecebimentoDefinitivo = new Date();
-      updateData.status = 'ATESTE_DEFINITIVO_GESTOR';
+      updateData.status = 'RECEBIMENTO_DEFINITIVO_GESTOR';
     } else if (acao === 'ENVIAR_PAGAMENTO' || acao === 'LIQUIDAR') {
-      if (!isAdminRole(session.role) && session.role !== 'GESTOR') {
+      const isGestorContrato = contractRoles.includes('GESTOR') || contractRoles.includes('SUPLENTE');
+      if (!isAdminRole(session.role) && !isGestorContrato && session.role !== 'GESTOR') {
         return NextResponse.json(
-          { error: 'Apenas a PROAD ou o Gestor do Contrato podem encaminhar para liquidação/pagamento.' },
+          { error: 'Apenas a PROAD ou o Gestor do Contrato podem encaminhar para liquidação e pagamento.' },
           { status: 403 }
         );
       }

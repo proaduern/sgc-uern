@@ -367,7 +367,10 @@ export default function ExecucaoPage() {
     }
   };
 
-  const handleAtestar = async (medicaoId: string, acao: 'ATESTE_PROVISORIO' | 'ATESTE_DEFINITIVO') => {
+  const handleAtestar = async (
+    medicaoId: string,
+    acao: 'RECEBIMENTO_PROVISORIO_TECNICO' | 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO' | 'RECEBIMENTO_DEFINITIVO' | 'ATESTE_PROVISORIO' | 'ATESTE_DEFINITIVO'
+  ) => {
     try {
       const res = await fetch('/api/execucao/medicoes', {
         method: 'PATCH',
@@ -376,6 +379,9 @@ export default function ExecucaoPage() {
       });
       if (res.ok) {
         carregarDados();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao processar recebimento da medição.');
       }
     } catch (e) {
       console.error(e);
@@ -758,7 +764,7 @@ export default function ExecucaoPage() {
           }`}
         >
           <FileSpreadsheet className="w-4 h-4" />
-          <span>Controle de Saldo & Atestes ({medicoes.length})</span>
+          <span>Controle de Saldo & Recebimentos ({medicoes.length})</span>
         </button>
 
         <button
@@ -792,9 +798,10 @@ export default function ExecucaoPage() {
                   <th className="py-3.5 px-4">Nota Fiscal</th>
                   <th className="py-3.5 px-4">Valor da NF</th>
                   <th className="py-3.5 px-4">Glosa Aplicada</th>
-                  <th className="py-3.5 px-4">Valor Atestado</th>
-                  <th className="py-3.5 px-4">Recebimento Provisório (Téc)</th>
-                  <th className="py-3.5 px-4">Recebimento Definitivo (Gestor)</th>
+                  <th className="py-3.5 px-4">Valor Aprovado</th>
+                  <th className="py-3.5 px-4">Rec. Provisório (Téc)</th>
+                  <th className="py-3.5 px-4">Rec. Provisório (Adm)</th>
+                  <th className="py-3.5 px-4">Rec. Definitivo (Gestor)</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Ações</th>
                 </tr>
@@ -802,18 +809,32 @@ export default function ExecucaoPage() {
               <tbody className="divide-y divide-slate-100 font-medium">
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-12 text-slate-400">
+                    <td colSpan={11} className="text-center py-12 text-slate-400">
                       Carregando medições...
                     </td>
                   </tr>
                 ) : medicoes.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-12 text-slate-400">
+                    <td colSpan={11} className="text-center py-12 text-slate-400">
                       Nenhuma medição cadastrada no período.
                     </td>
                   </tr>
                 ) : (
-                  medicoes.map((m) => (
+                  medicoes.map((m) => {
+                    const isUserAdmin = Boolean(currentUser?.isAdmin);
+                    const contractRoles: string[] = isUserAdmin
+                      ? ['GESTOR', 'FISCAL_ADMINISTRATIVO', 'FISCAL_TECNICO', 'FISCAL_SETORIAL']
+                      : (currentUser?.designacoes?.filter((d: any) => d.contratoId === m.contratoId)?.map((d: any) => d.tipoAtuacao) || []);
+
+                    const canPerformTec = isUserAdmin || contractRoles.some((r: string) => r === 'FISCAL_TECNICO' || r === 'FISCAL_SETORIAL');
+                    const canPerformAdm = isUserAdmin || contractRoles.includes('FISCAL_ADMINISTRATIVO');
+                    const canPerformDef = isUserAdmin || contractRoles.some((r: string) => r === 'GESTOR' || r === 'SUPLENTE');
+
+                    const isTecnicoDone = Boolean(m.dataRecebimentoProvisorio || m.status === 'RECEBIMENTO_PROVISORIO_TECNICO' || m.status === 'ATESTE_PROVISORIO_TECNICO' || m.status === 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO' || m.status === 'RECEBIMENTO_DEFINITIVO_GESTOR' || m.status === 'ENVIADO_PAGAMENTO_PROPLAN' || m.status === 'LIQUIDADO_PAGO');
+                    const isAdmDone = Boolean(m.status === 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO' || m.status === 'RECEBIMENTO_DEFINITIVO_GESTOR' || m.status === 'ENVIADO_PAGAMENTO_PROPLAN' || m.status === 'LIQUIDADO_PAGO');
+                    const isDefinitivoDone = Boolean(m.dataRecebimentoDefinitivo || m.status === 'RECEBIMENTO_DEFINITIVO_GESTOR' || m.status === 'ENVIADO_PAGAMENTO_PROPLAN' || m.status === 'LIQUIDADO_PAGO');
+
+                    return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-800 text-sm">{m.referenciaMesAno}</div>
@@ -858,45 +879,67 @@ export default function ExecucaoPage() {
                         {m.valorAtestadoFinal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
 
-                      {/* Recebimento Provisório (Fiscal Técnico / Administrativo / Setorial / Admin) */}
+                      {/* 1. Recebimento Provisório Técnico (Fiscal Técnico / Fiscal Setorial) */}
                       <td className="py-3 px-4">
-                        {m.dataRecebimentoProvisorio ? (
+                        {isTecnicoDone ? (
                           <span className="inline-flex items-center space-x-1 text-emerald-700 text-[11px] font-semibold">
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{new Date(m.dataRecebimentoProvisorio).toLocaleDateString('pt-BR')}</span>
+                            <span>{m.dataRecebimentoProvisorio ? new Date(m.dataRecebimentoProvisorio).toLocaleDateString('pt-BR') : 'Recebido'}</span>
                           </span>
-                        ) : (currentUser?.canProvisionalAttest || currentUser?.isAdmin) ? (
+                        ) : canPerformTec ? (
                           <button
-                            onClick={() => handleAtestar(m.id, 'ATESTE_PROVISORIO')}
+                            onClick={() => handleAtestar(m.id, 'RECEBIMENTO_PROVISORIO_TECNICO')}
                             className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold rounded-md transition-colors cursor-pointer"
+                            title="Emitir Recebimento Provisório Técnico com base no objeto entregue"
                           >
-                            Dar Ateste Provisório
+                            Rec. Provisório
                           </button>
                         ) : (
                           <span className="text-[10px] text-slate-400 italic">Pendente</span>
                         )}
                       </td>
 
-                      {/* Recebimento Definitivo (Exclusivo do Gestor do Contrato ou PROAD) */}
+                      {/* 2. Recebimento Provisório Administrativo Complementar (Fiscal Administrativo - CNDT, FGTS, Encargos) */}
                       <td className="py-3 px-4">
-                        {m.dataRecebimentoDefinitivo ? (
+                        {isAdmDone ? (
+                          <span className="inline-flex items-center space-x-1 text-indigo-700 text-[11px] font-semibold" title="Certidões e encargos trabalhistas conferidos">
+                            <Check className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Regular (Docs)</span>
+                          </span>
+                        ) : canPerformAdm ? (
+                          <button
+                            onClick={() => handleAtestar(m.id, 'RECEBIMENTO_PROVISORIO_ADMINISTRATIVO')}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[10px] font-bold rounded-md transition-colors cursor-pointer"
+                            title="Conferir CNDT, FGTS e obrigações trabalhistas"
+                          >
+                            Rec. Adm (Docs)
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">Pendente</span>
+                        )}
+                      </td>
+
+                      {/* 3. Recebimento Definitivo (Exclusivo do Gestor do Contrato ou PROAD) */}
+                      <td className="py-3 px-4">
+                        {isDefinitivoDone ? (
                           <span className="inline-flex items-center space-x-1 text-emerald-700 text-[11px] font-semibold">
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{new Date(m.dataRecebimentoDefinitivo).toLocaleDateString('pt-BR')}</span>
+                            <span>{m.dataRecebimentoDefinitivo ? new Date(m.dataRecebimentoDefinitivo).toLocaleDateString('pt-BR') : 'Definitivo'}</span>
                           </span>
-                        ) : (currentUser?.canDefinitiveAttest || currentUser?.isAdmin) ? (
-                          m.dataRecebimentoProvisorio ? (
+                        ) : canPerformDef ? (
+                          isTecnicoDone ? (
                             <button
-                              onClick={() => handleAtestar(m.id, 'ATESTE_DEFINITIVO')}
+                              onClick={() => handleAtestar(m.id, 'RECEBIMENTO_DEFINITIVO')}
                               className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[10px] font-bold rounded-md transition-colors cursor-pointer"
+                              title="Emitir Recebimento Definitivo pelo Gestor formal"
                             >
-                              Dar Ateste Definitivo
+                              Rec. Definitivo
                             </button>
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">Aguardando provisório</span>
                           )
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic font-mono" title="Apenas o Gestor formal do contrato pode emitir o Ateste Definitivo">
+                          <span className="text-[10px] text-slate-400 italic font-mono" title="Apenas o Gestor formal do contrato pode emitir o Recebimento Definitivo">
                             Privativo do Gestor
                           </span>
                         )}
@@ -935,7 +978,8 @@ export default function ExecucaoPage() {
                         )}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

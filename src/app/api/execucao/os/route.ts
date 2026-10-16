@@ -107,13 +107,6 @@ export async function POST(request: NextRequest) {
 
     // Verificar se usuário tem permissão para emitir OS/OC e se está vinculado ao contrato
     if (!isAdminRole(session.role)) {
-      if (!canIssueOrder(session.role)) {
-        return NextResponse.json(
-          { error: 'Seu perfil não possui permissão para emitir Ordem de Serviço ou de Compra.' },
-          { status: 403 }
-        );
-      }
-
       const resp = await prisma.contratoResponsavel.findFirst({
         where: {
           contratoId,
@@ -124,7 +117,7 @@ export async function POST(request: NextRequest) {
 
       if (!resp) {
         return NextResponse.json(
-          { error: 'Apenas Gestores ou Fiscais vinculados a este contrato podem emitir Ordem de Serviço/Compra.' },
+          { error: 'Apenas Gestores, Suplentes ou Fiscais vinculados a este contrato podem emitir Ordem de Serviço/Compra.' },
           { status: 403 }
         );
       }
@@ -134,7 +127,7 @@ export async function POST(request: NextRequest) {
         !['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'].includes(resp.tipoAtuacao)
       ) {
         return NextResponse.json(
-          { error: 'Apenas o Gestor ou Fiscal Administrativo deste contrato possui competência regimental para emitir Ordens de Serviço ou Compra.' },
+          { error: 'Apenas o Gestor, Suplente ou Fiscal Administrativo deste contrato possui competência para emitir Ordens de Serviço ou Compra.' },
           { status: 403 }
         );
       }

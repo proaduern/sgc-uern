@@ -75,23 +75,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ata de Registro de Preço não encontrada.' }, { status: 404 });
     }
 
-    const valorFloat = parseFloat(valorTotal);
+    const valorFloat = Math.round(parseFloat(valorTotal) * 100) / 100;
+    if (!Number.isFinite(valorFloat) || valorFloat < 0) {
+      return NextResponse.json({ error: 'Valor total informado é inválido.' }, { status: 400 });
+    }
     const anoAtual = new Date().getFullYear();
 
-    // Auto-geração do número se não fornecido
-    let numAuto = numeroAutorizacao;
-    if (!numAuto || !numAuto.trim()) {
-      const count = await prisma.ataAutorizacaoExecucao.count({
-        where: { ataId },
+    // Auto-geração do número seguro contra exclusões e colisões
+    let numAuto = numeroAutorizacao?.trim() || '';
+    if (!numAuto) {
+      const ultimaAuto = await prisma.ataAutorizacaoExecucao.findFirst({
+        where: { ataId, numeroAutorizacao: { startsWith: 'AEA-' } },
+        orderBy: { dataAutorizacao: 'desc' },
+        select: { numeroAutorizacao: true },
       });
-      numAuto = `AEA-${String(count + 1).padStart(3, '0')}/${anoAtual}`;
+      const matchSeq = ultimaAuto?.numeroAutorizacao?.match(/AEA-(\d+)/);
+      const nextSeq = matchSeq ? parseInt(matchSeq[1], 10) + 1 : (await prisma.ataAutorizacaoExecucao.count({ where: { ataId } })) + 1;
+      numAuto = `AEA-${String(nextSeq).padStart(3, '0')}/${anoAtual}`;
     }
 
     const resultado = await prisma.$transaction(async (tx) => {
-      // Se informou dedução por item, valida e subtrai dos itens da ata
+      // Se informou dedução por item, valida e subtrai de forma atômica no banco
       if (itensDeducao && Array.isArray(itensDeducao) && itensDeducao.length > 0) {
         for (const it of itensDeducao) {
-          const qtd = parseFloat(it.quantidade) || 0;
+          const qtd = Math.round((parseFloat(it.quantidade) || 0) * 1000) / 1000;
           if (qtd <= 0) continue;
 
           const itemDb = await tx.ataItem.findUnique({
@@ -102,18 +109,22 @@ export async function POST(request: NextRequest) {
             throw new Error(`Item ${it.itemId} não encontrado na ata.`);
           }
 
-          if (itemDb.quantidadeSaldo < qtd) {
+          // Decremento condicional atômico (impede Lost Update sob concorrência)
+          const updated = await tx.ataItem.updateMany({
+            where: {
+              id: it.itemId,
+              quantidadeSaldo: { gte: qtd },
+            },
+            data: {
+              quantidadeSaldo: { decrement: qtd },
+            },
+          });
+
+          if (updated.count === 0) {
             throw new Error(
               `Saldo insuficiente para o item nº ${itemDb.numeroItem} (${itemDb.descricao}). Saldo disponível: ${itemDb.quantidadeSaldo} ${itemDb.unidade}, solicitado: ${qtd}.`
             );
           }
-
-          await tx.ataItem.update({
-            where: { id: it.itemId },
-            data: {
-              quantidadeSaldo: itemDb.quantidadeSaldo - qtd,
-            },
-          });
         }
       }
 

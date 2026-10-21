@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +9,11 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get("authorization");
     const serviceKey = process.env.PROAD_SERVICE_KEY || "proad_interop_internal_service_key_2026_uern";
 
-    if (authHeader && authHeader !== `Bearer ${serviceKey}`) {
-      return NextResponse.json({ error: "Chave de integração PROAD inválida ou ausente." }, { status: 401 });
+    if (authHeader !== `Bearer ${serviceKey}`) {
+      const session = await getSession();
+      if (!session || session.role !== "ADMIN_PROAD") {
+        return NextResponse.json({ error: "Chave de integração PROAD inválida ou ausente." }, { status: 401 });
+      }
     }
 
     const body = await request.json();
@@ -49,18 +53,20 @@ export async function POST(request: NextRequest) {
       where: { role: "ADMIN_PROAD", ativo: true },
     });
 
-    const registrosCriados: Array<{
-      id: string;
-      tipo: "ATA" | "CONTRATO";
-      numeroRegistro: string | null;
-      fornecedorRazaoSocial: string;
-      fornecedorCnpj: string;
-      valorTotalHomologado: number;
-      quantidadeItens: number;
-      etapaFluxoPosHomologacao?: string;
-    }> = [];
+    const registrosCriados = await prisma.$transaction(
+      async (prisma) => {
+        const criados: Array<{
+          id: string;
+          tipo: "ATA" | "CONTRATO";
+          numeroRegistro: string | null;
+          fornecedorRazaoSocial: string;
+          fornecedorCnpj: string;
+          valorTotalHomologado: number;
+          quantidadeItens: number;
+          etapaFluxoPosHomologacao?: string;
+        }> = [];
 
-    for (let pkgIndex = 0; pkgIndex < pacotes.length; pkgIndex++) {
+        for (let pkgIndex = 0; pkgIndex < pacotes.length; pkgIndex++) {
       const pkg = pacotes[pkgIndex];
       const pkgFornecedor = pkg.fornecedor;
       const pkgItens = pkg.itens;
@@ -165,7 +171,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        registrosCriados.push({
+        criados.push({
           id: ata.id,
           tipo: "ATA",
           numeroRegistro: ata.numeroAta,
@@ -236,7 +242,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        registrosCriados.push({
+        criados.push({
           id: contrato.id,
           tipo: "CONTRATO",
           numeroRegistro: contrato.numeroContrato,
@@ -247,7 +253,11 @@ export async function POST(request: NextRequest) {
           etapaFluxoPosHomologacao: "AGUARDANDO_EMPENHO",
         });
       }
-    }
+        }
+        return criados;
+      },
+      { timeout: 15000 }
+    );
 
     const primeiro = registrosCriados[0];
 

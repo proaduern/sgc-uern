@@ -222,6 +222,16 @@ model Contrato {
   fornecedorId                String
   fornecedor                  Fornecedor     @relation(fields: [fornecedorId], references: [id])
   origemPcaConsolidacaoId     String?        // ID da consolidação técnica originária no PCA
+  etapaFluxoPosHomologacao    String?        @default("VIGENTE") // "AGUARDANDO_EMPENHO", "AGUARDANDO_DESIGNACAO_PROAD", "AGUARDANDO_UCI", "AGUARDANDO_ELABORACAO_CONTRATO", "EXECUCAO_DIRETA_EMPENHO", "VIGENTE"
+  exigeContratoFormal         Boolean        @default(true)
+  dataRegistroEmpenho         DateTime?
+  valorEmpenhado              Float?
+  portariaDesignacaoGestor    String?
+  dataDesignacaoGestor        DateTime?
+  dataEnvioUci                DateTime?
+  dataRetornoUci              DateTime?
+  statusUci                   String?        // "PENDENTE", "EM_ANALISE_UCI", "APROVADO_UCI", "DILIGENCIA_UCI"
+  parecerUciResumo            String?
   createdAt                   DateTime       @default(now())
   updatedAt                   DateTime       @updatedAt
 

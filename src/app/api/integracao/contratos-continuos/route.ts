@@ -118,6 +118,44 @@ export async function GET(request: NextRequest) {
     // Filtra preferencialmente os que impactam o exercício do PCA solicitado
     const contratosRelevantes = contratosProjetados.filter((c) => c.vigenciaAdentraAnoPca);
 
+    // Busca processos recebidos da Homologação/PCA ou na Esteira Pós-Homologação no SGC
+    const processosPosHomologacao = await prisma.contrato.findMany({
+      where: {
+        OR: [
+          { origemPcaConsolidacaoId: { not: null } },
+          {
+            etapaFluxoPosHomologacao: {
+              in: [
+                'AGUARDANDO_EMPENHO',
+                'AGUARDANDO_DESIGNACAO_PROAD',
+                'AGUARDANDO_UCI',
+                'AGUARDANDO_ELABORACAO_CONTRATO',
+                'EXECUCAO_DIRETA_EMPENHO',
+              ],
+            },
+          },
+        ],
+      },
+      include: {
+        fornecedor: true,
+        itens: { orderBy: { numeroItem: 'asc' } },
+        responsaveis: {
+          include: {
+            user: {
+              select: { id: true, nome: true, email: true, matricula: true, role: true },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const servidoresDisponiveis = await prisma.user.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true, email: true, matricula: true, role: true },
+      orderBy: { nome: 'asc' },
+    });
+
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       anoPcaReferencia: anoPca,
@@ -125,6 +163,8 @@ export async function GET(request: NextRequest) {
       totalImpactamAnoPca: contratosRelevantes.length,
       contratos: contratosRelevantes,
       todosContratosContinuados: contratosProjetados,
+      processosPosHomologacao,
+      servidoresDisponiveis,
     });
   } catch (err: any) {
     console.error('Erro ao consultar contratos contínuos para PCA:', err);

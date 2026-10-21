@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Layers,
@@ -15,45 +15,64 @@ import {
   Clock,
   ArrowRight,
 } from 'lucide-react';
+import EsteiraPosHomologacaoSection from '@/components/contratos/EsteiraPosHomologacaoSection';
 
 export default function PlanejamentoPcaPage() {
   const [ano, setAno] = useState<number>(2027);
   const [dados, setDados] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [filtroEtapa, setFiltroEtapa] = useState<string>('TODAS');
 
-  useEffect(() => {
-    async function carregarContratos() {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/integracao/contratos-continuos?anoPca=${ano}`);
-        if (res.ok) {
-          const json = await res.json();
-          setDados(json);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+  const carregarContratos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/integracao/contratos-continuos?anoPca=${ano}`);
+      if (res.ok) {
+        const json = await res.json();
+        setDados(json);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    carregarContratos();
   }, [ano]);
 
+  useEffect(() => {
+    carregarContratos();
+  }, [carregarContratos]);
+
   const pcaUrl = process.env.NEXT_PUBLIC_PCA_URL || 'http://localhost:3002';
+
+  const processosPosHomologacao: any[] = dados?.processosPosHomologacao || [];
+  const servidoresDisponiveis: any[] = dados?.servidoresDisponiveis || [];
+
+  const processosFiltrados = processosPosHomologacao.filter((p) => {
+    if (filtroEtapa === 'TODAS') return true;
+    if (filtroEtapa === 'CONCLUIDOS') {
+      return (
+        p.etapaFluxoPosHomologacao === 'VIGENTE' ||
+        p.etapaFluxoPosHomologacao === 'EXECUCAO_DIRETA_EMPENHO'
+      );
+    }
+    return p.etapaFluxoPosHomologacao === filtroEtapa;
+  });
 
   return (
     <div className="space-y-6">
       {/* Top Banner */}
       <div className="rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 md:p-8 shadow-xl relative overflow-hidden">
-        <div className="max-w-2xl relative z-10">
+        <div className="max-w-3xl relative z-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> SGC ➔ PCA Integrado
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> SGC ⇄ PCA Integrado • Esteira Pós-Homologação
           </div>
           <h1 className="text-2xl font-black tracking-tight">
-            Planejamento de Continuidade Contratual (PCA)
+            Planejamento PCA & Esteira Pós-Homologação no SGC
           </h1>
           <p className="text-xs md:text-sm text-slate-300 mt-2 leading-relaxed">
-            Monitoramento de contratos de serviços continuados e terceirização que alimentam automaticamente o Plano de Contratações Anual (PCA) da UERN, evitando retrabalho e inconsistências de dados.
+            Acompanhe os processos licitatórios homologados recebidos do PCA ao longo das 4 etapas no SGC (
+            <strong>1. Empenho ➔ 2. Gabinete PROAD ➔ 3. Controle Interno UCI ➔ 4. Elaboração do Contrato / Execução Direta</strong>
+            ), além da projeção de contratos contínuos para o próximo exercício.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
@@ -68,6 +87,105 @@ export default function PlanejamentoPcaPage() {
             </a>
           </div>
         </div>
+      </div>
+
+      {/* ===================================================================== */}
+      {/* SEÇÃO: ESTEIRA PÓS-HOMOLOGAÇÃO NO SGC (4 ETAPAS)                     */}
+      {/* ===================================================================== */}
+      <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+              <Layers className="w-4 h-4" />
+              <span>Fluxo Oficial Pós-Homologação (Contratações Tradicionais e Empenho Direto)</span>
+            </div>
+            <h2 className="text-base font-black text-slate-900 mt-0.5">
+              Esteira Pós-Homologação no SGC (Empenho ➔ Gabinete PROAD ➔ UCI ➔ Contrato / Execução Direta)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Nota: Atas de Registro de Preços (SRP) seguem diretamente para o módulo de Gestão de Atas sem exigir empenho prévio.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: 'TODAS', label: `Todos (${processosPosHomologacao.length})` },
+              {
+                id: 'AGUARDANDO_EMPENHO',
+                label: `1. Empenho (${
+                  processosPosHomologacao.filter((p) => p.etapaFluxoPosHomologacao === 'AGUARDANDO_EMPENHO').length
+                })`,
+              },
+              {
+                id: 'AGUARDANDO_DESIGNACAO_PROAD',
+                label: `2. Gabinete PROAD (${
+                  processosPosHomologacao.filter(
+                    (p) => p.etapaFluxoPosHomologacao === 'AGUARDANDO_DESIGNACAO_PROAD'
+                  ).length
+                })`,
+              },
+              {
+                id: 'AGUARDANDO_UCI',
+                label: `3. UCI (${
+                  processosPosHomologacao.filter((p) => p.etapaFluxoPosHomologacao === 'AGUARDANDO_UCI').length
+                })`,
+              },
+              {
+                id: 'AGUARDANDO_ELABORACAO_CONTRATO',
+                label: `4. Setor Contratos (${
+                  processosPosHomologacao.filter(
+                    (p) => p.etapaFluxoPosHomologacao === 'AGUARDANDO_ELABORACAO_CONTRATO'
+                  ).length
+                })`,
+              },
+              {
+                id: 'CONCLUIDOS',
+                label: `Liberados/Vigentes (${
+                  processosPosHomologacao.filter(
+                    (p) =>
+                      p.etapaFluxoPosHomologacao === 'VIGENTE' ||
+                      p.etapaFluxoPosHomologacao === 'EXECUCAO_DIRETA_EMPENHO'
+                  ).length
+                })`,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFiltroEtapa(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  filtroEtapa === tab.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center text-xs text-slate-400">
+            Carregando processos na esteira pós-homologação...
+          </div>
+        ) : processosFiltrados.length === 0 ? (
+          <div className="p-8 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-500">
+            Nenhum processo homologado encontrado para o filtro selecionado. Assim que uma licitação for homologada no PCA, ela aparecerá automaticamente aqui na 1ª Etapa (Setor de Empenho).
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {processosFiltrados.map((proc) => (
+              <EsteiraPosHomologacaoSection
+                key={proc.id}
+                contrato={proc}
+                servidoresDisponiveis={servidoresDisponiveis}
+                showContractHeader={true}
+                onUpdated={() => carregarContratos()}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Seletor de Exercício e KPIs */}
@@ -94,7 +212,7 @@ export default function PlanejamentoPcaPage() {
         </div>
       </div>
 
-      {/* Lista de Contratos */}
+      {/* Lista de Contratos Contínuos */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">

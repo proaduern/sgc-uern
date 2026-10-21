@@ -31,6 +31,7 @@ import {
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
 import AlteracoesContratuaisSection from '@/components/contratos/AlteracoesContratuaisSection';
+import EsteiraPosHomologacaoSection from '@/components/contratos/EsteiraPosHomologacaoSection';
 
 export default function DetalhesContratoPage() {
   const router = useRouter();
@@ -312,6 +313,12 @@ export default function DetalhesContratoPage() {
           </div>
         );
       })()}
+
+      {/* Esteira Pós-Homologação no SGC (Empenho -> Gabinete PROAD -> UCI -> Contrato / Execução Direta) */}
+      <EsteiraPosHomologacaoSection
+        contrato={contrato}
+        onUpdated={(contratoAtualizado) => setContrato(contratoAtualizado)}
+      />
 
       {/* Banner de Ativação do Módulo de Terceirização & Mão de Obra */}
       {contrato.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' && (

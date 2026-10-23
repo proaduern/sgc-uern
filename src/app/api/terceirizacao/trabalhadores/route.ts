@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole, canManageTerceirizacao, getUserDesignatedContext } from '@/lib/rbac';
+import { normalizarCidadeCampus } from '@/lib/cidades-constantes';
 import * as XLSX from 'xlsx';
 
 export async function GET(request: NextRequest) {
@@ -21,6 +22,34 @@ export async function GET(request: NextRequest) {
         whereClause.contratoId = contratoId;
       } else {
         whereClause.contratoId = { in: contractIds };
+      }
+
+      // Verifica se o servidor atua como Fiscal Setorial para este contrato
+      const desigSetorial = await prisma.contratoResponsavel.findFirst({
+        where: {
+          userId: session.id,
+          tipoAtuacao: 'FISCAL_SETORIAL',
+          ativo: true,
+          ...(contratoId ? { contratoId } : { contratoId: { in: contractIds } }),
+        },
+      });
+
+      // Se for exclusivamente Fiscal Setorial (sem papel global de Gestor ou Fiscal Técnico)
+      const desigGlobal = await prisma.contratoResponsavel.findFirst({
+        where: {
+          userId: session.id,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO', 'FISCAL_TECNICO'] },
+          ativo: true,
+          ...(contratoId ? { contratoId } : { contratoId: { in: contractIds } }),
+        },
+      });
+
+      if (desigSetorial?.campusSetor && !desigGlobal) {
+        const cidadeNorm = normalizarCidadeCampus(desigSetorial.campusSetor);
+        whereClause.OR = [
+          { campus: { contains: cidadeNorm, mode: 'insensitive' } },
+          { campus: { contains: desigSetorial.campusSetor, mode: 'insensitive' } },
+        ];
       }
     } else if (contratoId) {
       whereClause.contratoId = contratoId;

@@ -24,6 +24,11 @@ import {
   PlusCircle,
 } from 'lucide-react';
 import UploadInteligenteDesignacaoModal from '@/components/fiscais/UploadInteligenteDesignacaoModal';
+import {
+  CIDADES_UERN,
+  normalizarCidadeCampus,
+  UnidadeUern,
+} from '@/lib/cidades-constantes';
 
 interface Servidor {
   id: string;
@@ -31,7 +36,12 @@ interface Servidor {
   email: string;
   matricula: string | null;
   role: string;
+  unidadeId?: string | null;
+  unidadeSigla?: string | null;
+  unidadeNome?: string | null;
+  campus?: string | null;
   totalDesignacoes?: number;
+  origem?: string;
 }
 
 interface Designacao {
@@ -48,6 +58,9 @@ interface Designacao {
     email: string;
     matricula: string | null;
     role: string;
+    unidadeSigla?: string | null;
+    unidadeNome?: string | null;
+    campus?: string | null;
     deveTrocarSenha: boolean;
   };
   contrato: {
@@ -56,12 +69,14 @@ interface Designacao {
     numeroEmpenho: string | null;
     objeto: string;
     processoSeiMae: string;
+    itens?: Array<{ id: string; cidade?: string; descricao: string }>;
   };
 }
 
 export default function FiscaisPage() {
   const [designacoes, setDesignacoes] = useState<Designacao[]>([]);
   const [servidores, setServidores] = useState<Servidor[]>([]);
+  const [unidades, setUnidades] = useState<UnidadeUern[]>([]);
   const [contratos, setContratos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -89,6 +104,8 @@ export default function FiscaisPage() {
     numeroAtoDesignacao: '',
     idSeiAtoDesignacao: '',
     campusSetor: '',
+    unidadeSigla: '',
+    campus: '',
     ativo: true,
   });
 
@@ -97,6 +114,10 @@ export default function FiscaisPage() {
     nomeCompleto: '',
     email: '',
     matricula: '',
+    unidadeId: '',
+    unidadeSigla: '',
+    unidadeNome: '',
+    campus: '',
     tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
     numeroAtoDesignacao: '',
     idSeiAtoDesignacao: '',
@@ -129,7 +150,9 @@ export default function FiscaisPage() {
       tipoAtuacao: d.tipoAtuacao || 'FISCAL_ADMINISTRATIVO',
       numeroAtoDesignacao: d.numeroAtoDesignacao || '',
       idSeiAtoDesignacao: d.idSeiAtoDesignacao || '',
-      campusSetor: d.campusSetor || '',
+      campusSetor: d.campusSetor || d.user.campus || '',
+      unidadeSigla: d.user.unidadeSigla || '',
+      campus: d.user.campus || '',
       ativo: d.ativo !== false,
     });
     setShowEditModal(true);
@@ -179,6 +202,7 @@ export default function FiscaisPage() {
       const dataC = await resContratos.json();
 
       if (dataF.designacoes) setDesignacoes(dataF.designacoes);
+      if (dataF.unidades) setUnidades(dataF.unidades);
 
       if (dataF.servidores) {
         setServidores(dataF.servidores);
@@ -192,6 +216,9 @@ export default function FiscaisPage() {
               email: d.user.email,
               matricula: d.user.matricula,
               role: d.user.role,
+              unidadeSigla: d.user.unidadeSigla,
+              unidadeNome: d.user.unidadeNome,
+              campus: d.user.campus,
               totalDesignacoes: 1,
             });
           }
@@ -220,6 +247,10 @@ export default function FiscaisPage() {
       nomeCompleto: '',
       email: '',
       matricula: '',
+      unidadeId: '',
+      unidadeSigla: '',
+      unidadeNome: '',
+      campus: '',
       tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
       numeroAtoDesignacao: '',
       idSeiAtoDesignacao: '',
@@ -229,7 +260,7 @@ export default function FiscaisPage() {
     setShowModal(true);
   };
 
-  const handleOpenDesignarParaServidor = (servidor: { id: string; nome: string; email: string; matricula: string | null }) => {
+  const handleOpenDesignarParaServidor = (servidor: Servidor) => {
     setSelectedServidorId(servidor.id);
     setDesignacaoMode('EXISTENTE');
     setFiltroServidor('');
@@ -238,6 +269,10 @@ export default function FiscaisPage() {
       nomeCompleto: servidor.nome,
       email: servidor.email,
       matricula: servidor.matricula || '',
+      unidadeId: servidor.unidadeId || '',
+      unidadeSigla: servidor.unidadeSigla || '',
+      unidadeNome: servidor.unidadeNome || '',
+      campus: servidor.campus || '',
       tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
       numeroAtoDesignacao: '',
       idSeiAtoDesignacao: '',
@@ -269,10 +304,24 @@ export default function FiscaisPage() {
 
       if (designacaoMode === 'EXISTENTE') {
         payload.userId = selectedServidorId;
+        const s = servidores.find((ser) => ser.id === selectedServidorId);
+        if (s) {
+          payload.nomeCompleto = s.nome;
+          payload.email = s.email;
+          payload.matricula = s.matricula;
+          payload.unidadeId = s.unidadeId;
+          payload.unidadeSigla = s.unidadeSigla;
+          payload.unidadeNome = s.unidadeNome;
+          payload.campus = s.campus;
+        }
       } else {
         payload.nomeCompleto = form.nomeCompleto;
         payload.email = form.email;
         payload.matricula = form.matricula;
+        payload.unidadeId = form.unidadeId;
+        payload.unidadeSigla = form.unidadeSigla;
+        payload.unidadeNome = form.unidadeNome;
+        payload.campus = form.campus;
       }
 
       const res = await fetch('/api/fiscais', {
@@ -290,6 +339,10 @@ export default function FiscaisPage() {
         nomeCompleto: '',
         email: '',
         matricula: '',
+        unidadeId: '',
+        unidadeSigla: '',
+        unidadeNome: '',
+        campus: '',
         tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
         numeroAtoDesignacao: '',
         idSeiAtoDesignacao: '',
@@ -527,9 +580,15 @@ export default function FiscaisPage() {
                     </td>
 
                     <td className="py-3 px-4">
-                      <span className="text-xs text-slate-700">
-                        {d.campusSetor || 'Sede (Mossoró)'}
-                      </span>
+                      {d.tipoAtuacao === 'FISCAL_SETORIAL' ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                          {normalizarCidadeCampus(d.campusSetor) || 'Campus Setorial'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-600 font-medium">
+                          Global {d.user.campus ? `(${d.user.campus})` : ''}
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4 text-center">
@@ -680,6 +739,11 @@ export default function FiscaisPage() {
                           nomeCompleto: s.nome,
                           email: s.email,
                           matricula: s.matricula || '',
+                          unidadeId: s.unidadeId || '',
+                          unidadeSigla: s.unidadeSigla || '',
+                          unidadeNome: s.unidadeNome || '',
+                          campus: s.campus || '',
+                          campusSetor: prev.tipoAtuacao === 'FISCAL_SETORIAL' ? (s.campus || prev.campusSetor) : prev.campusSetor,
                         }));
                       }
                     }}
@@ -688,13 +752,13 @@ export default function FiscaisPage() {
                     <option value="">-- Escolha o servidor para vincular ao contrato --</option>
                     {filteredServidores.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.nome} ({s.email}) {s.matricula ? `• Matr: ${s.matricula}` : ''} [{s.totalDesignacoes || 0} contratos]
+                        {s.nome} ({s.email}) {s.matricula ? `• Matr: ${s.matricula}` : ''} {s.unidadeSigla ? `[${s.unidadeSigla} • ${s.campus || 'Mossoró'}]` : ''} [{s.totalDesignacoes || 0} contratos]
                       </option>
                     ))}
                   </select>
 
                   {selectedServidor && (
-                    <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                    <div className="mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg flex items-center justify-between">
                       <div>
                         <div className="font-bold text-slate-800 text-xs flex items-center space-x-1.5">
                           <UserCheck className="w-4 h-4 text-blue-700 flex-shrink-0" />
@@ -702,6 +766,10 @@ export default function FiscaisPage() {
                         </div>
                         <div className="text-[11px] text-slate-600 mt-0.5">
                           {selectedServidor.email} {selectedServidor.matricula && `• Matrícula: ${selectedServidor.matricula}`}
+                        </div>
+                        <div className="text-[11px] font-semibold text-blue-900 mt-0.5 flex items-center gap-1">
+                          <Building className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Lotação: {selectedServidor.unidadeSigla ? `${selectedServidor.unidadeSigla} — ` : ''}{selectedServidor.unidadeNome || 'UERN'} • Cidade/Campus: <strong>{selectedServidor.campus || 'Mossoró'}</strong></span>
                         </div>
                       </div>
                       <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">
@@ -754,6 +822,36 @@ export default function FiscaisPage() {
                       />
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Unidade Oficial de Lotação na UERN (Portal PROAD) *
+                    </label>
+                    <select
+                      required={designacaoMode === 'NOVO'}
+                      value={form.unidadeSigla}
+                      onChange={(e) => {
+                        const siglaSel = e.target.value;
+                        const un = unidades.find((u) => u.sigla === siglaSel);
+                        setForm((prev) => ({
+                          ...prev,
+                          unidadeId: un?.id || '',
+                          unidadeSigla: siglaSel,
+                          unidadeNome: un?.nome || '',
+                          campus: un?.campus || '',
+                          campusSetor: prev.tipoAtuacao === 'FISCAL_SETORIAL' ? (un?.campus || prev.campusSetor) : prev.campusSetor,
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white font-medium"
+                    >
+                      <option value="">Selecione a Unidade Oficial da UERN...</option>
+                      {unidades.map((u) => (
+                        <option key={u.id || u.sigla} value={u.sigla}>
+                          {u.sigla} — {u.nome} ({u.campus})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -780,7 +878,15 @@ export default function FiscaisPage() {
                 <select
                   required
                   value={form.tipoAtuacao}
-                  onChange={(e) => setForm({ ...form, tipoAtuacao: e.target.value })}
+                  onChange={(e) => {
+                    const novoTipo = e.target.value;
+                    const cidadeSugerida = form.campus || selectedServidor?.campus || '';
+                    setForm({
+                      ...form,
+                      tipoAtuacao: novoTipo,
+                      campusSetor: novoTipo === 'FISCAL_SETORIAL' ? (form.campusSetor || cidadeSugerida) : form.campusSetor,
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white font-semibold text-blue-900"
                 >
                   <option value="GESTOR">Gestor do Contrato (Servidor Efetivo FUERN)</option>
@@ -817,16 +923,78 @@ export default function FiscaisPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Campus ou Setor (Obrigatório se Fiscal Setorial)</label>
-                <input
-                  type="text"
-                  value={form.campusSetor}
-                  onChange={(e) => setForm({ ...form, campusSetor: e.target.value })}
-                  placeholder="Ex: Campus Natal, Campus Pau dos Ferros, DTI..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                />
-              </div>
+              {/* VINCULAÇÃO DE CIDADE / CAMPUS */}
+              {form.tipoAtuacao === 'FISCAL_SETORIAL' ? (
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-indigo-950">
+                      Cidade / Campus de Atuação do Fiscal Setorial *
+                    </label>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-800 font-semibold px-2 py-0.5 rounded-full">
+                      Escopo Local Restrito
+                    </span>
+                  </div>
+
+                  <select
+                    required
+                    value={form.campusSetor}
+                    onChange={(e) => setForm({ ...form, campusSetor: e.target.value })}
+                    className="w-full px-3 py-2 border border-indigo-300 rounded-xl text-xs outline-none focus:border-indigo-600 bg-white font-semibold text-slate-800"
+                  >
+                    <option value="">Selecione o campus/cidade de atuação...</option>
+                    {CIDADES_UERN.map((cid) => {
+                      const contratoSel = contratos.find((c) => c.id === form.contratoId);
+                      const cidadesContrato = contratoSel?.itens
+                        ? Array.from(new Set(contratoSel.itens.map((i: any) => normalizarCidadeCampus(i.cidade)).filter(Boolean)))
+                        : [];
+                      const temNoContrato = cidadesContrato.includes(cid);
+                      return (
+                        <option key={cid} value={cid}>
+                          {cid} {temNoContrato ? '✓ (Contemplada no Contrato)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Validação de compatibilidade com o contrato */}
+                  {(() => {
+                    const contratoSel = contratos.find((c) => c.id === form.contratoId);
+                    const cidadesContrato = contratoSel?.itens
+                      ? Array.from(new Set(contratoSel.itens.map((i: any) => normalizarCidadeCampus(i.cidade)).filter(Boolean)))
+                      : [];
+                    if (!form.contratoId || !form.campusSetor || cidadesContrato.length === 0) return null;
+
+                    const cidadeNormalizada = normalizarCidadeCampus(form.campusSetor);
+                    const compativel = cidadesContrato.includes(cidadeNormalizada);
+
+                    if (compativel) {
+                      return (
+                        <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span><strong>Compatível com o Contrato:</strong> Este contrato possui itens/postos em <strong>{form.campusSetor}</strong>. O fiscal responderá exclusivamente pelos postos e serviços locais desta cidade.</span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-1.5 font-medium">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <span><strong>Atenção à vinculação:</strong> O fiscal está selecionado para <strong>{form.campusSetor}</strong>, mas os postos deste contrato estão previstos para: <strong>{cidadesContrato.join(', ')}</strong>.</span>
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+              ) : (
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span><strong>Atuação Global Corporativa:</strong> Este papel fiscaliza e atesta a execução de todos os campi e cidades do contrato.</span>
+                  </div>
+                  {form.campus && (
+                    <span className="text-[10px] text-slate-500 font-medium">Lotação: {form.campus}</span>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
@@ -1042,15 +1210,30 @@ export default function FiscaisPage() {
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Campus / Setor
+                    {editForm.tipoAtuacao === 'FISCAL_SETORIAL' ? 'Cidade do Fiscal Setorial *' : 'Campus / Lotação'}
                   </label>
-                  <input
-                    type="text"
-                    value={editForm.campusSetor}
-                    onChange={(e) => setEditForm({ ...editForm, campusSetor: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                    placeholder="Ex: Campus Central - DINFRA"
-                  />
+                  {editForm.tipoAtuacao === 'FISCAL_SETORIAL' ? (
+                    <select
+                      value={editForm.campusSetor}
+                      onChange={(e) => setEditForm({ ...editForm, campusSetor: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-indigo-300 rounded-lg text-xs outline-none focus:border-indigo-600 font-semibold text-slate-800 bg-white"
+                    >
+                      <option value="">Selecione a Cidade...</option>
+                      {CIDADES_UERN.map((cid) => (
+                        <option key={cid} value={cid}>
+                          {cid}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editForm.campusSetor}
+                      onChange={(e) => setEditForm({ ...editForm, campusSetor: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                      placeholder="Ex: Global / Sede (Mossoró)"
+                    />
+                  )}
                 </div>
               </div>
 

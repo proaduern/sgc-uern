@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole, canManageTerceirizacao, getUserDesignatedContext } from '@/lib/rbac';
+import { normalizarCidadeCampus } from '@/lib/cidades-constantes';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,21 +19,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'contratoId é obrigatório.' }, { status: 400 });
     }
 
+    let whereTrabalhador: any = { contratoId, status: { not: 'DEMITIDO' } };
+
     if (!isAdminRole(session.role)) {
       const { contractIds } = await getUserDesignatedContext(session.id);
       if (!contractIds.includes(contratoId)) {
         return NextResponse.json({ error: 'Não autorizado para este contrato.' }, { status: 403 });
       }
+
+      // Restrição de competência legal para Fiscal Setorial
+      const desigSetorial = await prisma.contratoResponsavel.findFirst({
+        where: {
+          userId: session.id,
+          contratoId,
+          tipoAtuacao: 'FISCAL_SETORIAL',
+          ativo: true,
+        },
+      });
+
+      const desigGlobal = await prisma.contratoResponsavel.findFirst({
+        where: {
+          userId: session.id,
+          contratoId,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO', 'FISCAL_TECNICO'] },
+          ativo: true,
+        },
+      });
+
+      if (desigSetorial?.campusSetor && !desigGlobal) {
+        const cidadeNorm = normalizarCidadeCampus(desigSetorial.campusSetor);
+        whereTrabalhador.OR = [
+          { campus: { contains: cidadeNorm, mode: 'insensitive' } },
+          { campus: { contains: desigSetorial.campusSetor, mode: 'insensitive' } },
+        ];
+      }
     }
 
-    // 1. Busca trabalhadores ativos do contrato
+    // 1. Busca trabalhadores ativos do contrato (respeitando o escopo do fiscal setorial se aplicável)
     const trabalhadores = await prisma.trabalhadorTerceirizado.findMany({
-      where: { contratoId, status: { not: 'DEMITIDO' } },
+      where: whereTrabalhador,
       orderBy: { nomeCompleto: 'asc' },
     });
 
     // 2. Busca frequências da competência selecionada
-    const whereFreq: any = { contratoId };
+    const whereFreq: any = {
+      contratoId,
+      trabalhadorId: { in: trabalhadores.map((t) => t.id) },
+    };
     if (competencia) {
       whereFreq.competenciaMesAno = competencia;
     }

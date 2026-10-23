@@ -41,6 +41,7 @@ import * as XLSX from 'xlsx';
 import OficioLiberacaoModal from '@/components/conta-vinculada/OficioLiberacaoModal';
 import OficioCadastroModal from '@/components/conta-vinculada/OficioCadastroModal';
 import RepactuacoesTab from '@/components/terceirizacao/RepactuacoesTab';
+import { CIDADES_UERN, normalizarCidadeCampus } from '@/lib/cidades-constantes';
 
 type ActiveTabType = 'TRABALHADORES' | 'DOCUMENTOS' | 'FREQUENCIA' | 'CONTA_VINCULADA' | 'CCT' | 'FOLHA_SIMULADA' | 'REPACTUACOES';
 
@@ -251,6 +252,18 @@ function TerceirizacaoContent() {
   // Contrato atualmente em foco
   const contratoAtual = contratos.find((c) => c.id === selectedContratoId) || contratos[0];
 
+  // Identificação de competência restrita para Fiscal Setorial
+  const contratoEmFocoId = selectedContratoId || contratos[0]?.id;
+  const designacaoContrato = currentUser?.designacoes?.find(
+    (d: any) => d.contratoId === contratoEmFocoId
+  );
+  const isFiscalSetorial =
+    !currentUser?.isAdmin &&
+    designacaoContrato?.tipoAtuacao === 'FISCAL_SETORIAL';
+  const campusDesignado = isFiscalSetorial
+    ? normalizarCidadeCampus(designacaoContrato?.campusSetor || currentUser?.campus)
+    : null;
+
   // Trabalhadores filtrados para a visualização
   const trabalhadoresFiltrados = trabalhadores.filter((t) => {
     const matchContrato = !selectedContratoId || t.contratoId === selectedContratoId;
@@ -259,7 +272,12 @@ function TerceirizacaoContent() {
       t.nomeCompleto.toLowerCase().includes(buscaTrabalhador.toLowerCase()) ||
       t.cpf.includes(buscaTrabalhador) ||
       t.funcao.toLowerCase().includes(buscaTrabalhador.toLowerCase());
-    const matchCampus = !filtroCampus || t.campus === filtroCampus;
+
+    const cidadeTrabalhador = normalizarCidadeCampus(t.campus);
+    const matchCampus = isFiscalSetorial && campusDesignado
+      ? cidadeTrabalhador === campusDesignado
+      : (!filtroCampus || cidadeTrabalhador === normalizarCidadeCampus(filtroCampus));
+
     return matchContrato && matchBusca && matchCampus;
   });
 
@@ -747,19 +765,25 @@ function TerceirizacaoContent() {
               />
             </div>
 
-            <select
-              value={filtroCampus}
-              onChange={(e) => setFiltroCampus(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 outline-none focus:border-blue-500"
-            >
-              <option value="">Todos os Campi</option>
-              <option value="Campus Central (Mossoró)">Campus Central (Mossoró)</option>
-              <option value="Campus Natal">Campus Natal</option>
-              <option value="Campus Assú">Campus Assú</option>
-              <option value="Campus Caicó">Campus Caicó</option>
-              <option value="Campus Patu">Campus Patu</option>
-              <option value="Campus Pau dos Ferros">Campus Pau dos Ferros</option>
-            </select>
+            {isFiscalSetorial && campusDesignado ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 font-bold shrink-0">
+                <ShieldCheck className="w-4 h-4 text-indigo-700 shrink-0" />
+                <span>Escopo Local Restrito: {campusDesignado}</span>
+              </div>
+            ) : (
+              <select
+                value={filtroCampus}
+                onChange={(e) => setFiltroCampus(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 outline-none focus:border-blue-500 font-medium"
+              >
+                <option value="">Todos os Campi</option>
+                {CIDADES_UERN.map((cid) => (
+                  <option key={cid} value={cid}>
+                    Campus {cid}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <div className="text-xs text-slate-500 flex items-center justify-end">
               <span>Exibindo <strong>{trabalhadoresFiltrados.length}</strong> funcionários</span>
@@ -1451,16 +1475,16 @@ function TerceirizacaoContent() {
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Campus de Lotação *</label>
                   <select
+                    disabled={Boolean(isFiscalSetorial && campusDesignado)}
                     value={formT.campus}
                     onChange={(e) => setFormT({ ...formT, campus: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 outline-none focus:border-blue-500 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 font-medium"
                   >
-                    <option value="Campus Central (Mossoró)">Campus Central (Mossoró)</option>
-                    <option value="Campus Natal">Campus Natal</option>
-                    <option value="Campus Assú">Campus Assú</option>
-                    <option value="Campus Caicó">Campus Caicó</option>
-                    <option value="Campus Patu">Campus Patu</option>
-                    <option value="Campus Pau dos Ferros">Campus Pau dos Ferros</option>
+                    {CIDADES_UERN.map((cid) => (
+                      <option key={cid} value={`Campus ${cid}`}>
+                        Campus {cid}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

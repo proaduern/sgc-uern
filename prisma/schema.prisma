@@ -130,6 +130,12 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  // Lotação e Unidade Central (Integrado com Portal PROAD)
+  unidadeId          String?
+  unidadeSigla       String?
+  unidadeNome        String?
+  campus             String?
+
   // Relações
   contratosDesignados ContratoResponsavel[]
   ordensServico       OrdemServico[]

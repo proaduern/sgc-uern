@@ -41,13 +41,27 @@ export async function GET(request: NextRequest) {
 
     // 1. Valida assinatura do token emitido pelo Portal PROAD com fallback
     const payload = await verificarTokenComFallback(token);
-    const { email, nome, matricula, role, targetSystem } = payload as {
+    const {
+      email,
+      nome,
+      matricula,
+      role,
+      targetSystem,
+      unidadeId,
+      unidadeSigla,
+      unidadeNome,
+      unidadeCampus,
+    } = payload as {
       userId?: string;
       email: string;
       nome: string;
       matricula?: string;
       role?: string;
       targetSystem: string;
+      unidadeId?: string;
+      unidadeSigla?: string;
+      unidadeNome?: string;
+      unidadeCampus?: string;
     };
 
     if (targetSystem !== 'SGC' || !email) {
@@ -102,6 +116,10 @@ export async function GET(request: NextRequest) {
           matricula: matricula || null,
           senhaHash: 'SSO_CENTRAL_UERN_AUTHENTICATED',
           role: sgcRole,
+          unidadeId: unidadeId || null,
+          unidadeSigla: unidadeSigla || null,
+          unidadeNome: unidadeNome || null,
+          campus: unidadeCampus || null,
           deveTrocarSenha: false,
           ativo: true,
         },
@@ -115,6 +133,10 @@ export async function GET(request: NextRequest) {
           email: emailLimpo,
           matricula: matricula || usuarioSgc.matricula,
           role: sgcRole,
+          ...(unidadeId ? { unidadeId } : {}),
+          ...(unidadeSigla ? { unidadeSigla } : {}),
+          ...(unidadeNome ? { unidadeNome } : {}),
+          ...(unidadeCampus ? { campus: unidadeCampus } : {}),
           ativo: true,
         },
       });

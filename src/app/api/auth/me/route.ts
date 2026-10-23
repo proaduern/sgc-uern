@@ -25,6 +25,17 @@ export async function GET() {
     const isAdmin = isAdminRole(session.role);
     const isGestorAta = isGestorAtaRole(session.role);
 
+    // Consulta dados cadastrais atualizados do usuário (lotação e campus oficiais)
+    const dbUser = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: {
+        unidadeId: true,
+        unidadeSigla: true,
+        unidadeNome: true,
+        campus: true,
+      },
+    });
+
     // Consulta os papéis dinâmicos que o usuário exerce em cada contrato ativo
     const designacoes = await prisma.contratoResponsavel.findMany({
       where: { userId: session.id, ativo: true },
@@ -63,7 +74,11 @@ export async function GET() {
         canManageTerceirizacao: isAdmin || canManageTerceirizacao(session.role, rolesNoUsuario),
         designatedContractIds: contractIds,
         designacoes,
-        campusSetor,
+        campusSetor: campusSetor || dbUser?.campus || null,
+        unidadeId: dbUser?.unidadeId || null,
+        unidadeSigla: dbUser?.unidadeSigla || null,
+        unidadeNome: dbUser?.unidadeNome || null,
+        campus: dbUser?.campus || null,
       },
     });
   } catch (error: any) {

@@ -29,6 +29,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { normalizarCidadeCampus } from '@/lib/cidades-constantes';
 
 export default function ExecucaoPage() {
   const [activeTab, setActiveTab] = useState<'MEDICOES' | 'ORDENS_SERVICO' | 'SALDOS_DESPESAS'>('SALDOS_DESPESAS');
@@ -234,7 +235,7 @@ export default function ExecucaoPage() {
       if (dataUser.user) {
         setCurrentUser(dataUser.user);
         if (dataUser.user.isFiscalSetorial && dataUser.user.campusSetor) {
-          cidadeInicial = dataUser.user.campusSetor;
+          cidadeInicial = normalizarCidadeCampus(dataUser.user.campusSetor);
           setFiltroCidadeSaldos(cidadeInicial);
         }
       }

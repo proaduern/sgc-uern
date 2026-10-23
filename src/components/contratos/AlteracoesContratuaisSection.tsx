@@ -56,6 +56,9 @@ export default function AlteracoesContratuaisSection({
   const [cctAlvo, setCctAlvo] = useState('TODAS');
   const [percentualMaoDeObra, setPercentualMaoDeObra] = useState('');
   const [percentualInsumos, setPercentualInsumos] = useState('');
+  const [modoRepactuacao, setModoRepactuacao] = useState<'PERCENTUAL' | 'VALOR_POSTO'>('PERCENTUAL');
+  const [novosValoresUnitarios, setNovosValoresUnitarios] = useState<Record<string, string>>({});
+  const [valorPostoGeral, setValorPostoGeral] = useState<string>('');
   const [avisoInterregno, setAvisoInterregno] = useState<any | null>(null);
   const [ignorarAvisoInterregno, setIgnorarAvisoInterregno] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -120,17 +123,45 @@ export default function AlteracoesContratuaisSection({
           const alvoStr = alvoNome.trim().toLowerCase();
           const itemCct = (it.cctVinculada || it.indiceReferencia || '').trim().toLowerCase();
           if (itemCct && (itemCct.includes(alvoStr) || alvoStr.includes(itemCct))) {
-            afetado = true;
-            novoUnit = it.valorUnitarioAtual * fatorMO;
-            motivo = `Repactuado (${percMO > 0 ? '+' : ''}${percMO}%)`;
+            if (tipoAlteracao === 'REPACTUACAO_APOSTILAMENTO' && modoRepactuacao === 'VALOR_POSTO') {
+              const customVal = novosValoresUnitarios[it.id] !== undefined ? novosValoresUnitarios[it.id] : valorPostoGeral;
+              if (customVal && parseFloat(customVal) > 0) {
+                novoUnit = parseFloat(customVal);
+                const diff = novoUnit - it.valorUnitarioAtual;
+                const varPerc = it.valorUnitarioAtual > 0 ? (diff / it.valorUnitarioAtual) * 100 : 0;
+                afetado = true;
+                motivo = `Posto Repactuado (${varPerc >= 0 ? '+' : ''}${varPerc.toFixed(2)}%)`;
+              } else {
+                afetado = false;
+                motivo = 'Aguardando novo valor';
+              }
+            } else {
+              afetado = true;
+              novoUnit = it.valorUnitarioAtual * fatorMO;
+              motivo = `Repactuado (${percMO > 0 ? '+' : ''}${percMO}%)`;
+            }
           } else {
             afetado = false;
             motivo = 'Outra CCT (Inalterado)';
           }
         } else {
-          afetado = true;
-          novoUnit = it.valorUnitarioAtual * fatorMO;
-          motivo = `Repactuado (${percMO > 0 ? '+' : ''}${percMO}%)`;
+          if (tipoAlteracao === 'REPACTUACAO_APOSTILAMENTO' && modoRepactuacao === 'VALOR_POSTO') {
+            const customVal = novosValoresUnitarios[it.id] !== undefined ? novosValoresUnitarios[it.id] : valorPostoGeral;
+            if (customVal && parseFloat(customVal) > 0) {
+              novoUnit = parseFloat(customVal);
+              const diff = novoUnit - it.valorUnitarioAtual;
+              const varPerc = it.valorUnitarioAtual > 0 ? (diff / it.valorUnitarioAtual) * 100 : 0;
+              afetado = true;
+              motivo = `Posto Repactuado (${varPerc >= 0 ? '+' : ''}${varPerc.toFixed(2)}%)`;
+            } else {
+              afetado = false;
+              motivo = 'Aguardando novo valor';
+            }
+          } else {
+            afetado = true;
+            novoUnit = it.valorUnitarioAtual * fatorMO;
+            motivo = `Repactuado (${percMO > 0 ? '+' : ''}${percMO}%)`;
+          }
         }
       } else {
         if (escopoReajuste === 'APENAS_MAO_DE_OBRA' || tipoAlteracao === 'REPACTUACAO_APOSTILAMENTO') {
@@ -143,7 +174,7 @@ export default function AlteracoesContratuaisSection({
         }
       }
 
-      const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes((it.unidade || '').trim().toUpperCase());
+      const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes((it.unidade || '').trim().toUpperCase()) || it.categoriaItem === 'DEMO';
       const totalAnualNovo = isMensal ? novoUnit * it.quantidadeAtual * 12 : novoUnit * it.quantidadeAtual;
       const anos = data.contrato?.anosVigencia || 1;
       const totalPluriNovo = anos > 1 ? totalAnualNovo * anos : 0;
@@ -157,7 +188,7 @@ export default function AlteracoesContratuaisSection({
         novoTotal: totalEfetivoNovo,
       };
     });
-  }, [data, percentualReajuste, percentualMaoDeObra, percentualInsumos, escopoReajuste, cctAlvo, tipoAlteracao]);
+  }, [data, percentualReajuste, percentualMaoDeObra, percentualInsumos, escopoReajuste, cctAlvo, tipoAlteracao, modoRepactuacao, novosValoresUnitarios, valorPostoGeral]);
 
   const novoValorGlobalSimulado = React.useMemo(() => {
     if (simulacaoItens.length === 0) return data?.contrato?.valorGlobalAtualizado || 0;
@@ -204,7 +235,7 @@ export default function AlteracoesContratuaisSection({
     setSucessoMsg(null);
     setAvisoInterregno(null);
     try {
-      const payload = {
+      const payload: any = {
         tipoAlteracao,
         instrumento: tipoAlteracao.includes('APOSTILAMENTO') ? 'APOSTILAMENTO' : 'TERMO_ADITIVO',
         numeroTermo,
@@ -217,11 +248,25 @@ export default function AlteracoesContratuaisSection({
         justificativa,
         escopoReajuste,
         cctAlvo,
-        percentualReajuste: percentualReajuste ? parseFloat(percentualReajuste) : undefined,
-        percentualMaoDeObra: percentualMaoDeObra ? parseFloat(percentualMaoDeObra) : undefined,
-        percentualInsumos: percentualInsumos ? parseFloat(percentualInsumos) : undefined,
         ignorarAvisoInterregno,
       };
+
+      if (tipoAlteracao === 'REPACTUACAO_APOSTILAMENTO' && modoRepactuacao === 'VALOR_POSTO') {
+        payload.novosItens = simulacaoItens.map((it: any) => ({
+          id: it.id,
+          numeroItem: it.numeroItem,
+          novoValorUnitario: it.novoUnitario,
+        }));
+        payload.novoValorGlobalManual = novoValorGlobalSimulado;
+        const vAnt = data?.contrato?.valorGlobalAtualizado || 0;
+        if (vAnt > 0) {
+          payload.percentualReajuste = ((novoValorGlobalSimulado - vAnt) / vAnt) * 100;
+        }
+      } else {
+        payload.percentualReajuste = percentualReajuste ? parseFloat(percentualReajuste) : undefined;
+        payload.percentualMaoDeObra = percentualMaoDeObra ? parseFloat(percentualMaoDeObra) : undefined;
+        payload.percentualInsumos = percentualInsumos ? parseFloat(percentualInsumos) : undefined;
+      }
 
       const res = await fetch(`/api/contratos/${contratoId}/alteracoes`, {
         method: 'POST',
@@ -911,17 +956,232 @@ export default function AlteracoesContratuaisSection({
                       );
                     }
 
+                    if (tipoAlteracao === 'REPACTUACAO_APOSTILAMENTO' || itensCCT.length > 0) {
+                      return (
+                        <div className="space-y-3">
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900">
+                            ⚡ <strong>Repactuação por Convenção Coletiva (CCT):</strong> Não há interregno de 01 ano para repactuação de mão de obra. Os efeitos vigoram a partir do registro/vigência da CCT.
+                          </div>
+
+                          {/* Seletor de Modo: Percentual (%) vs Valor do Posto (R$) */}
+                          <div>
+                            <span className="block text-xs font-bold text-slate-700 mb-1.5">
+                              Como deseja lançar a Repactuação?
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setModoRepactuacao('PERCENTUAL')}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  modoRepactuacao === 'PERCENTUAL'
+                                    ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span>📊 Por Percentual de Reajuste (%)</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModoRepactuacao('VALOR_POSTO')}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  modoRepactuacao === 'VALOR_POSTO'
+                                    ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span>💰 Por Valor do Posto em Reais (R$)</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {modoRepactuacao === 'PERCENTUAL' ? (
+                            <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200">
+                              <label className="font-bold text-slate-800 text-xs block">
+                                Percentual de Reajuste da Mão de Obra (%)
+                              </label>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={percentualReajuste}
+                                  onChange={(e) => setPercentualReajuste(e.target.value)}
+                                  placeholder="Ex: 7.79"
+                                  className="w-40 px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-mono text-xs font-bold text-slate-800"
+                                />
+                                <span className="text-slate-500 font-semibold">%</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500">
+                                O percentual incidirá sobre o valor unitário de todos os postos vinculados à CCT.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-amber-300">
+                              <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                                <div>
+                                  <label className="font-bold text-slate-800 text-xs block">
+                                    Lançamento Direto do Novo Valor do Posto
+                                  </label>
+                                  <p className="text-[10px] text-slate-500">
+                                    Informe o novo custo mensal unitário do posto. O sistema calcula a variação e o impacto global automaticamente.
+                                  </p>
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full">
+                                  {itensCCT.length} posto(s) identificado(s)
+                                </span>
+                              </div>
+
+                              {itensCCT.length <= 1 ? (
+                                <div className="space-y-2">
+                                  <div className="text-[11px] text-slate-700">
+                                    Posto: <strong>{itensCCT[0]?.descricao || 'Mão de Obra'}</strong> — Valor Vigente:{' '}
+                                    <strong className="text-slate-900">
+                                      {(itensCCT[0]?.valorUnitarioAtual || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                                    </strong>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center space-x-1.5">
+                                      <span className="text-xs font-bold text-slate-500">Novo Valor: R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={itensCCT[0] && novosValoresUnitarios[itensCCT[0].id] !== undefined ? novosValoresUnitarios[itensCCT[0].id] : valorPostoGeral}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setValorPostoGeral(val);
+                                          if (itensCCT[0]) {
+                                            setNovosValoresUnitarios({ [itensCCT[0].id]: val });
+                                          }
+                                        }}
+                                        placeholder="Ex: 4150.00"
+                                        className="w-44 px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl outline-none font-mono text-xs font-bold text-slate-900 focus:bg-white"
+                                      />
+                                    </div>
+
+                                    {(() => {
+                                      const valNum = parseFloat((itensCCT[0] && novosValoresUnitarios[itensCCT[0].id]) || valorPostoGeral || '0');
+                                      const atual = itensCCT[0]?.valorUnitarioAtual || 0;
+                                      if (valNum > 0 && atual > 0) {
+                                        const diff = valNum - atual;
+                                        const perc = (diff / atual) * 100;
+                                        return (
+                                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
+                                            perc >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                                          }`}>
+                                            <span>Variação: {perc >= 0 ? `+${perc.toFixed(2)}%` : `${perc.toFixed(2)}%`}</span>
+                                            <span className="text-[10px] font-normal">({diff >= 0 ? '+' : ''}{diff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês por posto)</span>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                                    <span>Atualize o novo valor mensal unitário de cada posto:</span>
+                                    <div className="flex items-center space-x-1.5">
+                                      <span className="text-[10px] text-slate-500">Aplicar mesmo valor a todos:</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="Ex: 4200.00"
+                                        value={valorPostoGeral}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setValorPostoGeral(val);
+                                          const novoMapa: Record<string, string> = {};
+                                          itensCCT.forEach((it: any) => {
+                                            novoMapa[it.id] = val;
+                                          });
+                                          setNovosValoresUnitarios(novoMapa);
+                                        }}
+                                        className="w-32 px-2 py-1 bg-white border border-slate-300 rounded-lg text-[10px] font-mono outline-none"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="w-full text-left text-xs">
+                                      <thead className="bg-slate-50 text-[10px] text-slate-600 font-bold">
+                                        <tr>
+                                          <th className="p-2.5">Posto / Categoria</th>
+                                          <th className="p-2.5 w-20 text-center">Postos</th>
+                                          <th className="p-2.5 w-28 text-right">Valor Atual</th>
+                                          <th className="p-2.5 w-44">Novo Valor Mensal (R$)</th>
+                                          <th className="p-2.5 w-28 text-center">Variação (%)</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 bg-white">
+                                        {itensCCT.map((it: any) => {
+                                          const valStr = novosValoresUnitarios[it.id] !== undefined ? novosValoresUnitarios[it.id] : valorPostoGeral;
+                                          const valNum = parseFloat(valStr || '0');
+                                          const atual = it.valorUnitarioAtual || 0;
+                                          const perc = valNum > 0 && atual > 0 ? ((valNum - atual) / atual) * 100 : null;
+
+                                          return (
+                                            <tr key={it.id || it.numeroItem} className="hover:bg-amber-50/20">
+                                              <td className="p-2.5 font-medium text-slate-800">
+                                                <div>{it.descricao}</div>
+                                                {it.cctVinculada && (
+                                                  <div className="text-[10px] text-indigo-700">{it.cctVinculada}</div>
+                                                )}
+                                              </td>
+                                              <td className="p-2.5 text-center font-mono text-slate-600">
+                                                {it.quantidadeAtual}
+                                              </td>
+                                              <td className="p-2.5 text-right font-mono text-slate-600">
+                                                {(it.valorUnitarioAtual || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                              </td>
+                                              <td className="p-2.5">
+                                                <div className="flex items-center space-x-1.5">
+                                                  <span className="text-[11px] font-bold text-slate-400">R$</span>
+                                                  <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={valStr}
+                                                    onChange={(e) => {
+                                                      const v = e.target.value;
+                                                      setNovosValoresUnitarios((prev) => ({
+                                                        ...prev,
+                                                        [it.id]: v,
+                                                      }));
+                                                    }}
+                                                    placeholder={(it.valorUnitarioAtual || 0).toFixed(2)}
+                                                    className="w-32 px-2.5 py-1 bg-amber-50/40 border border-amber-300 rounded-lg outline-none font-mono text-xs font-bold text-slate-900 focus:bg-white focus:ring-1 focus:ring-amber-500"
+                                                  />
+                                                </div>
+                                              </td>
+                                              <td className="p-2.5 text-center font-mono">
+                                                {perc !== null ? (
+                                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                    perc >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                                  }`}>
+                                                    {perc >= 0 ? `+${perc.toFixed(2)}%` : `${perc.toFixed(2)}%`}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-slate-400">-</span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="space-y-2">
-                        {itensCCT.length > 0 ? (
-                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900">
-                            ⚡ <strong>Repactuação por Convenção Coletiva (CCT):</strong> Não há interregno de 01 ano para repactuação. Os efeitos vigoram a partir do registro/vigência do instrumento coletivo.
-                          </div>
-                        ) : (
-                          <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-900">
-                            ⏱️ <strong>Reajuste por Índice Contratual:</strong> Sujeito ao interregno obrigatório de 01 ano (365 dias) a contar do orçamento estimado ou do último reajuste.
-                          </div>
-                        )}
+                        <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-900">
+                          ⏱️ <strong>Reajuste por Índice Contratual:</strong> Sujeito ao interregno obrigatório de 01 ano (365 dias) a contar do orçamento estimado ou do último reajuste.
+                        </div>
                         <div className="flex items-center space-x-2">
                           <input
                             type="number"
@@ -1011,7 +1271,12 @@ export default function AlteracoesContratuaisSection({
                   )}
 
                   {/* Prévia e Simulação dos Itens e Novo Valor Global */}
-                  {simulacaoItens.length > 0 && (percentualReajuste || percentualMaoDeObra || percentualInsumos) && (
+                  {simulacaoItens.length > 0 && (
+                    percentualReajuste ||
+                    percentualMaoDeObra ||
+                    percentualInsumos ||
+                    (modoRepactuacao === 'VALOR_POSTO' && (valorPostoGeral || Object.values(novosValoresUnitarios).some((v) => parseFloat(v) > 0)))
+                  ) && (
                     <div className="pt-3 border-t border-slate-200 space-y-2">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 bg-slate-100/90 p-3 rounded-xl border border-slate-200">
                         <div>

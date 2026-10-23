@@ -1484,6 +1484,41 @@ export default function EditarContratoPage() {
             )}
           </div>
 
+          {/* Tipo de Licitação & Regra de Acréscimo (Por Item vs Grupo Único) */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+            <div className="flex items-center space-x-4">
+              <span className="font-bold text-slate-800">Tipo de Licitação / Agrupamento:</span>
+              <label className="flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tipoAgrupamento"
+                  checked={tipoAgrupamento === 'ITEM_INDIVIDUAL'}
+                  onChange={() => setTipoAgrupamento('ITEM_INDIVIDUAL')}
+                  className="text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="font-semibold text-slate-800">🏷️ Por Item (Individual)</span>
+              </label>
+
+              <label className="flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tipoAgrupamento"
+                  checked={tipoAgrupamento === 'GRUPO_UNICO'}
+                  onChange={() => setTipoAgrupamento('GRUPO_UNICO')}
+                  className="text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="font-semibold text-slate-800">📦 Grupo Único (Lote Global)</span>
+              </label>
+            </div>
+
+            <div className="text-slate-600 text-[11px] bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs">
+              <span className="font-bold text-slate-800">Regra Legal (Lei 14.133):</span>{' '}
+              {tipoAgrupamento === 'GRUPO_UNICO'
+                ? `Limite legal de aditamento (${tipoContrato === 'OBRA' ? '50%' : '25%'}) calculado sobre o valor global do grupo.`
+                : `Limite legal de aditamento (${tipoContrato === 'OBRA' ? '50%' : '25%'}) verificado individualmente por item.`}
+            </div>
+          </div>
+
           {/* Busca de Itens */}
           {itens.length > 5 && (
             <div className="flex items-center justify-between gap-3 pt-1">

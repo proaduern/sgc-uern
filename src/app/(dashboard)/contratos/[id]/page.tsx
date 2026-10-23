@@ -423,6 +423,18 @@ export default function DetalhesContratoPage() {
                 {contrato.tipoEmpreitada?.replace(/_/g, ' ')}
               </span>
             </div>
+            <div>
+              <span className="text-slate-500">Agrupamento: </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                contrato.itens?.[0]?.tipoGrupo === 'GRUPO_UNICO'
+                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                  : 'bg-blue-100 text-blue-800 border border-blue-200'
+              }`}>
+                {contrato.itens?.[0]?.tipoGrupo === 'GRUPO_UNICO'
+                  ? '📦 Grupo Único (Lote Global)'
+                  : '🏷️ Por Item (Individual)'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -553,15 +565,28 @@ export default function DetalhesContratoPage() {
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
-            <div className="flex items-center space-x-2 text-sm font-bold text-slate-800">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
               <Layers className="w-4 h-4 text-blue-700" />
               <span>Itens Contratados ({itensList.length} itens)</span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                contrato.itens?.[0]?.tipoGrupo === 'GRUPO_UNICO'
+                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                  : 'bg-blue-100 text-blue-800 border border-blue-200'
+              }`}>
+                {contrato.itens?.[0]?.tipoGrupo === 'GRUPO_UNICO' ? '📦 Grupo Único (Lote Global)' : '🏷️ Por Item (Individual)'}
+              </span>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               Total consolidado dos itens:{' '}
               <strong className="text-slate-800 font-semibold">
                 {totalCalculado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </strong>
+              {' • '}
+              <span className="text-slate-600">
+                {contrato.itens?.[0]?.tipoGrupo === 'GRUPO_UNICO'
+                  ? 'Aditamento limitado a 25%/50% sobre o valor global do contrato'
+                  : 'Aditamento limitado a 25%/50% calculado individualmente por item'}
+              </span>
             </p>
           </div>
 

@@ -222,8 +222,13 @@ export async function POST(
         const qtd = itemNovo && itemNovo.novaQuantidade !== undefined
           ? parseFloat(itemNovo.novaQuantidade)
           : item.quantidadeAtual;
-        const total = vUnit * qtd;
+
+        const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes((item.unidade || '').trim().toUpperCase()) || item.categoriaItem === 'DEMO';
+        const totalAnualItem = isMensal ? vUnit * qtd * 12 : vUnit * qtd;
+        const anos = contrato.anosVigencia || 1;
+        const total = anos > 1 ? totalAnualItem * anos : totalAnualItem;
         somaTotal += total;
+
         return {
           id: item.id,
           numeroItem: item.numeroItem,
@@ -267,8 +272,12 @@ export async function POST(
             }
           }
 
-          const total = vUnit * item.quantidadeAtual;
+          const isMensal = ['MÊS', 'MES', 'POSTO', 'POSTO/MÊS', 'MENSAL'].includes((item.unidade || '').trim().toUpperCase()) || item.categoriaItem === 'DEMO';
+          const totalAnualItem = isMensal ? vUnit * item.quantidadeAtual * 12 : vUnit * item.quantidadeAtual;
+          const anos = contrato.anosVigencia || 1;
+          const total = anos > 1 ? totalAnualItem * anos : totalAnualItem;
           somaTotal += total;
+
           return {
             id: item.id,
             numeroItem: item.numeroItem,

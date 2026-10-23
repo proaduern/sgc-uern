@@ -20,8 +20,19 @@ import {
   Edit3,
   Sparkles,
   Trash2,
+  UserCheck,
+  PlusCircle,
 } from 'lucide-react';
 import UploadInteligenteDesignacaoModal from '@/components/fiscais/UploadInteligenteDesignacaoModal';
+
+interface Servidor {
+  id: string;
+  nome: string;
+  email: string;
+  matricula: string | null;
+  role: string;
+  totalDesignacoes?: number;
+}
 
 interface Designacao {
   id: string;
@@ -50,10 +61,14 @@ interface Designacao {
 
 export default function FiscaisPage() {
   const [designacoes, setDesignacoes] = useState<Designacao[]>([]);
+  const [servidores, setServidores] = useState<Servidor[]>([]);
   const [contratos, setContratos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [designacaoMode, setDesignacaoMode] = useState<'EXISTENTE' | 'NOVO'>('EXISTENTE');
+  const [selectedServidorId, setSelectedServidorId] = useState<string>('');
+  const [filtroServidor, setFiltroServidor] = useState<string>('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [showUploadDesignacaoModal, setShowUploadDesignacaoModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -164,6 +179,26 @@ export default function FiscaisPage() {
       const dataC = await resContratos.json();
 
       if (dataF.designacoes) setDesignacoes(dataF.designacoes);
+
+      if (dataF.servidores) {
+        setServidores(dataF.servidores);
+      } else if (dataF.designacoes) {
+        const mapa = new Map<string, Servidor>();
+        dataF.designacoes.forEach((d: Designacao) => {
+          if (d.user?.id && !mapa.has(d.user.id)) {
+            mapa.set(d.user.id, {
+              id: d.user.id,
+              nome: d.user.nome,
+              email: d.user.email,
+              matricula: d.user.matricula,
+              role: d.user.role,
+              totalDesignacoes: 1,
+            });
+          }
+        });
+        setServidores(Array.from(mapa.values()));
+      }
+
       if (dataC.contratos) setContratos(dataC.contratos);
     } catch (e) {
       console.error(e);
@@ -176,21 +211,80 @@ export default function FiscaisPage() {
     carregarDados();
   }, []);
 
+  const handleOpenModalGeral = () => {
+    setDesignacaoMode(servidores.length > 0 ? 'EXISTENTE' : 'NOVO');
+    setSelectedServidorId('');
+    setFiltroServidor('');
+    setForm({
+      contratoId: '',
+      nomeCompleto: '',
+      email: '',
+      matricula: '',
+      tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
+      numeroAtoDesignacao: '',
+      idSeiAtoDesignacao: '',
+      campusSetor: '',
+    });
+    setError(null);
+    setShowModal(true);
+  };
+
+  const handleOpenDesignarParaServidor = (servidor: { id: string; nome: string; email: string; matricula: string | null }) => {
+    setSelectedServidorId(servidor.id);
+    setDesignacaoMode('EXISTENTE');
+    setFiltroServidor('');
+    setForm({
+      contratoId: '',
+      nomeCompleto: servidor.nome,
+      email: servidor.email,
+      matricula: servidor.matricula || '',
+      tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
+      numeroAtoDesignacao: '',
+      idSeiAtoDesignacao: '',
+      campusSetor: '',
+    });
+    setError(null);
+    setShowModal(true);
+  };
+
   const handleDesignar = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (designacaoMode === 'EXISTENTE' && !selectedServidorId) {
+      setError('Por favor, selecione um servidor cadastrado para vincular ao contrato.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      const payload: any = {
+        contratoId: form.contratoId,
+        tipoAtuacao: form.tipoAtuacao,
+        numeroAtoDesignacao: form.numeroAtoDesignacao,
+        idSeiAtoDesignacao: form.idSeiAtoDesignacao,
+        campusSetor: form.campusSetor,
+      };
+
+      if (designacaoMode === 'EXISTENTE') {
+        payload.userId = selectedServidorId;
+      } else {
+        payload.nomeCompleto = form.nomeCompleto;
+        payload.email = form.email;
+        payload.matricula = form.matricula;
+      }
+
       const res = await fetch('/api/fiscais', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao designar fiscal.');
 
       setShowModal(false);
+      setSelectedServidorId('');
       setForm({
         contratoId: '',
         nomeCompleto: '',
@@ -261,6 +355,18 @@ export default function FiscaisPage() {
       d.contrato.processoSeiMae.includes(search)
   );
 
+  const filteredServidores = servidores.filter((s) => {
+    if (!filtroServidor) return true;
+    const q = filtroServidor.toLowerCase();
+    return (
+      s.nome.toLowerCase().includes(q) ||
+      s.email.toLowerCase().includes(q) ||
+      (s.matricula && s.matricula.toLowerCase().includes(q))
+    );
+  });
+
+  const selectedServidor = servidores.find((s) => s.id === selectedServidorId);
+
   if (currentUser && !currentUser.isAdmin) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-2xl mx-auto my-12 shadow-sm space-y-4">
@@ -329,7 +435,7 @@ export default function FiscaisPage() {
               </button>
 
               <button
-                onClick={() => setShowModal(true)}
+                onClick={handleOpenModalGeral}
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
@@ -443,6 +549,16 @@ export default function FiscaisPage() {
                         <div className="flex items-center justify-center space-x-1.5">
                           <button
                             type="button"
+                            onClick={() => handleOpenDesignarParaServidor(d.user)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Atribuir este servidor a um novo contrato"
+                          >
+                            <PlusCircle className="w-3 h-3 text-blue-600" />
+                            <span>+ Contrato</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenEdit(d)}
                             className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
                             title="Editar Fiscal/Gestor"
@@ -471,7 +587,7 @@ export default function FiscaisPage() {
         </div>
       </div>
 
-      {/* Modal de Designação */}
+      {/* Modal de Designação Dinâmica */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -479,6 +595,46 @@ export default function FiscaisPage() {
             <p className="text-xs text-slate-500 mb-4">
               Vincule um servidor formalmente designado ao contrato, emitindo suas credenciais no sistema.
             </p>
+
+            {/* Alternador de Modo: Servidor Já Cadastrado vs Novo Servidor */}
+            <div className="flex border-b border-slate-200 mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setDesignacaoMode('EXISTENTE');
+                  setError(null);
+                }}
+                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  designacaoMode === 'EXISTENTE'
+                    ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Servidor Já Cadastrado</span>
+                {servidores.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full font-mono font-bold">
+                    {servidores.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDesignacaoMode('NOVO');
+                  setError(null);
+                }}
+                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  designacaoMode === 'NOVO'
+                    ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5 text-slate-600" />
+                <span>Novo Servidor</span>
+              </button>
+            </div>
 
             {error && (
               <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-center space-x-2">
@@ -488,6 +644,120 @@ export default function FiscaisPage() {
             )}
 
             <form onSubmit={handleDesignar} className="space-y-4">
+              {/* MODO 1: SERVIDOR JÁ CADASTRADO */}
+              {designacaoMode === 'EXISTENTE' ? (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Selecionar Servidor Já Cadastrado *
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      {filteredServidores.length} de {servidores.length} disponíveis
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Filtrar por nome, e-mail ou matrícula..."
+                      value={filtroServidor}
+                      onChange={(e) => setFiltroServidor(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 shadow-sm"
+                    />
+                  </div>
+
+                  <select
+                    required={designacaoMode === 'EXISTENTE'}
+                    value={selectedServidorId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setSelectedServidorId(id);
+                      const s = servidores.find((x) => x.id === id);
+                      if (s) {
+                        setForm((prev) => ({
+                          ...prev,
+                          nomeCompleto: s.nome,
+                          email: s.email,
+                          matricula: s.matricula || '',
+                        }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white font-medium text-slate-800"
+                  >
+                    <option value="">-- Escolha o servidor para vincular ao contrato --</option>
+                    {filteredServidores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nome} ({s.email}) {s.matricula ? `• Matr: ${s.matricula}` : ''} [{s.totalDesignacoes || 0} contratos]
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedServidor && (
+                    <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-slate-800 text-xs flex items-center space-x-1.5">
+                          <UserCheck className="w-4 h-4 text-blue-700 flex-shrink-0" />
+                          <span>{selectedServidor.nome}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5">
+                          {selectedServidor.email} {selectedServidor.matricula && `• Matrícula: ${selectedServidor.matricula}`}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">
+                        {selectedServidor.totalDesignacoes || 0} contrato(s) ativo(s)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* MODO 2: NOVO SERVIDOR */
+                <div className="p-3.5 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-3">
+                  <div className="text-[11px] text-amber-800 flex items-center space-x-1.5">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-600" />
+                    <span>Cadastre os dados pessoais do novo servidor. Credenciais provisórias serão geradas (senha <strong>123</strong>).</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo do Servidor *</label>
+                    <input
+                      type="text"
+                      required={designacaoMode === 'NOVO'}
+                      value={form.nomeCompleto}
+                      onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })}
+                      placeholder="Nome completo do servidor"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Institucional *</label>
+                      <input
+                        type="email"
+                        required={designacaoMode === 'NOVO'}
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        placeholder="servidor@uern.br"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Matrícula</label>
+                      <input
+                        type="text"
+                        value={form.matricula}
+                        onChange={(e) => setForm({ ...form, matricula: e.target.value })}
+                        placeholder="Ex: 08155-8"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DADOS DA DESIGNAÇÃO E DO CONTRATO */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Contrato a Vincular *</label>
                 <select
@@ -519,43 +789,6 @@ export default function FiscaisPage() {
                   <option value="FISCAL_TECNICO">Fiscal Técnico (Medição física, IMR, Recebimento Provisório)</option>
                   <option value="FISCAL_SETORIAL">Fiscal Setorial (Campi fora da sede / unidades)</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo do Servidor *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.nomeCompleto}
-                  onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })}
-                  placeholder="Nome completo do servidor"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Institucional *</label>
-                  <input
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="servidor@uern.br"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Matrícula</label>
-                  <input
-                    type="text"
-                    value={form.matricula}
-                    onChange={(e) => setForm({ ...form, matricula: e.target.value })}
-                    placeholder="Ex: 08155-8"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
-                  />
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -606,7 +839,7 @@ export default function FiscaisPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-50 cursor-pointer shadow-sm"
                 >
                   {submitting ? 'Salvando...' : 'Confirmar Designação'}
                 </button>

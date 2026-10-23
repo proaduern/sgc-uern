@@ -51,7 +51,39 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ designacoes });
+    // Lista de todos os servidores cadastrados para uso no seletor dinâmico
+    let servidores: any[] = [];
+    if (isAdminRole(session.role)) {
+      const dbUsers = await prisma.user.findMany({
+        where: { ativo: true },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          matricula: true,
+          role: true,
+          _count: {
+            select: {
+              contratosDesignados: {
+                where: { ativo: true },
+              },
+            },
+          },
+        },
+        orderBy: { nome: 'asc' },
+      });
+
+      servidores = dbUsers.map((u) => ({
+        id: u.id,
+        nome: u.nome,
+        email: u.email,
+        matricula: u.matricula,
+        role: u.role,
+        totalDesignacoes: u._count?.contratosDesignados || 0,
+      }));
+    }
+
+    return NextResponse.json({ designacoes, servidores });
   } catch (error: any) {
     return NextResponse.json({ error: 'Erro ao listar fiscais e gestores' }, { status: 500 });
   }
@@ -69,6 +101,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      userId,
       contratoId,
       nomeCompleto,
       email,
@@ -79,34 +112,51 @@ export async function POST(request: NextRequest) {
       campusSetor,
     } = body;
 
-    if (!contratoId || !nomeCompleto || !email || !tipoAtuacao || !numeroAtoDesignacao || !idSeiAtoDesignacao) {
+    if (!contratoId || !tipoAtuacao || !numeroAtoDesignacao || !idSeiAtoDesignacao) {
       return NextResponse.json(
-        { error: 'Todos os campos de identificação, atuação e ato de designação são obrigatórios.' },
+        { error: 'Contrato, papel de atuação, número do ato e ID SEI são obrigatórios.' },
         { status: 400 }
       );
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    let user = null;
 
-    // 1. Localizar ou criar o usuário com senha padrão '123' e deveTrocarSenha = true
-    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (userId) {
+      user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return NextResponse.json(
+          { error: 'Servidor selecionado não foi encontrado no sistema.' },
+          { status: 404 }
+        );
+      }
+    } else {
+      if (!nomeCompleto || !email) {
+        return NextResponse.json(
+          { error: 'Nome completo e e-mail institucional são obrigatórios para novo servidor.' },
+          { status: 400 }
+        );
+      }
 
-    if (!user) {
-      const defaultPasswordHash = await hashPassword('123');
-      user = await prisma.user.create({
-        data: {
-          nome: nomeCompleto,
-          email: cleanEmail,
-          matricula: matricula || null,
-          senhaHash: defaultPasswordHash,
-          role: tipoAtuacao,
-          deveTrocarSenha: true,
-          ativo: true,
-        },
-      });
+      const cleanEmail = email.trim().toLowerCase();
+      user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+      if (!user) {
+        const defaultPasswordHash = await hashPassword('123');
+        user = await prisma.user.create({
+          data: {
+            nome: nomeCompleto.trim(),
+            email: cleanEmail,
+            matricula: matricula?.trim() || null,
+            senhaHash: defaultPasswordHash,
+            role: tipoAtuacao,
+            deveTrocarSenha: true,
+            ativo: true,
+          },
+        });
+      }
     }
 
-    // 2. Criar designação vinculada ao contrato
+    // 2. Criar ou atualizar designação vinculada ao contrato
     const designacao = await prisma.contratoResponsavel.upsert({
       where: {
         contratoId_userId_tipoAtuacao: {

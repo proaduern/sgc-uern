@@ -27,9 +27,12 @@ import {
   HelpCircle,
   MapPin,
   ArrowRight,
+  Sparkles,
+  Building,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
+import UploadLotePlanilhaCustosModal from '@/components/contratos/UploadLotePlanilhaCustosModal';
 import AlteracoesContratuaisSection from '@/components/contratos/AlteracoesContratuaisSection';
 import EsteiraPosHomologacaoSection from '@/components/contratos/EsteiraPosHomologacaoSection';
 
@@ -46,6 +49,9 @@ export default function DetalhesContratoPage() {
   const pageSize = 15;
 
   const [showPlanilhaModal, setShowPlanilhaModal] = useState(false);
+  const [showUploadLoteModal, setShowUploadLoteModal] = useState(false);
+  const [filtroCampusPlanilha, setFiltroCampusPlanilha] = useState('TODOS');
+  const [buscaPlanilha, setBuscaPlanilha] = useState('');
   const [planilhaParaEditar, setPlanilhaParaEditar] = useState<any | null>(null);
   const [excluindoPlanilhaId, setExcluindoPlanilhaId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -794,6 +800,15 @@ export default function DetalhesContratoPage() {
 
             <button
               type="button"
+              onClick={() => setShowUploadLoteModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <span>Importar Anexo I (Multi-Abas)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 setPlanilhaParaEditar(null);
                 setShowPlanilhaModal(true);
@@ -801,7 +816,7 @@ export default function DetalhesContratoPage() {
               className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Cadastrar Planilha por Função</span>
+              <span>Cadastrar Função Individual</span>
             </button>
           </div>
         </div>
@@ -815,137 +830,282 @@ export default function DetalhesContratoPage() {
             <div className="max-w-md mx-auto space-y-1">
               <h4 className="text-xs font-bold text-slate-800">Nenhuma planilha de composição de custos cadastrada</h4>
               <p className="text-[11px] text-slate-500">
-                O preenchimento é facultativo. Você pode importar o modelo oficial em Excel (.xlsx) ou preencher diretamente os módulos de custos da função (remuneração, encargos, provisões e BDI).
+                Você pode importar diretamente a planilha completa do contrato (Anexo I Multi-Abas com 50 postos da UERN) ou cadastrar postos individualmente.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setPlanilhaParaEditar(null);
-                setShowPlanilhaModal(true);
-              }}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Cadastrar Planilha de Custos Agora</span>
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowUploadLoteModal(true)}
+                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Importar Planilha Completa (Anexo I Multi-Abas)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanilhaParaEditar(null);
+                  setShowPlanilhaModal(true);
+                }}
+                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all cursor-pointer border border-slate-300"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Cadastrar Função Manual</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {contrato.planilhasCustos.map((p: any) => (
-              <div key={p.id} className="p-5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-4 hover:border-blue-200 transition-colors">
-                {/* Linha 1: Identificação e Ações */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-slate-900 text-sm">{p.funcao}</h4>
-                      {p.numeroItem && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          Item {p.numeroItem} {p.item?.descricao ? `- ${p.item.descricao.slice(0, 30)}...` : ''}
-                        </span>
-                      )}
-                      {p.cbo && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-200 text-slate-700">
-                          CBO: {p.cbo}
-                        </span>
-                      )}
+            {/* KPI Consolidado das Planilhas do Contrato */}
+            {(() => {
+              const totalPostos = contrato.planilhasCustos.reduce((acc: number, p: any) => acc + (p.quantidadePostos || 1), 0);
+              const totalMensal = contrato.planilhasCustos.reduce((acc: number, p: any) => acc + (p.valorMensalTotal || 0), 0);
+              const totalAnual = contrato.planilhasCustos.reduce((acc: number, p: any) => acc + (p.valorGlobalTotal || 0), 0);
+              const campuses = Array.from(new Set(contrato.planilhasCustos.map((p: any) => p.municipio || 'Mossoró'))).filter(Boolean);
+
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl">
+                      <span className="text-[10px] font-bold text-blue-900 uppercase block">Total de Funções</span>
+                      <strong className="text-blue-950 text-base font-bold flex items-center gap-1.5 mt-0.5">
+                        <FileSpreadsheet className="w-4 h-4 text-blue-700" />
+                        <span>{contrato.planilhasCustos.length} funções</span>
+                      </strong>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {p.municipio || 'Mossoró/RN'} • {p.jornada || '44h semanais'} • {p.cctReferencia ? `CCT: ${p.cctReferencia}` : 'CCT Padrão'} • {p.mesesExecucao || 12} meses
-                    </p>
+
+                    <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+                      <span className="text-[10px] font-bold text-indigo-900 uppercase block">Total de Postos Ativos</span>
+                      <strong className="text-indigo-950 text-base font-bold flex items-center gap-1.5 mt-0.5">
+                        <Users className="w-4 h-4 text-indigo-700" />
+                        <span>{totalPostos} postos de trabalho</span>
+                      </strong>
+                    </div>
+
+                    <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                      <span className="text-[10px] font-bold text-emerald-900 uppercase block">Custo Mensal Geral</span>
+                      <strong className="text-emerald-950 text-base font-bold flex items-center gap-1.5 mt-0.5">
+                        <DollarSign className="w-4 h-4 text-emerald-700" />
+                        <span>{totalMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      </strong>
+                    </div>
+
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
+                      <span className="text-[10px] font-bold text-amber-900 uppercase block">Custo Anual Consolidado</span>
+                      <strong className="text-amber-950 text-base font-bold flex items-center gap-1.5 mt-0.5">
+                        <DollarSign className="w-4 h-4 text-amber-700" />
+                        <span>{totalAnual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      </strong>
+                    </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPlanilhaParaEditar(p);
-                        setShowPlanilhaModal(true);
-                      }}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                      <span>Editar</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={excluindoPlanilhaId === p.id}
-                      onClick={() => handleDeletePlanilha(p.id)}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Excluir</span>
-                    </button>
-                  </div>
-                </div>
+                  {/* Filtro por Campus e Busca */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Building className="w-4 h-4 text-slate-600" />
+                        <span>Filtrar por Campus / Localidade:</span>
+                      </div>
+                      <div className="relative w-full sm:w-64">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Buscar função ou CBO..."
+                          value={buscaPlanilha}
+                          onChange={(e) => setBuscaPlanilha(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 shadow-sm"
+                        />
+                      </div>
+                    </div>
 
-                {/* Linha 2: KPIs Financeiros */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Salário-Base CCT</span>
-                    <strong className="text-slate-800 text-sm font-bold">
-                      {p.salarioBase?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Custo por Empregado</span>
-                    <strong className="text-emerald-700 text-sm font-bold">
-                      {p.precoTotalEmpregado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Postos / Empregados</span>
-                    <strong className="text-slate-800 text-sm font-bold">
-                      {p.quantidadePostos || 1} postos ({p.quantidadeEmpregados || 1} emp/posto)
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Valor Mensal do Posto</span>
-                    <strong className="text-blue-900 text-sm font-bold">
-                      {p.valorMensalTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Valor Global da Proposta</span>
-                    <strong className="text-indigo-900 text-sm font-bold">
-                      {p.valorGlobalTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setFiltroCampusPlanilha('TODOS')}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          filtroCampusPlanilha === 'TODOS'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        Todos ({contrato.planilhasCustos.length})
+                      </button>
 
-                {/* Linha 3: Módulos Detalhados */}
-                <div className="p-3 bg-white rounded-xl border border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                  <div className="flex flex-wrap gap-2 text-slate-600">
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M1 Remuneração: <strong>{p.totalModulo1?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M2 Encargos/Benefícios: <strong>{p.totalModulo2?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M3 Rescisão: <strong>{p.totalModulo3?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M4 Reposição: <strong>{p.totalModulo4?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M5 Insumos: <strong>{p.totalModulo5?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
-                      M6 BDI/Tributos: <strong>{p.totalModulo6?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                    </span>
+                      {campuses.map((c: any) => {
+                        const count = contrato.planilhasCustos.filter((p: any) => p.municipio === c).length;
+                        const postosCount = contrato.planilhasCustos
+                          .filter((p: any) => p.municipio === c)
+                          .reduce((acc: number, p: any) => acc + (p.quantidadePostos || 1), 0);
+
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setFiltroCampusPlanilha(c)}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              filtroCampusPlanilha.toUpperCase() === String(c).toUpperCase()
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {c} ({count} • {postosCount}p)
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  {p.fatorK && (
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-bold font-mono">
-                      Fator K: {Number(p.fatorK).toFixed(4)}
-                    </span>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })()}
+
+            {/* Listagem das Funções Filtradas */}
+            {(() => {
+              const planilhasFiltradas = contrato.planilhasCustos.filter((p: any) => {
+                const matchCampus =
+                  filtroCampusPlanilha === 'TODOS' ||
+                  (p.municipio && p.municipio.toUpperCase().includes(filtroCampusPlanilha.toUpperCase()));
+                const matchBusca =
+                  !buscaPlanilha ||
+                  p.funcao?.toLowerCase().includes(buscaPlanilha.toLowerCase()) ||
+                  (p.municipio && p.municipio.toLowerCase().includes(buscaPlanilha.toLowerCase())) ||
+                  (p.cbo && p.cbo.includes(buscaPlanilha));
+                return matchCampus && matchBusca;
+              });
+
+              if (planilhasFiltradas.length === 0) {
+                return (
+                  <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                    Nenhum posto encontrado para o filtro selecionado.
+                  </div>
+                );
+              }
+
+              return planilhasFiltradas.map((p: any) => (
+                <div key={p.id} className="p-5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-4 hover:border-blue-200 transition-colors">
+                  {/* Linha 1: Identificação e Ações */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-bold text-slate-900 text-sm">{p.funcao}</h4>
+                        {p.numeroItem && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            Item {p.numeroItem} {p.item?.descricao ? `- ${p.item.descricao.slice(0, 30)}...` : ''}
+                          </span>
+                        )}
+                        {p.cbo && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-200 text-slate-700">
+                            CBO: {p.cbo}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {p.municipio || 'Mossoró/RN'} • {p.jornada || '44h semanais'} • {p.cctReferencia ? `CCT: ${p.cctReferencia}` : 'CCT Padrão'} • {p.mesesExecucao || 12} meses
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanilhaParaEditar(p);
+                          setShowPlanilhaModal(true);
+                        }}
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={excluindoPlanilhaId === p.id}
+                        onClick={() => handleDeletePlanilha(p.id)}
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Excluir</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Linha 2: KPIs Financeiros */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Salário-Base CCT</span>
+                      <strong className="text-slate-800 text-sm font-bold">
+                        {p.salarioBase?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Custo por Empregado</span>
+                      <strong className="text-emerald-700 text-sm font-bold">
+                        {p.precoTotalEmpregado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Postos / Empregados</span>
+                      <strong className="text-slate-800 text-sm font-bold">
+                        {p.quantidadePostos || 1} postos ({p.quantidadeEmpregados || 1} emp/posto)
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Valor Mensal do Posto</span>
+                      <strong className="text-blue-900 text-sm font-bold">
+                        {p.valorMensalTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Valor Global da Proposta</span>
+                      <strong className="text-indigo-900 text-sm font-bold">
+                        {p.valorGlobalTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Linha 3: Módulos Detalhados */}
+                  <div className="p-3 bg-white rounded-xl border border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="flex flex-wrap gap-2 text-slate-600">
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M1 Remuneração: <strong>{p.totalModulo1?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M2 Encargos: <strong>{p.totalModulo2?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M3 Rescisão: <strong>{p.totalModulo3?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M4 Demais Comp.: <strong>{p.totalModulo4?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M5 Insumos: <strong>{p.totalModulo5?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded font-medium">
+                        M6 Tributos: <strong>{p.totalModulo6?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      </span>
+                    </div>
+                    {p.fatorK && (
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-bold font-mono">
+                        Fator K: {Number(p.fatorK).toFixed(4)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>
+
+      {/* Modal de Importação em Lote da Planilha Completa (Anexo I) */}
+      {showUploadLoteModal && (
+        <UploadLotePlanilhaCustosModal
+          isOpen={showUploadLoteModal}
+          contratoId={contrato.id}
+          onClose={() => setShowUploadLoteModal(false)}
+          onSuccess={carregarContrato}
+        />
+      )}
 
       {/* Modal de Cadastro / Edição da Planilha de Custos */}
       {showPlanilhaModal && (

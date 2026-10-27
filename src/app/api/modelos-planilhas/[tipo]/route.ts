@@ -200,11 +200,9 @@ export async function GET(
         ],
       ];
     } else if (tipo === 'custos' || tipo === 'composicao-custos') {
-      const fs = await import('fs');
-      const path = await import('path');
-      const filePath = path.join(process.cwd(), 'public', 'docs', 'Planilha_de_custos_e_formacao_de_precos.xlsx');
-      if (fs.existsSync(filePath)) {
-        const fileBuffer = fs.readFileSync(filePath);
+      try {
+        const { PLANILHA_CUSTOS_BASE64 } = await import('@/lib/templates/planilhaCustosBase64');
+        const fileBuffer = Buffer.from(PLANILHA_CUSTOS_BASE64, 'base64');
         return new NextResponse(fileBuffer, {
           status: 200,
           headers: {
@@ -212,8 +210,9 @@ export async function GET(
             'Content-Disposition': 'attachment; filename="Planilha_de_custos_e_formacao_de_precos_UERN.xlsx"',
           },
         });
-      } else {
-        return NextResponse.json({ error: 'Arquivo modelo não encontrado no servidor' }, { status: 404 });
+      } catch (err: any) {
+        // Fallback de redirecionamento para o arquivo estático público servido pela CDN
+        return NextResponse.redirect(new URL('/docs/Planilha_de_custos_e_formacao_de_precos.xlsx', request.url));
       }
     } else {
       return NextResponse.json({ error: 'Tipo de modelo não encontrado' }, { status: 404 });

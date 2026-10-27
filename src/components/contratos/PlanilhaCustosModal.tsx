@@ -458,8 +458,7 @@ export default function PlanilhaCustosModal({
 
           <a
             href="/api/modelos-planilhas/custos"
-            target="_blank"
-            rel="noopener noreferrer"
+            download="Planilha_de_custos_e_formacao_de_precos_UERN.xlsx"
             className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold rounded-xl transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />

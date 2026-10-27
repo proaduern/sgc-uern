@@ -314,7 +314,7 @@ model ContratoResponsavel {
   userId               String
   user                 User     @relation(fields: [userId], references: [id])
   tipoAtuacao          Role     // GESTOR, SUPLENTE, FISCAL_ADMINISTRATIVO, FISCAL_TECNICO, FISCAL_SETORIAL
-  numeroAtoDesignacao  String
+  numeroAtoDesignacao  String?
   idSeiAtoDesignacao   String
   campusSetor          String?
   ativo                Boolean  @default(true)

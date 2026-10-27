@@ -166,14 +166,21 @@ export async function POST(request: NextRequest) {
       numeroAtoDesignacao,
       idSeiAtoDesignacao,
       campusSetor,
+      atualizarAtoColetivo = true,
     } = body;
 
-    if (!contratoId || !tipoAtuacao || !numeroAtoDesignacao || !idSeiAtoDesignacao) {
+    if (!contratoId || !tipoAtuacao || !idSeiAtoDesignacao) {
       return NextResponse.json(
-        { error: 'Contrato, papel de atuação, número do ato e ID SEI são obrigatórios.' },
+        { error: 'Contrato, papel de atuação e ID SEI do ato são obrigatórios.' },
         { status: 400 }
       );
     }
+
+    const cleanIdSei = String(idSeiAtoDesignacao).trim();
+    const cleanNumeroAto =
+      numeroAtoDesignacao && String(numeroAtoDesignacao).trim()
+        ? String(numeroAtoDesignacao).trim()
+        : null;
 
     let user = null;
 
@@ -277,8 +284,8 @@ export async function POST(request: NextRequest) {
         },
       },
       update: {
-        numeroAtoDesignacao,
-        idSeiAtoDesignacao,
+        numeroAtoDesignacao: cleanNumeroAto,
+        idSeiAtoDesignacao: cleanIdSei,
         campusSetor: campusSetorFinal,
         ativo: true,
       },
@@ -286,8 +293,8 @@ export async function POST(request: NextRequest) {
         contratoId,
         userId: user.id,
         tipoAtuacao,
-        numeroAtoDesignacao,
-        idSeiAtoDesignacao,
+        numeroAtoDesignacao: cleanNumeroAto,
+        idSeiAtoDesignacao: cleanIdSei,
         campusSetor: campusSetorFinal,
         ativo: true,
       },
@@ -296,6 +303,28 @@ export async function POST(request: NextRequest) {
         contrato: true,
       },
     });
+
+    // 3. Ato Coletivo: Sincroniza em lote para todos os servidores designados deste contrato
+    if (atualizarAtoColetivo !== false) {
+      await prisma.contratoResponsavel.updateMany({
+        where: {
+          contratoId,
+          ativo: true,
+        },
+        data: {
+          idSeiAtoDesignacao: cleanIdSei,
+          ...(cleanNumeroAto !== null ? { numeroAtoDesignacao: cleanNumeroAto } : {}),
+        },
+      });
+
+      await prisma.contrato.update({
+        where: { id: contratoId },
+        data: {
+          portariaDesignacaoGestor: cleanNumeroAto || `Ato SEI nº ${cleanIdSei}`,
+          dataDesignacaoGestor: new Date(),
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, designacao }, { status: 201 });
   } catch (error: any) {
@@ -324,6 +353,7 @@ export async function PUT(request: NextRequest) {
       unidadeSigla,
       unidadeNome,
       campus,
+      atualizarAtoColetivo = true,
     } = body;
 
     if (!id) {
@@ -359,12 +389,20 @@ export async function PUT(request: NextRequest) {
       campusSetorFinal = normalizarCidadeCampus(campusSetor);
     }
 
+    const cleanIdSei = idSeiAtoDesignacao ? String(idSeiAtoDesignacao).trim() : undefined;
+    const cleanNumeroAto =
+      numeroAtoDesignacao !== undefined
+        ? numeroAtoDesignacao && String(numeroAtoDesignacao).trim()
+          ? String(numeroAtoDesignacao).trim()
+          : null
+        : undefined;
+
     const updated = await prisma.contratoResponsavel.update({
       where: { id },
       data: {
         ...(tipoAtuacao ? { tipoAtuacao } : {}),
-        ...(numeroAtoDesignacao ? { numeroAtoDesignacao } : {}),
-        ...(idSeiAtoDesignacao ? { idSeiAtoDesignacao } : {}),
+        ...(cleanNumeroAto !== undefined ? { numeroAtoDesignacao: cleanNumeroAto } : {}),
+        ...(cleanIdSei ? { idSeiAtoDesignacao: cleanIdSei } : {}),
         ...(campusSetor !== undefined ? { campusSetor: campusSetorFinal } : {}),
         ...(ativo !== undefined ? { ativo: Boolean(ativo) } : {}),
       },
@@ -373,6 +411,28 @@ export async function PUT(request: NextRequest) {
         contrato: true,
       },
     });
+
+    // Ato Coletivo: Sincroniza em lote para todos os servidores designados deste contrato
+    if (cleanIdSei && atualizarAtoColetivo !== false) {
+      await prisma.contratoResponsavel.updateMany({
+        where: {
+          contratoId: designacaoExistente.contratoId,
+          ativo: true,
+        },
+        data: {
+          idSeiAtoDesignacao: cleanIdSei,
+          ...(cleanNumeroAto !== undefined ? { numeroAtoDesignacao: cleanNumeroAto } : {}),
+        },
+      });
+
+      await prisma.contrato.update({
+        where: { id: designacaoExistente.contratoId },
+        data: {
+          portariaDesignacaoGestor: cleanNumeroAto || `Ato SEI nº ${cleanIdSei}`,
+          dataDesignacaoGestor: new Date(),
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, designacao: updated });
   } catch (error: any) {

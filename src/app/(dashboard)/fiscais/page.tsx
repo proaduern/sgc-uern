@@ -47,7 +47,7 @@ interface Servidor {
 interface Designacao {
   id: string;
   tipoAtuacao: string;
-  numeroAtoDesignacao: string;
+  numeroAtoDesignacao?: string | null;
   idSeiAtoDesignacao: string;
   campusSetor: string | null;
   ativo?: boolean;
@@ -107,6 +107,7 @@ export default function FiscaisPage() {
     unidadeSigla: '',
     campus: '',
     ativo: true,
+    atualizarAtoColetivo: true,
   });
 
   const [form, setForm] = useState({
@@ -122,6 +123,7 @@ export default function FiscaisPage() {
     numeroAtoDesignacao: '',
     idSeiAtoDesignacao: '',
     campusSetor: '',
+    atualizarAtoColetivo: true,
   });
 
   const handleDeleteDesignacao = async (d: Designacao) => {
@@ -154,6 +156,7 @@ export default function FiscaisPage() {
       unidadeSigla: d.user.unidadeSigla || '',
       campus: d.user.campus || '',
       ativo: d.ativo !== false,
+      atualizarAtoColetivo: true,
     });
     setShowEditModal(true);
   };
@@ -238,6 +241,25 @@ export default function FiscaisPage() {
     carregarDados();
   }, []);
 
+  const handleContratoChange = (contratoId: string) => {
+    const contratoSel = contratos.find((c) => c.id === contratoId);
+    // Busca ato coletivo prévio no contrato para auto-preencher o ID SEI da comissão
+    const atoExistente =
+      designacoes.find((d) => d.contrato?.id === contratoId && d.idSeiAtoDesignacao) ||
+      contratoSel?.responsaveis?.find((r: any) => r.idSeiAtoDesignacao);
+
+    setForm((prev) => ({
+      ...prev,
+      contratoId,
+      idSeiAtoDesignacao: atoExistente?.idSeiAtoDesignacao || prev.idSeiAtoDesignacao || '',
+      numeroAtoDesignacao:
+        atoExistente?.numeroAtoDesignacao ||
+        contratoSel?.portariaDesignacaoGestor ||
+        prev.numeroAtoDesignacao ||
+        '',
+    }));
+  };
+
   const handleOpenModalGeral = () => {
     setDesignacaoMode(servidores.length > 0 ? 'EXISTENTE' : 'NOVO');
     setSelectedServidorId('');
@@ -255,6 +277,7 @@ export default function FiscaisPage() {
       numeroAtoDesignacao: '',
       idSeiAtoDesignacao: '',
       campusSetor: '',
+      atualizarAtoColetivo: true,
     });
     setError(null);
     setShowModal(true);
@@ -277,6 +300,7 @@ export default function FiscaisPage() {
       numeroAtoDesignacao: '',
       idSeiAtoDesignacao: '',
       campusSetor: '',
+      atualizarAtoColetivo: true,
     });
     setError(null);
     setShowModal(true);
@@ -297,9 +321,10 @@ export default function FiscaisPage() {
       const payload: any = {
         contratoId: form.contratoId,
         tipoAtuacao: form.tipoAtuacao,
-        numeroAtoDesignacao: form.numeroAtoDesignacao,
+        numeroAtoDesignacao: form.numeroAtoDesignacao || null,
         idSeiAtoDesignacao: form.idSeiAtoDesignacao,
         campusSetor: form.campusSetor,
+        atualizarAtoColetivo: form.atualizarAtoColetivo,
       };
 
       if (designacaoMode === 'EXISTENTE') {
@@ -347,6 +372,7 @@ export default function FiscaisPage() {
         numeroAtoDesignacao: '',
         idSeiAtoDesignacao: '',
         campusSetor: '',
+        atualizarAtoColetivo: true,
       });
       carregarDados();
     } catch (err: any) {
@@ -575,8 +601,13 @@ export default function FiscaisPage() {
                     </td>
 
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800">{d.numeroAtoDesignacao}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">ID SEI: {d.idSeiAtoDesignacao}</div>
+                      <div className="font-semibold text-slate-800">
+                        {d.numeroAtoDesignacao || 'Ato Coletivo SEI'}
+                      </div>
+                      <div className="text-[10px] text-blue-700 font-mono font-medium flex items-center gap-1 mt-0.5">
+                        <FileCheck className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>ID SEI: {d.idSeiAtoDesignacao}</span>
+                      </div>
                     </td>
 
                     <td className="py-3 px-4">
@@ -861,7 +892,7 @@ export default function FiscaisPage() {
                 <select
                   required
                   value={form.contratoId}
-                  onChange={(e) => setForm({ ...form, contratoId: e.target.value })}
+                  onChange={(e) => handleContratoChange(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
                 >
                   <option value="">Selecione o contrato...</option>
@@ -897,29 +928,68 @@ export default function FiscaisPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Número do Ato de Designação *</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.numeroAtoDesignacao}
-                    onChange={(e) => setForm({ ...form, numeroAtoDesignacao: e.target.value })}
-                    placeholder="Ex: Portaria nº 3653/2026-GP"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                  />
+              {/* ATO COLETIVO E ID SEI */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileCheck className="w-4 h-4 text-blue-700" />
+                    Ato de Designação Coletivo (SEI)
+                  </span>
+                  <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
+                    Ato Coletivo da Equipe
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ID SEI do Ato *</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      ID SEI do Ato de Designação *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={form.idSeiAtoDesignacao}
+                      onChange={(e) => setForm({ ...form, idSeiAtoDesignacao: e.target.value })}
+                      placeholder="Ex: 39959658"
+                      className="w-full px-3 py-2 border border-blue-300 rounded-xl text-xs outline-none focus:border-blue-600 font-mono font-semibold bg-white"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Identificador único do documento/ato coletivo no SEI (Obrigatório).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Número do Ato / Portaria <span className="text-slate-400 font-normal">(Opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.numeroAtoDesignacao}
+                      onChange={(e) => setForm({ ...form, numeroAtoDesignacao: e.target.value })}
+                      placeholder="Ex: Portaria nº 3653/2026-GP"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Opcional. Se não informado, o sistema utilizará o ID SEI.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sincronização em Lote */}
+                <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg flex items-start space-x-2">
                   <input
-                    type="text"
-                    required
-                    value={form.idSeiAtoDesignacao}
-                    onChange={(e) => setForm({ ...form, idSeiAtoDesignacao: e.target.value })}
-                    placeholder="Ex: 39959658"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
+                    type="checkbox"
+                    id="atualizarAtoColetivoModal"
+                    checked={form.atualizarAtoColetivo}
+                    onChange={(e) => setForm({ ...form, atualizarAtoColetivo: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5"
                   />
+                  <label htmlFor="atualizarAtoColetivoModal" className="text-[11px] text-blue-900 cursor-pointer leading-tight">
+                    <strong>Ato Coletivo: Sincronizar em lote este ID SEI com todos os servidores deste contrato.</strong>
+                    <span className="block text-[10px] text-blue-700 mt-0.5">
+                      Como a designação é coletiva, as designações de toda a comissão (Gestor, Suplente e Fiscais) deste contrato receberão este mesmo ID SEI.
+                    </span>
+                  </label>
                 </div>
               </div>
 
@@ -1237,32 +1307,68 @@ export default function FiscaisPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Ato de Designação (Portaria/Ato)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.numeroAtoDesignacao}
-                    onChange={(e) => setEditForm({ ...editForm, numeroAtoDesignacao: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
-                    placeholder="Ex: Portaria nº 123/2026-GR"
-                  />
+              {/* ATO COLETIVO E ID SEI NA EDIÇÃO */}
+              <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                    <FileCheck className="w-4 h-4 text-amber-700" />
+                    Ato de Designação Coletivo (SEI)
+                  </span>
+                  <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                    Ato Coletivo
+                  </span>
                 </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    ID SEI do Ato
-                  </label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-800 block mb-1">
+                      ID SEI do Ato de Designação *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.idSeiAtoDesignacao}
+                      onChange={(e) => setEditForm({ ...editForm, idSeiAtoDesignacao: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs outline-none focus:border-amber-600 font-mono font-semibold bg-white"
+                      placeholder="Ex: 39959658"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Identificador oficial do ato coletivo no SEI (Obrigatório).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-700 block mb-1">
+                      Número do Ato / Portaria <span className="text-slate-400 font-normal">(Opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.numeroAtoDesignacao}
+                      onChange={(e) => setEditForm({ ...editForm, numeroAtoDesignacao: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                      placeholder="Ex: Portaria nº 123/2026-GR (Opcional)"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Opcional quando informado o ID SEI.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sincronização em Lote */}
+                <div className="p-2.5 bg-amber-100/60 border border-amber-300/80 rounded-lg flex items-start space-x-2">
                   <input
-                    type="text"
-                    required
-                    value={editForm.idSeiAtoDesignacao}
-                    onChange={(e) => setEditForm({ ...editForm, idSeiAtoDesignacao: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-mono"
-                    placeholder="Ex: 04410024.000987/2026-55"
+                    type="checkbox"
+                    id="atualizarAtoColetivoEditModal"
+                    checked={editForm.atualizarAtoColetivo}
+                    onChange={(e) => setEditForm({ ...editForm, atualizarAtoColetivo: e.target.checked })}
+                    className="w-4 h-4 text-amber-700 rounded border-slate-300 focus:ring-amber-500 cursor-pointer mt-0.5"
                   />
+                  <label htmlFor="atualizarAtoColetivoEditModal" className="text-[11px] text-amber-950 cursor-pointer leading-tight">
+                    <strong>Propagação Coletiva: Sincronizar este ID SEI para toda a equipe deste contrato.</strong>
+                    <span className="block text-[10px] text-amber-800 mt-0.5">
+                      Como o ato de designação é coletivo, ao salvar, o novo ID SEI será replicado em lote para o Gestor, Suplente e todos os Fiscais deste contrato.
+                    </span>
+                  </label>
                 </div>
               </div>
 

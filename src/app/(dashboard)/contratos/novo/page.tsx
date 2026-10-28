@@ -213,18 +213,34 @@ function NovoContratoForm() {
     }
     if (dados.tipoAgrupamento !== undefined) setTipoAgrupamento(dados.tipoAgrupamento || 'ITEM_INDIVIDUAL');
     if (dados.itens && Array.isArray(dados.itens) && dados.itens.length > 0) {
-      setItens(dados.itens.map((it: any, idx: number) => ({
-        ...it,
-        numeroItem: it.numeroItem || (idx + 1),
-        quantidade: String(it.quantidade ?? '1'),
-        quantidadeAnual: String(it.quantidadeAnual ?? it.quantidade ?? '1'),
-        valorUnitario: String(it.valorUnitario ?? it.valorUnitarioAnual ?? '0'),
-        cidade: it.cidade || '',
-        unidade: it.unidade || 'Posto',
-        descricao: it.descricao || '',
-        categoriaItem: it.categoriaItem || (dados.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'DEMO' : 'NAO_DEMO'),
-        tipoReajuste: it.tipoReajuste || (dados.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
-      })));
+      setItens(dados.itens.map((it: any, idx: number) => {
+        const isDemo = dados.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' || dados.regimeExecucao === 'DEDICACAO_EXCLUSIVA';
+        let vUnit = '0';
+        if (isDemo) {
+          if (it.valorUnitarioMensal && parseFloat(it.valorUnitarioMensal) > 0) {
+            vUnit = String(it.valorUnitarioMensal);
+          } else if (it.valorUnitarioAnual && parseFloat(it.valorUnitarioAnual) > 0 && String(it.valorUnitario) === String(it.valorUnitarioAnual)) {
+            vUnit = String((parseFloat(it.valorUnitarioAnual) / 12).toFixed(2));
+          } else {
+            vUnit = String(it.valorUnitario || '0');
+          }
+        } else {
+          vUnit = String(it.valorUnitario ?? it.valorUnitarioAnual ?? '0');
+        }
+
+        return {
+          ...it,
+          numeroItem: it.numeroItem || (idx + 1),
+          quantidade: String(it.quantidade ?? '1'),
+          quantidadeAnual: String(it.quantidadeAnual ?? it.quantidade ?? '1'),
+          valorUnitario: vUnit,
+          cidade: it.cidade || '',
+          unidade: it.unidade || 'Posto',
+          descricao: it.descricao || '',
+          categoriaItem: it.categoriaItem || (isDemo ? 'DEMO' : 'NAO_DEMO'),
+          tipoReajuste: it.tipoReajuste || (isDemo ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
+        };
+      }));
     }
   };
 

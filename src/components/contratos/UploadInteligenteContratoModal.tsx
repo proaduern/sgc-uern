@@ -387,8 +387,8 @@ export default function UploadInteligenteContratoModal({
                       <th className="py-1.5 px-2">Descrição / Função do Posto</th>
                       <th className="py-1.5 px-2 text-center w-16">Postos</th>
                       <th className="py-1.5 px-2 text-right">Unit. Mensal</th>
-                      <th className="py-1.5 px-2 text-right">Unit. Anual</th>
-                      <th className="py-1.5 px-2 text-right">Total Anual</th>
+                      <th className="py-1.5 px-2 text-right">Total Mensal</th>
+                      <th className="py-1.5 px-2 text-right">Total Anual (12m)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -406,11 +406,11 @@ export default function UploadInteligenteContratoModal({
                         <td className="py-1.5 px-2 text-center font-bold text-slate-900">
                           {it.quantidade}
                         </td>
-                        <td className="py-1.5 px-2 text-right font-mono text-slate-600 whitespace-nowrap">
+                        <td className="py-1.5 px-2 text-right font-mono text-slate-700 whitespace-nowrap">
                           {it.valorUnitarioMensal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </td>
-                        <td className="py-1.5 px-2 text-right font-mono text-slate-600 whitespace-nowrap">
-                          {it.valorUnitarioAnual?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        <td className="py-1.5 px-2 text-right font-mono text-blue-700 font-semibold whitespace-nowrap">
+                          {((it.quantidade || 1) * (it.valorUnitarioMensal || 0))?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </td>
                         <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
                           {it.valorTotalAnual?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

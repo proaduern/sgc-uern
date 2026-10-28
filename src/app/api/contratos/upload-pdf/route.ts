@@ -70,7 +70,11 @@ export async function POST(request: NextRequest) {
             unidade: it.unidade || 'Posto',
             quantidade: String(it.quantidade || 1),
             quantidadeAnual: String(it.quantidade || 1),
-            valorUnitario: String(it.valorUnitarioAnual > 0 ? it.valorUnitarioAnual : (it.valorUnitarioMensal || 0)),
+            // Para contratos DEMO (dedicação exclusiva), o campo valorUnitario é rigorosamente o VALOR MENSAL do posto (ex: R$ 3.961,87).
+            // O sistema calcula: Total Mensal = Quantidade * ValorUnitario; Total Anual = Total Mensal * 12.
+            valorUnitario: parsed.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO'
+              ? String(it.valorUnitarioMensal || 0)
+              : String(it.valorUnitarioAnual > 0 ? it.valorUnitarioAnual : (it.valorUnitarioMensal || 0)),
             valorUnitarioMensal: it.valorUnitarioMensal || 0,
             valorUnitarioAnual: it.valorUnitarioAnual || 0,
             valorTotalAnual: it.valorTotalAnual || 0,

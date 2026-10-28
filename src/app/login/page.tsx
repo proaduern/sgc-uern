@@ -11,6 +11,7 @@ function LoginForm() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const portalHubUrl = `${process.env.NEXT_PUBLIC_PORTAL_URL || 'https://portal-proad.vercel.app'}/hub`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +58,7 @@ function LoginForm() {
       </div>
 
       <a
-        href="https://portal-proad.vercel.app/hub"
+        href={portalHubUrl}
         className="mb-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 text-xs font-bold text-slate-950 shadow-md transition hover:brightness-105"
       >
         <ShieldCheck className="h-4 w-4" />

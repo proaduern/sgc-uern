@@ -42,7 +42,7 @@ export default function PlanejamentoPcaPage() {
     carregarContratos();
   }, [carregarContratos]);
 
-  const pcaUrl = process.env.NEXT_PUBLIC_PCA_URL || 'http://localhost:3002';
+  const pcaUrl = process.env.NEXT_PUBLIC_PCA_URL || 'https://pca-uern.vercel.app';
 
   const processosPosHomologacao: any[] = dados?.processosPosHomologacao || [];
   const servidoresDisponiveis: any[] = dados?.servidoresDisponiveis || [];
@@ -82,7 +82,7 @@ export default function PlanejamentoPcaPage() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition"
             >
-              <span>Abrir Módulo no PCA (Porta 3002)</span>
+              <span>Abrir Módulo no PCA (Planejamento Anual)</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>

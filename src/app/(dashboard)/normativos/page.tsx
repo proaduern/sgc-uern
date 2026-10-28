@@ -160,7 +160,7 @@ export default function NormativosPage() {
               <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[10px] text-slate-400">Documento Oficial</span>
                 <a
-                  href={item.arquivoUrl}
+                  href={encodeURI(item.arquivoUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#003366] text-xs font-semibold rounded-lg transition-colors border border-blue-100"

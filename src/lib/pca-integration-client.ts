@@ -22,7 +22,7 @@ interface NotificarPcaParams {
 
 export async function notificarPcaExecucao(params: NotificarPcaParams): Promise<{ sucesso: boolean; error?: string }> {
   try {
-    const pcaBaseUrl = process.env.PCA_API_URL || "http://localhost:3000";
+    const pcaBaseUrl = process.env.PCA_API_URL || process.env.NEXT_PUBLIC_PCA_URL || "https://pca-uern.vercel.app";
     const serviceKey = process.env.PROAD_SERVICE_KEY || "proad_interop_internal_service_key_2026_uern";
 
     const payload = {

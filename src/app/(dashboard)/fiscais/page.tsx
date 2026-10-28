@@ -22,8 +22,10 @@ import {
   Trash2,
   UserCheck,
   PlusCircle,
+  FileText,
 } from 'lucide-react';
 import UploadInteligenteDesignacaoModal from '@/components/fiscais/UploadInteligenteDesignacaoModal';
+import GerarAtoDesignacaoModal from '@/components/fiscais/GerarAtoDesignacaoModal';
 import {
   CIDADES_UERN,
   normalizarCidadeCampus,
@@ -86,6 +88,8 @@ export default function FiscaisPage() {
   const [filtroServidor, setFiltroServidor] = useState<string>('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [showUploadDesignacaoModal, setShowUploadDesignacaoModal] = useState(false);
+  const [showGerarAtoModal, setShowGerarAtoModal] = useState(false);
+  const [selectedContratoAtoId, setSelectedContratoAtoId] = useState<string | undefined>(undefined);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
@@ -514,6 +518,18 @@ export default function FiscaisPage() {
               </button>
 
               <button
+                onClick={() => {
+                  setSelectedContratoAtoId(undefined);
+                  setShowGerarAtoModal(true);
+                }}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold rounded-xl border border-blue-200 transition-colors cursor-pointer shadow-sm"
+                title="Emitir Ato de Designação nos padrões da PROAD e do SEI (.docx / .pdf)"
+              >
+                <FileText className="w-4 h-4 text-blue-700" />
+                <span>Gerar Ato de Designação (SEI)</span>
+              </button>
+
+              <button
                 onClick={handleOpenModalGeral}
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow transition-all cursor-pointer"
               >
@@ -637,6 +653,19 @@ export default function FiscaisPage() {
                     <td className="py-3 px-4 text-center">
                       {currentUser?.isAdmin && (
                         <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedContratoAtoId(d.contrato.id);
+                              setShowGerarAtoModal(true);
+                            }}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            title="Gerar Ato de Designação Oficial (.docx / .pdf) deste contrato"
+                          >
+                            <FileText className="w-3 h-3 text-indigo-600" />
+                            <span>Ato SEI</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleOpenDesignarParaServidor(d.user)}
@@ -1415,6 +1444,15 @@ export default function FiscaisPage() {
           isOpen={showUploadDesignacaoModal}
           onClose={() => setShowUploadDesignacaoModal(false)}
           onSuccess={carregarDados}
+        />
+      )}
+
+      {showGerarAtoModal && (
+        <GerarAtoDesignacaoModal
+          isOpen={showGerarAtoModal}
+          onClose={() => setShowGerarAtoModal(false)}
+          contratos={contratos}
+          initialContratoId={selectedContratoAtoId}
         />
       )}
     </div>

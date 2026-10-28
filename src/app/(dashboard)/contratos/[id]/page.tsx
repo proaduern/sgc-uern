@@ -35,6 +35,7 @@ import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
 import UploadLotePlanilhaCustosModal from '@/components/contratos/UploadLotePlanilhaCustosModal';
 import AlteracoesContratuaisSection from '@/components/contratos/AlteracoesContratuaisSection';
 import EsteiraPosHomologacaoSection from '@/components/contratos/EsteiraPosHomologacaoSection';
+import GerarAtoDesignacaoModal from '@/components/fiscais/GerarAtoDesignacaoModal';
 
 export default function DetalhesContratoPage() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function DetalhesContratoPage() {
 
   const [showPlanilhaModal, setShowPlanilhaModal] = useState(false);
   const [showUploadLoteModal, setShowUploadLoteModal] = useState(false);
+  const [showGerarAtoModal, setShowGerarAtoModal] = useState(false);
   const [filtroCampusPlanilha, setFiltroCampusPlanilha] = useState('TODOS');
   const [buscaPlanilha, setBuscaPlanilha] = useState('');
   const [planilhaParaEditar, setPlanilhaParaEditar] = useState<any | null>(null);
@@ -542,9 +544,21 @@ export default function DetalhesContratoPage() {
 
       {/* Equipe de Fiscalização */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 border-b border-slate-100 pb-2">
-          <Users className="w-4 h-4 text-blue-700" />
-          <span>Equipe de Gestão e Fiscalização Designada (IN 01/2026)</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
+            <Users className="w-4 h-4 text-blue-700" />
+            <span>Equipe de Gestão e Fiscalização Designada (IN 01/2026)</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowGerarAtoModal(true)}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+            title="Emitir Ato de Designação Oficial nos padrões da PROAD e do SEI (.docx / .pdf)"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-700" />
+            <span>Gerar Ato de Designação (SEI)</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -565,6 +579,27 @@ export default function DetalhesContratoPage() {
             <span className="font-semibold text-slate-800">{fiscalTec || 'Não designado'}</span>
           </div>
         </div>
+
+        {contrato.responsaveis?.some((r: any) => r.tipoAtuacao === 'FISCAL_SETORIAL') && (
+          <div className="pt-2 border-t border-slate-100">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1.5">
+              Fiscais Setoriais nos Campi / Unidades:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {contrato.responsaveis
+                ?.filter((r: any) => r.tipoAtuacao === 'FISCAL_SETORIAL')
+                .map((r: any) => (
+                  <span
+                    key={r.id}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs bg-indigo-50 border border-indigo-200 text-indigo-900 font-medium"
+                  >
+                    <span className="font-bold">{r.user?.nome}</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold">({r.campusSetor || r.user?.campus || 'Campus'})</span>
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Relação de Itens Contratados */}
@@ -1120,6 +1155,16 @@ export default function DetalhesContratoPage() {
           itensContrato={contrato.itens || []}
           onSuccess={carregarContrato}
           planilhaParaEditar={planilhaParaEditar}
+        />
+      )}
+
+      {/* Modal de Emissão do Ato de Designação Oficial */}
+      {showGerarAtoModal && contrato && (
+        <GerarAtoDesignacaoModal
+          isOpen={showGerarAtoModal}
+          onClose={() => setShowGerarAtoModal(false)}
+          contratos={[contrato]}
+          initialContratoId={contrato.id}
         />
       )}
     </div>

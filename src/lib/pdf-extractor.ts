@@ -1,7 +1,7 @@
 /**
  * Utilitário universal para extração de texto de PDFs no Node.js e Vercel Serverless.
- * Fornece polyfill de DOMMatrix e APIs web mínimas, além de injetar o worker em memória,
- * eliminando qualquer tentativa de leitura dinâmica de arquivos em disco (/var/task/...).
+ * Prioriza pdf-parse (rápido, nativo, sem dependência de DOM / workers do navegador),
+ * com fallback para pdfjs-dist legado.
  */
 
 function ensurePolyfills() {
@@ -68,12 +68,31 @@ function ensurePolyfills() {
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  // 1. Tenta extração via pdf-parse (v2 ou v1)
+  try {
+    const pdfParseMod = await import('pdf-parse');
+    const PDFParseClass = (pdfParseMod as any).PDFParse || (pdfParseMod as any).default?.PDFParse;
+    if (PDFParseClass) {
+      const parser = new PDFParseClass({ data: buffer });
+      const doc = await parser.getText();
+      if (doc && typeof doc.text === 'string' && doc.text.trim().length > 0) {
+        return doc.text;
+      }
+    } else if (typeof (pdfParseMod as any).default === 'function') {
+      const data = await (pdfParseMod as any).default(buffer);
+      if (data && data.text && data.text.trim().length > 0) {
+        return data.text;
+      }
+    }
+  } catch (err) {
+    console.warn('Tentativa com pdf-parse falhou, tentando fallback pdfjs-dist:', err);
+  }
+
+  // 2. Fallback via pdfjs-dist legado
   ensurePolyfills();
 
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-  // Injetar o worker explicitamente em memória para o Next.js empacotá-lo no bundle
-  // e evitar erro de módulo dinâmico ausente em /var/task/...
   try {
     // @ts-ignore
     const worker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');

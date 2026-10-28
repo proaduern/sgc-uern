@@ -29,6 +29,9 @@ export interface ContratoPdfExtraido {
   valorGlobal: number;
   indiceReajusteSugerido: string;
   itens: ItemContratoExtraido[];
+  totalPostos: number;
+  somaItens: number;
+  conferenciaMatematica: boolean;
   camposPendentes: string[];
   isRascunho: boolean;
 }
@@ -47,14 +50,14 @@ export async function parseContratoPdf(buffer: Buffer): Promise<ContratoPdfExtra
 
   // 1. Número do Contrato
   let numeroContrato = '';
-  const ctrMatch = text.match(/CONTRATO\s+(?:ADMINISTRATIVO\s+)?N[°º]?\s*([\d\/]+)/i);
+  const ctrMatch = text.match(/CONTRATO\s+(?:ADMINISTRATIVO\s+)?N[°º]?\s*([\d\/]+(?:-[\w]+)?)/i);
   if (ctrMatch) {
     numeroContrato = ctrMatch[1].trim();
   } else {
     camposPendentes.push('Número do Contrato');
   }
 
-  // 2. Processo SEI
+  // 2. Processo SEI Mãe
   let processoSeiMae = '';
   const procMatch = text.match(/Processo\s+(?:SEI\s+)?n[°º]?\s*([\d\.\/\-]+)/i);
   if (procMatch) {
@@ -63,7 +66,7 @@ export async function parseContratoPdf(buffer: Buffer): Promise<ContratoPdfExtra
     camposPendentes.push('Processo SEI Mãe');
   }
 
-  // 3. Procedimento Licitatório (ex: Pregão Eletrônico nº 38/2025)
+  // 3. Procedimento Licitatório (ex: Pregão Eletrônico nº 39/2026)
   let licitacaoProcedimento = 'Pregão Eletrônico';
   const licMatch = text.match(/(Pregão\s+(?:Eletrônico\s+)?n[°º]?\s*[\d\/]+|Dispensa\s+n[°º]?\s*[\d\/]+|Inexigibilidade\s+n[°º]?\s*[\d\/]+)/i);
   if (licMatch) {
@@ -74,33 +77,40 @@ export async function parseContratoPdf(buffer: Buffer): Promise<ContratoPdfExtra
   let razaoSocial = '';
   let cnpj = '';
   let endereco = '';
-  const fornMatch = text.match(/(?:empresa|CONTRATAD[OA])\s+([A-Z0-9\.\-\s]+?),\s*inscrit[oa].*?CNPJ(?:\/MF)?\s+sob\s+o\s+n[°º]?\s*([\d\.\/\-]+)/i);
+
+  const fornMatch = text.match(/e\s+a\s+empresa\s+([A-Z0-9\.\-\s]+?),\s*inscrit[oa]\(a\)?(?:\s+no|\s+na)?\s*CNPJ(?:\/MF)?\s+sob\s+o\s+n[°º]?\s*([\d\.\/\-]+)/i)
+    || text.match(/(?:empresa|CONTRATAD[OA])\s+([A-Z0-9\.\-\s]+?),\s*inscrit[oa][\s\S]*?CNPJ(?:\/MF)?\s+sob\s+o\s+n[°º]?\s*([\d\.\/\-]+)/i);
+
   if (fornMatch) {
-    razaoSocial = fornMatch[1].replace(/\s+/g, ' ').trim();
+    razaoSocial = fornMatch[1].replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
     cnpj = fornMatch[2].replace(/\D/g, '').trim();
   } else {
     camposPendentes.push('Fornecedor / CNPJ');
   }
 
-  const endMatch = text.match(/sediad[oa]\s+n[ao]\s+([^\n,]+,[^\n,]+,[^\n\.,]+)/i);
+  const endMatch = text.match(/sediad[oa]\(a\)?\s+n[ao]\s+([\s\S]+?)(?=,\s*doravante|\s*doravante)/i)
+    || text.match(/sediad[oa]\s+n[ao]\s+([^\n,]+,[^\n,]+,[^\n\.,]+)/i);
+
   if (endMatch) {
-    endereco = endMatch[1].replace(/\s+/g, ' ').trim();
+    endereco = endMatch[1].replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  // 5. Representante Legal (Apenas nome completo - SEM EXIGIR CPF)
+  // 5. Representante Legal
   let nomeRepresentanteLegal = '';
-  const repMatch = text.match(/representad[ao]\s+pel[ao]\s+su[ao]\s+[^,]+,\s*(?:a\s+Sra?\.?|o\s+Sr\.?)\s*([A-ZÀ-Úa-zà-ú\s]+?),/i);
+  const repMatch = text.match(/representad[ao]\(a\)?\s+pel[ao]\s+(?:Sr\.|Sra\.|su[ao])\s*([A-ZÀ-Úa-zà-ú\s]+?),/i)
+    || text.match(/representad[ao]\s+pel[ao]\s+su[ao]\s+[^,]+,\s*(?:a\s+Sra?\.?|o\s+Sr\.?)\s*([A-ZÀ-Úa-zà-ú\s]+?),/i);
+
   if (repMatch) {
-    nomeRepresentanteLegal = repMatch[1].replace(/\s+/g, ' ').trim();
+    nomeRepresentanteLegal = repMatch[1].replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   } else {
     camposPendentes.push('Nome do Representante Legal');
   }
 
   // 6. Objeto
   let objeto = '';
-  const objMatch = text.match(/CLÁUSULA PRIMEIRA\s*–\s*OBJETO[\s\S]*?1\.1\.\s*(?:O\s+objeto\s+do\s+presente\s+instrumento\s+é\s+a\s+)?([\s\S]+?)(?=\n\s*1\.1\.1|\n\s*1\.2|\n\s*CLÁUSULA)/i);
+  const objMatch = text.match(/CLÁUSULA\s+PRIMEIRA\s*–\s*OBJETO[\s\S]*?1\.1\.\s*(?:O\s+objeto\s+do\s+presente\s+instrumento\s+é\s+a\s+)?([\s\S]+?)(?=\n\s*1\.1\.1|\n\s*1\.2|\n\s*CLÁUSULA)/i);
   if (objMatch) {
-    objeto = objMatch[1].replace(/\s+/g, ' ').trim();
+    objeto = objMatch[1].replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   } else {
     camposPendentes.push('Objeto Contratual');
   }
@@ -164,39 +174,80 @@ export async function parseContratoPdf(buffer: Buffer): Promise<ContratoPdfExtra
 
   // 11. Extração dos Itens da Tabela (Cláusula 1.2)
   const itens: ItemContratoExtraido[] = [];
-  const startIdx = text.indexOf('1.2. \tObjeto da contratação:');
-  const endIdx = text.indexOf('CLÁUSULA SEGUNDA');
+  let normalizedText = text.replace(/Pau\s+dos[\r\n\t\s]+Ferros/gi, 'Pau dos Ferros');
+
+  const startIdx = normalizedText.indexOf('1.2. \tObjeto da contratação:') !== -1
+    ? normalizedText.indexOf('1.2. \tObjeto da contratação:')
+    : (normalizedText.indexOf('1.2. Objeto da contratação:') !== -1
+      ? normalizedText.indexOf('1.2. Objeto da contratação:')
+      : normalizedText.indexOf('1.2.'));
+
+  const endIdx = normalizedText.indexOf('CLÁUSULA SEGUNDA');
 
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    let itemsBlock = text.substring(startIdx, endIdx);
-    // Normaliza quebras de linha no nome da cidade (Pau dos\nFerros/RN)
-    itemsBlock = itemsBlock.replace(/Pau\s+dos[\r\n\t\s]+Ferros/gi, 'Pau dos Ferros');
-    // Insere delimitador único antes de cada item (1 a 50)
-    itemsBlock = itemsBlock.replace(/(\d+)\s*(?:[\r\n\t]+|\s+)(Assu|Caicó|Mossoró|Natal|Patu|Pau dos Ferros)\/RN/gi, '\nITEM_START_$1\t$2/RN\t');
+    const itemsBlock = normalizedText.substring(startIdx, endIdx);
+    const regex = /(\d+)\s+([A-Za-zÀ-ú\s]+)\/RN/g;
+    const matches: RegExpExecArray[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(itemsBlock)) !== null) {
+      matches.push(m);
+    }
 
-    const rawBlocks = itemsBlock.split('ITEM_START_').filter((b: string) => b.trim());
+    for (let i = 0; i < matches.length; i++) {
+      const cur = matches[i];
+      const num = parseInt(cur[1], 10);
+      const cidade = cur[2].replace(/\s+/g, ' ').trim() + '/RN';
+      const startPos = cur.index + cur[0].length;
+      const endPos = (i + 1 < matches.length) ? matches[i + 1].index : itemsBlock.length;
 
-    for (const b of rawBlocks) {
-      const firstTab = b.indexOf('\t');
-      if (firstTab === -1) continue;
-      const numStr = b.substring(0, firstTab).trim();
-      const num = parseInt(numStr, 10);
-      if (isNaN(num)) continue;
+      let chunk = itemsBlock.substring(startPos, endPos);
+      const totalIdx = chunk.indexOf('TOTAL -');
+      if (totalIdx !== -1) {
+        chunk = chunk.substring(0, totalIdx);
+      }
 
-      const remainder = b.substring(firstTab + 1);
-      const campMatch = remainder.match(/^(Assu\/RN|Caicó\/RN|Mossoró\/RN|Natal\/RN|Patu\/RN|Pau dos Ferros\/RN)/i);
-      if (!campMatch) continue;
+      const rValues: number[] = [];
+      const rRegex = /R\$\s*([\d\.,]+)/gi;
+      let rm;
+      while ((rm = rRegex.exec(chunk)) !== null) {
+        rValues.push(parseCurrency(rm[1]));
+      }
 
-      const cidade = campMatch[1];
-      const rawText = remainder.substring(cidade.length).trim();
+      const unitMatch = chunk.match(/(Posto|Unidade|Mês|Serviço|Item|Lote)\s*(\d+)/i);
+      const unidade = unitMatch ? unitMatch[1] : 'Posto';
+      const qtd = unitMatch ? parseInt(unitMatch[2], 10) : 1;
 
-      processItemBlock({ numeroItem: num, cidade, rawText }, itens);
+      let desc = chunk;
+      if (unitMatch) {
+        const uPos = chunk.indexOf(unitMatch[0]);
+        desc = chunk.substring(0, uPos);
+      }
+      desc = desc.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+      const vMensal = rValues[0] || 0;
+      const vAnual = rValues[1] || (vMensal * 12);
+      const vTotal = rValues[2] || (vAnual * qtd);
+
+      itens.push({
+        numeroItem: num,
+        cidade,
+        descricao: desc,
+        unidade,
+        quantidade: qtd,
+        valorUnitarioMensal: vMensal,
+        valorUnitarioAnual: vAnual,
+        valorTotalAnual: vTotal,
+      });
     }
   }
 
   if (itens.length === 0) {
     camposPendentes.push('Itens Contratuais (Necessário inclusão manual ou planilha)');
   }
+
+  const somaItens = itens.reduce((s, it) => s + it.valorTotalAnual, 0);
+  const totalPostos = itens.reduce((s, it) => s + it.quantidade, 0);
+  const conferenciaMatematica = valorGlobal > 0 && Math.abs(somaItens - valorGlobal) < 1.0;
 
   return {
     numeroContrato,
@@ -216,41 +267,10 @@ export async function parseContratoPdf(buffer: Buffer): Promise<ContratoPdfExtra
     valorGlobal,
     indiceReajusteSugerido,
     itens,
+    totalPostos,
+    somaItens,
+    conferenciaMatematica,
     camposPendentes,
     isRascunho: camposPendentes.length > 0,
   };
-}
-
-function processItemBlock(
-  item: { numeroItem: number; cidade: string; rawText: string },
-  itens: ItemContratoExtraido[]
-) {
-  const rMatches = item.rawText.match(/R\$\s*([\d\.,]+)/g) || [];
-  const unitMatch = item.rawText.match(/(Posto|Unidade|Mês|Serviço|Item|Lote)\s*(\d+)/i);
-  const qtd = unitMatch ? parseInt(unitMatch[2], 10) : 1;
-  const unidade = unitMatch ? unitMatch[1] : 'Posto';
-
-  let desc = item.rawText;
-  if (unitMatch) {
-    const uIdx = item.rawText.indexOf(unitMatch[0]);
-    desc = item.rawText.substring(0, uIdx).replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
-  } else {
-    // Remove R$ matches from description
-    desc = desc.replace(/R\$\s*[\d\.,]+/g, '').replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-
-  const vMensal = rMatches[0] ? parseCurrency(rMatches[0]) : 0;
-  const vAnual = rMatches[1] ? parseCurrency(rMatches[1]) : 0;
-  const vTotal = rMatches[2] ? parseCurrency(rMatches[2]) : (vAnual * qtd || vMensal * 12 * qtd);
-
-  itens.push({
-    numeroItem: item.numeroItem,
-    cidade: item.cidade,
-    descricao: desc,
-    unidade,
-    quantidade: qtd,
-    valorUnitarioMensal: vMensal,
-    valorUnitarioAnual: vAnual,
-    valorTotalAnual: vTotal,
-  });
 }

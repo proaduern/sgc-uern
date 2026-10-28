@@ -33,6 +33,7 @@ import {
   Clock,
   Calculator
 } from 'lucide-react';
+import UploadInteligenteContratoModal from '@/components/contratos/UploadInteligenteContratoModal';
 
 function parseBrazilianNumber(val: any): number {
   if (typeof val === 'number') return val;
@@ -55,6 +56,7 @@ function NovoContratoForm() {
   const [fornecedores, setFornecedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUploadPdfModal, setShowUploadPdfModal] = useState(false);
 
   // Fornecedor Selection / New
   const [isNovoFornecedor, setIsNovoFornecedor] = useState(false);
@@ -211,7 +213,18 @@ function NovoContratoForm() {
     }
     if (dados.tipoAgrupamento !== undefined) setTipoAgrupamento(dados.tipoAgrupamento || 'ITEM_INDIVIDUAL');
     if (dados.itens && Array.isArray(dados.itens) && dados.itens.length > 0) {
-      setItens(dados.itens);
+      setItens(dados.itens.map((it: any, idx: number) => ({
+        ...it,
+        numeroItem: it.numeroItem || (idx + 1),
+        quantidade: String(it.quantidade ?? '1'),
+        quantidadeAnual: String(it.quantidadeAnual ?? it.quantidade ?? '1'),
+        valorUnitario: String(it.valorUnitario ?? it.valorUnitarioAnual ?? '0'),
+        cidade: it.cidade || '',
+        unidade: it.unidade || 'Posto',
+        descricao: it.descricao || '',
+        categoriaItem: it.categoriaItem || (dados.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'DEMO' : 'NAO_DEMO'),
+        tipoReajuste: it.tipoReajuste || (dados.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE'),
+      })));
     }
   };
 
@@ -921,6 +934,15 @@ function NovoContratoForm() {
         </div>
 
         <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setShowUploadPdfModal(true)}
+            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 text-xs font-semibold rounded-xl transition-all flex items-center space-x-1.5 shadow-sm cursor-pointer"
+            title="Importar dados e 50 itens/postos diretamente a partir do PDF do Contrato"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-700" />
+            <span>Upload Inteligente (PDF)</span>
+          </button>
           <button
             type="button"
             onClick={handleSalvarRascunho}
@@ -2862,6 +2884,27 @@ function NovoContratoForm() {
           </div>
         </div>
       )}
+
+      {/* Modal de Upload Inteligente com Prévia Completa e Itens */}
+      <UploadInteligenteContratoModal
+        isOpen={showUploadPdfModal}
+        onClose={() => setShowUploadPdfModal(false)}
+        onSuccess={(id) => {
+          if (id) {
+            fetch(`/api/contratos/rascunhos/${id}`)
+              .then((res) => res.json())
+              .then((data) => {
+                if (data?.dados) {
+                  aplicarDadosRascunho(data.dados, data.id);
+                  setFeedbackRascunho(
+                    `Contrato e ${data.dados.itens?.length || 0} itens carregados da prévia do PDF com sucesso!`
+                  );
+                }
+              })
+              .catch(console.error);
+          }
+        }}
+      />
     </div>
   );
 }

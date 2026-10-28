@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const parsed = await parseContratoPdf(buffer);
 
     // Salva automaticamente o contrato como RASCUNHO no banco Neon
-    // O usuário e fiscal administrativo são notificados dos campos pendentes
+    // O usuário tem acesso à prévia detalhada com todos os 50 itens antes de homologar
     const rascunho = await prisma.contratoRascunho.create({
       data: {
         usuarioId: session.id,
@@ -52,9 +52,11 @@ export async function POST(request: NextRequest) {
           },
           vigenciaInicio: parsed.vigenciaInicio || '',
           vigenciaFim: parsed.vigenciaFim || '',
+          anosVigencia: Math.round((parsed.vigenciaMeses || 12) / 12) || 1,
           valorGlobal: String(parsed.valorGlobal || '0'),
           tipoVigencia: parsed.tipoVigencia || 'CONTINUADO',
           tipoContrato: parsed.tipoContrato || 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO',
+          regimeExecucao: parsed.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'DEDICACAO_EXCLUSIVA' : 'SEM_DEDICACAO_EXCLUSIVA',
           tipoEmpreitada: parsed.tipoEmpreitada || 'PRECO_UNITARIO',
           tipoMedicao: 'MENSAL',
           tipoAgrupamento: 'ITEM_INDIVIDUAL',
@@ -62,14 +64,17 @@ export async function POST(request: NextRequest) {
           indiceCct: parsed.indiceReajusteSugerido === 'CONVENCAO_COLETIVA',
           itens: parsed.itens.map((it, idx) => ({
             numeroItem: it.numeroItem || (idx + 1),
-            descricao: it.cidade ? `[${it.cidade}] ${it.descricao}` : it.descricao,
+            descricao: it.descricao,
             cidade: it.cidade || '',
             unidade: it.unidade || 'Posto',
-            quantidade: it.quantidade || 1,
-            valorUnitario: it.valorUnitarioAnual > 0 ? it.valorUnitarioAnual : (it.valorUnitarioMensal || 0),
+            quantidade: String(it.quantidade || 1),
+            quantidadeAnual: String(it.quantidade || 1),
+            valorUnitario: String(it.valorUnitarioAnual > 0 ? it.valorUnitarioAnual : (it.valorUnitarioMensal || 0)),
             valorUnitarioMensal: it.valorUnitarioMensal || 0,
             valorUnitarioAnual: it.valorUnitarioAnual || 0,
             valorTotalAnual: it.valorTotalAnual || 0,
+            tipoReajuste: parsed.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'REPACTUACAO_CCT' : 'REAJUSTE_INDICE',
+            categoriaItem: parsed.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' ? 'DEMO' : 'NAO_DEMO',
           })),
           camposPendentes: parsed.camposPendentes,
           origemPdf: file.name,
@@ -80,6 +85,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       rascunhoId: rascunho.id,
+      parsed: {
+        numeroContrato: parsed.numeroContrato,
+        processoSeiMae: parsed.processoSeiMae,
+        licitacaoProcedimento: parsed.licitacaoProcedimento,
+        razaoSocial: parsed.razaoSocial,
+        cnpj: parsed.cnpj,
+        endereco: parsed.endereco,
+        nomeRepresentanteLegal: parsed.nomeRepresentanteLegal,
+        objeto: parsed.objeto,
+        tipoContrato: parsed.tipoContrato,
+        tipoVigencia: parsed.tipoVigencia,
+        tipoEmpreitada: parsed.tipoEmpreitada,
+        vigenciaMeses: parsed.vigenciaMeses,
+        vigenciaInicio: parsed.vigenciaInicio,
+        vigenciaFim: parsed.vigenciaFim,
+        valorGlobal: parsed.valorGlobal,
+        indiceReajusteSugerido: parsed.indiceReajusteSugerido,
+        itens: parsed.itens,
+        totalPostos: parsed.totalPostos,
+        somaItens: parsed.somaItens,
+        conferenciaMatematica: parsed.conferenciaMatematica,
+        camposPendentes: parsed.camposPendentes,
+        isRascunho: parsed.isRascunho,
+      },
       numeroContrato: parsed.numeroContrato,
       processoSei: parsed.processoSeiMae,
       fornecedor: parsed.razaoSocial,
@@ -88,7 +117,7 @@ export async function POST(request: NextRequest) {
       camposPendentes: parsed.camposPendentes,
       isRascunho: parsed.isRascunho,
       mensagem: parsed.isRascunho
-        ? `Contrato nº ${parsed.numeroContrato || 'sem número'} extraído com sucesso! Foram extraídos ${parsed.itens.length} itens contratuais. Como há ${parsed.camposPendentes.length} pendências para homologação definitiva, o contrato foi salvo como rascunho.`
+        ? `Contrato nº ${parsed.numeroContrato || 'sem número'} extraído com sucesso! Foram extraídos ${parsed.itens.length} itens contratuais (${parsed.totalPostos} postos de trabalho). Como há ${parsed.camposPendentes.length} pendências para homologação definitiva, o contrato foi salvo como rascunho.`
         : `Contrato nº ${parsed.numeroContrato} e seus ${parsed.itens.length} itens foram extraídos integralmente com sucesso!`,
     });
   } catch (error: any) {

@@ -1,74 +1,88 @@
 /**
  * Utilitário universal para extração de texto de PDFs no Node.js e Vercel Serverless.
- * Prioriza pdf-parse (rápido, nativo, sem dependência de DOM / workers do navegador),
- * com fallback para pdfjs-dist legado.
+ * Injeta polyfills essenciais (DOMMatrix, Path2D, ImageData) imediatamente no escopo global
+ * de Node.js e globalThis para que nem pdf-parse nem pdfjs-dist falhem ao instanciar matrizes.
  */
 
-function ensurePolyfills() {
-  if (typeof globalThis.DOMMatrix === 'undefined') {
-    (globalThis as any).DOMMatrix = class DOMMatrix {
-      a = 1;
-      b = 0;
-      c = 0;
-      d = 1;
-      e = 0;
-      f = 0;
-      m11 = 1;
-      m12 = 0;
-      m21 = 0;
-      m22 = 1;
-      m41 = 0;
-      m42 = 0;
+class PolyfillDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  m11 = 1;
+  m12 = 0;
+  m21 = 0;
+  m22 = 1;
+  m41 = 0;
+  m42 = 0;
 
-      constructor(init?: any) {
-        if (Array.isArray(init)) {
-          this.a = init[0] ?? 1;
-          this.b = init[1] ?? 0;
-          this.c = init[2] ?? 0;
-          this.d = init[3] ?? 1;
-          this.e = init[4] ?? 0;
-          this.f = init[5] ?? 0;
-        }
-      }
-
-      multiply() {
-        return this;
-      }
-      preMultiplySelf() {
-        return this;
-      }
-      multiplySelf() {
-        return this;
-      }
-      invertSelf() {
-        return this;
-      }
-      translate() {
-        return this;
-      }
-      scale() {
-        return this;
-      }
-    };
+  constructor(init?: any) {
+    if (Array.isArray(init)) {
+      this.a = init[0] ?? 1;
+      this.b = init[1] ?? 0;
+      this.c = init[2] ?? 0;
+      this.d = init[3] ?? 1;
+      this.e = init[4] ?? 0;
+      this.f = init[5] ?? 0;
+    }
   }
 
-  if (typeof (globalThis as any).Path2D === 'undefined') {
-    (globalThis as any).Path2D = class Path2D {
-      addPath() {}
-    };
+  multiply() {
+    return this;
   }
-
-  if (typeof (globalThis as any).ImageData === 'undefined') {
-    (globalThis as any).ImageData = class ImageData {
-      data = new Uint8ClampedArray(0);
-      width = 0;
-      height = 0;
-    };
+  preMultiplySelf() {
+    return this;
+  }
+  multiplySelf() {
+    return this;
+  }
+  invertSelf() {
+    return this;
+  }
+  translate() {
+    return this;
+  }
+  scale() {
+    return this;
   }
 }
 
+class PolyfillPath2D {
+  addPath() {}
+}
+
+class PolyfillImageData {
+  data = new Uint8ClampedArray(0);
+  width = 0;
+  height = 0;
+}
+
+// Injeção IMEDIATA no módulo global de Node.js e globalThis no momento do carregamento
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = PolyfillDOMMatrix;
+}
+if (typeof (global as any).DOMMatrix === 'undefined') {
+  (global as any).DOMMatrix = PolyfillDOMMatrix;
+}
+
+if (typeof (globalThis as any).Path2D === 'undefined') {
+  (globalThis as any).Path2D = PolyfillPath2D;
+}
+if (typeof (global as any).Path2D === 'undefined') {
+  (global as any).Path2D = PolyfillPath2D;
+}
+
+if (typeof (globalThis as any).ImageData === 'undefined') {
+  (globalThis as any).ImageData = PolyfillImageData;
+}
+if (typeof (global as any).ImageData === 'undefined') {
+  (global as any).ImageData = PolyfillImageData;
+}
+
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // 1. Tenta extração via pdf-parse (v2 ou v1)
+  // 1. Tenta extração via pdf-parse
   try {
     const pdfParseMod = await import('pdf-parse');
     const PDFParseClass = (pdfParseMod as any).PDFParse || (pdfParseMod as any).default?.PDFParse;
@@ -89,8 +103,6 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   }
 
   // 2. Fallback via pdfjs-dist legado
-  ensurePolyfills();
-
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
   try {

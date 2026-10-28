@@ -151,18 +151,18 @@ export default function ContratosPage() {
         'Contrato / Empenho': c.empenhoSubstituiContrato ? `Empenho: ${c.numeroEmpenho}` : (c.numeroContrato || c.numeroEmpenho || 'S/N'),
         'Objeto': c.objeto,
         'Processo SEI Mãe': c.processoSeiMae,
-        'Contratada': c.fornecedor.razaoSocial,
-        'CNPJ': c.fornecedor.cnpj,
-        'E-mail': c.fornecedor.email,
-        'Preposto': c.fornecedor.nomePreposto || '-',
-        'Telefone': c.fornecedor.telefone || '-',
+        'Contratada': c.fornecedor?.razaoSocial || '-',
+        'CNPJ': c.fornecedor?.cnpj || '-',
+        'E-mail': c.fornecedor?.email || '-',
+        'Preposto': c.fornecedor?.nomePreposto || '-',
+        'Telefone': c.fornecedor?.telefone || '-',
         'Gestor': gestor,
         'Suplente': suplente,
         'Fiscal Adm': fiscalAdm,
         'Fiscal Técnico': fiscalTec,
         'Fiscal Setorial': fiscalSetorial,
-        'Início Vigência': new Date(c.vigenciaInicio).toLocaleDateString('pt-BR'),
-        'Fim Vigência': new Date(c.vigenciaFim).toLocaleDateString('pt-BR'),
+        'Início Vigência': c.vigenciaInicio ? new Date(c.vigenciaInicio).toLocaleDateString('pt-BR') : '-',
+        'Fim Vigência': c.vigenciaFim ? new Date(c.vigenciaFim).toLocaleDateString('pt-BR') : '-',
         'Valor Global (R$)': c.valorGlobal,
         'Valor Atualizado (R$)': c.valorAtualizado,
         'Tipo Vigência': c.tipoVigencia,
@@ -293,7 +293,9 @@ export default function ContratosPage() {
                       {r.tituloIdentificador || 'Rascunho de Contrato'}
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      {new Date(r.updatedAt).toLocaleDateString('pt-BR')} {new Date(r.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      {r.updatedAt
+                        ? `${new Date(r.updatedAt).toLocaleDateString('pt-BR')} ${new Date(r.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                        : ''}
                     </span>
                   </div>
                   {r.objeto && (
@@ -440,13 +442,13 @@ export default function ContratosPage() {
 
                       {/* Contratada */}
                       <td className="py-3 px-4 max-w-xs">
-                        <div className="font-semibold text-slate-800 truncate" title={c.fornecedor.razaoSocial}>
-                          {c.fornecedor.razaoSocial}
+                        <div className="font-semibold text-slate-800 truncate" title={c.fornecedor?.razaoSocial || 'Fornecedor Pendente'}>
+                          {c.fornecedor?.razaoSocial || 'Fornecedor Pendente'}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          CNPJ: {c.fornecedor.cnpj}
+                          CNPJ: {c.fornecedor?.cnpj || '-'}
                         </div>
-                        {c.fornecedor.nomePreposto && (
+                        {c.fornecedor?.nomePreposto && (
                           <div className="text-[10px] text-slate-500 truncate">
                             Preposto: {c.fornecedor.nomePreposto}
                           </div>
@@ -456,25 +458,27 @@ export default function ContratosPage() {
                       {/* Vigência & Duração */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="text-xs text-slate-700">
-                          {new Date(c.vigenciaInicio).toLocaleDateString('pt-BR')} a{' '}
+                          {c.vigenciaInicio ? new Date(c.vigenciaInicio).toLocaleDateString('pt-BR') : '-'} a{' '}
                           <span className="font-bold text-slate-800">
-                            {new Date(c.vigenciaFim).toLocaleDateString('pt-BR')}
+                            {c.vigenciaFim ? new Date(c.vigenciaFim).toLocaleDateString('pt-BR') : '-'}
                           </span>
                         </div>
-                        <div className="text-[10px] text-blue-600 font-semibold mt-0.5">
-                          {calcularTempoTotal(c.vigenciaInicio, c.vigenciaFim)}
-                        </div>
+                        {c.vigenciaInicio && c.vigenciaFim && (
+                          <div className="text-[10px] text-blue-600 font-semibold mt-0.5">
+                            {calcularTempoTotal(c.vigenciaInicio, c.vigenciaFim)}
+                          </div>
+                        )}
                         <div className="text-[9px] text-slate-400" title={obterLimiteLegalTexto(c.tipoVigencia)}>
-                          {c.tipoVigencia.replace('_', ' ')}
+                          {(c.tipoVigencia || '').replace('_', ' ')}
                         </div>
                       </td>
 
                       {/* Valor Global */}
                       <td className="py-3 px-4 whitespace-nowrap font-semibold text-slate-800">
-                        {c.valorGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        {c.valorAtualizado !== c.valorGlobal && (
+                        {Number(c.valorGlobal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {c.valorAtualizado && c.valorAtualizado !== c.valorGlobal && (
                           <div className="text-[10px] text-emerald-600">
-                            Atualizado: {c.valorAtualizado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            Atualizado: {Number(c.valorAtualizado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                           </div>
                         )}
                       </td>

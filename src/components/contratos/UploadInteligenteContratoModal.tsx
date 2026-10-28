@@ -48,8 +48,6 @@ export default function UploadInteligenteContratoModal({
   // Filtro de Campus na tabela de itens
   const [campusFiltro, setCampusFiltro] = useState<string>('TODOS');
 
-  if (!isOpen) return null;
-
   // Manipulador de início de vigência com preenchimento automático de +12 meses
   const handleVigenciaInicioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -188,6 +186,8 @@ export default function UploadInteligenteContratoModal({
     onClose();
     router.push(`/contratos/novo?rascunhoId=${resultado.rascunhoId}`);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">

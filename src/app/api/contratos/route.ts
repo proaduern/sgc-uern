@@ -175,6 +175,17 @@ export async function POST(request: NextRequest) {
       indices, // Array<{ tipoIndice, nomeIndiceSetorial?, justificativaSetorial? }>
       convencoes, // Array<{ nomeConvencao, sindicatoLaboral?, sindicatoPatronal?, numeroRegistroMte?, dataBase?, vigenciaInicio?, vigenciaFim? }>
       itens, // Array<{ numeroItem, descricao, tipoGrupo, unidade, quantidade, valorUnitario, categoriaItem?, quantidadeAnual?, cctVinculada? }>
+      // Alíquotas e Parâmetros de Conta Vinculada (IN nº 02/2024 SEAD/RN)
+      retencaoContaVinculadaAtiva,
+      nivelContaVinculada,
+      percentualDecimoTerceiro,
+      percentualFerias,
+      percentualTercoConstitucional,
+      percentualMultaFgts,
+      percentualEncargosSubmodulo,
+      percentualTotalRetencao,
+      normativoContaVinculadaRef,
+      justificativaAlteracaoAliquota,
     } = body;
 
     // Validações Essenciais
@@ -278,6 +289,35 @@ export async function POST(request: NextRequest) {
           tipoMedicao: tipoMedicao || 'MENSAL',
           dataOrcamentoEstimado: dOrcamento,
           fornecedorId: finalFornecedorId,
+          // Conta Vinculada
+          retencaoContaVinculadaAtiva: retencaoContaVinculadaAtiva !== undefined 
+            ? !!retencaoContaVinculadaAtiva 
+            : (tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' || regimeExecucao === 'DEDICACAO_EXCLUSIVA'),
+          nivelContaVinculada: nivelContaVinculada || 'NIVEL_1_LEVE_31_54',
+          percentualDecimoTerceiro: percentualDecimoTerceiro !== undefined ? parseFloat(percentualDecimoTerceiro) : 8.33,
+          percentualFerias: percentualFerias !== undefined ? parseFloat(percentualFerias) : 8.33,
+          percentualTercoConstitucional: percentualTercoConstitucional !== undefined ? parseFloat(percentualTercoConstitucional) : 2.78,
+          percentualMultaFgts: percentualMultaFgts !== undefined ? parseFloat(percentualMultaFgts) : 4.00,
+          percentualEncargosSubmodulo: percentualEncargosSubmodulo !== undefined ? parseFloat(percentualEncargosSubmodulo) : 8.10,
+          percentualTotalRetencao: percentualTotalRetencao !== undefined ? parseFloat(percentualTotalRetencao) : 31.54,
+          normativoContaVinculadaRef: normativoContaVinculadaRef || 'Instrução Normativa-SEI nº 2, de 02 de julho de 2024 - SEAD/RN (Anexo I)',
+          justificativaAlteracaoAliquota: justificativaAlteracaoAliquota || null,
+          historicoAliquotasJson: [
+            {
+              data: new Date().toISOString(),
+              usuario: session.nome || session.email || 'Usuário PROAD',
+              motivo: justificativaAlteracaoAliquota || 'Definição de alíquotas no cadastro do contrato',
+              aliquotas: {
+                nivel: nivelContaVinculada || 'NIVEL_1_LEVE_31_54',
+                decimoTerceiro: percentualDecimoTerceiro !== undefined ? parseFloat(percentualDecimoTerceiro) : 8.33,
+                ferias: percentualFerias !== undefined ? parseFloat(percentualFerias) : 8.33,
+                tercoConstitucional: percentualTercoConstitucional !== undefined ? parseFloat(percentualTercoConstitucional) : 2.78,
+                multaFgts: percentualMultaFgts !== undefined ? parseFloat(percentualMultaFgts) : 4.00,
+                encargosSubmodulo: percentualEncargosSubmodulo !== undefined ? parseFloat(percentualEncargosSubmodulo) : 8.10,
+                total: percentualTotalRetencao !== undefined ? parseFloat(percentualTotalRetencao) : 31.54,
+              }
+            }
+          ] as any,
         },
       });
 

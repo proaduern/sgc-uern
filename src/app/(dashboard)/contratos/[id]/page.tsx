@@ -29,6 +29,8 @@ import {
   ArrowRight,
   Sparkles,
   Building,
+  Landmark,
+  History,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
@@ -601,6 +603,140 @@ export default function DetalhesContratoPage() {
           </div>
         )}
       </div>
+
+      {/* Retenção de Provisões Trabalhistas - Conta Vinculada */}
+      {(contrato.retencaoContaVinculadaAtiva || contrato.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' || contrato.regimeExecucao === 'DEDICACAO_EXCLUSIVA') && (
+        <div className="bg-white rounded-2xl p-6 border border-emerald-200/90 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-100 pb-3">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 bg-emerald-100/80 text-emerald-800 rounded-xl">
+                <Landmark className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Conta-Depósito Vinculada - Alíquotas e Provisões Trabalhistas
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    {contrato.nivelContaVinculada === 'NIVEL_1_LEVE_31_54'
+                      ? 'Nível 1 (Risco Leve - SAT 1%)'
+                      : contrato.nivelContaVinculada === 'NIVEL_2_MEDIO_31_77'
+                      ? 'Nível 2 (Risco Médio - SAT 2%)'
+                      : contrato.nivelContaVinculada === 'NIVEL_3_GRAVE_32_00'
+                      ? 'Nível 3 (Risco Grave - SAT 3%)'
+                      : 'Alíquotas Personalizadas'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {contrato.normativoContaVinculadaRef || 'Instrução Normativa-SEI nº 2, de 02 de julho de 2024 - SEAD/RN'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Link
+                href={`/conta-vinculada?contratoId=${contrato.id}`}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                <span>Extrato & Movimentações</span>
+              </Link>
+              <Link
+                href={`/contratos/${contrato.id}/editar`}
+                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editar Alíquotas</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Cards com as Alíquotas Individuais */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block">13º Salário</span>
+              <span className="text-base font-black text-slate-800">
+                {(contrato.percentualDecimoTerceiro ?? 8.33).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Art. 5º, I</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block">Férias</span>
+              <span className="text-base font-black text-slate-800">
+                {(contrato.percentualFerias ?? 8.33).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Art. 5º, II</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block">1/3 Constitucional</span>
+              <span className="text-base font-black text-slate-800">
+                {(contrato.percentualTercoConstitucional ?? 2.78).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Art. 5º, II</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block">Multa FGTS / Rescisão</span>
+              <span className="text-base font-black text-slate-800">
+                {(contrato.percentualMultaFgts ?? 4.00).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Art. 5º, III</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block">Encargos s/ Provisões</span>
+              <span className="text-base font-black text-slate-800">
+                {(contrato.percentualEncargosSubmodulo ?? 8.10).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">RAT x FAP (Grupo A)</span>
+            </div>
+
+            <div className="p-3 bg-emerald-50 rounded-xl border-2 border-emerald-300 flex flex-col justify-between">
+              <span className="text-[10px] text-emerald-950 font-black uppercase block">Retenção Total</span>
+              <span className="text-lg font-black text-emerald-900">
+                {(contrato.percentualTotalRetencao ?? 31.54).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-emerald-800 font-semibold block mt-0.5">Retido na fatura</span>
+            </div>
+          </div>
+
+          {contrato.justificativaAlteracaoAliquota && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700">
+              <span className="font-bold text-slate-900">Enquadramento / Justificativa Legal: </span>
+              <span>{contrato.justificativaAlteracaoAliquota}</span>
+            </div>
+          )}
+
+          {/* Histórico de alterações se houver */}
+          {Array.isArray(contrato.historicoAliquotasJson) && contrato.historicoAliquotasJson.length > 0 && (
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 mb-2">
+                <History className="w-3.5 h-3.5 text-slate-500" />
+                <span>Histórico de Atualizações de Alíquotas ({contrato.historicoAliquotasJson.length} registros)</span>
+              </div>
+              <div className="space-y-1.5">
+                {contrato.historicoAliquotasJson.slice().reverse().map((h: any, idx: number) => (
+                  <div key={idx} className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px] flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                    <div>
+                      <strong className="text-slate-800">{h.usuario || 'Usuário PROAD'}</strong>: {h.motivo || 'Parametrização inicial'}
+                      {h.aliquotas?.total && (
+                        <span className="ml-1 text-emerald-800 font-bold">
+                          • Alíquota Efetiva: {h.aliquotas.total}%
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {h.data ? new Date(h.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Relação de Itens Contratados */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">

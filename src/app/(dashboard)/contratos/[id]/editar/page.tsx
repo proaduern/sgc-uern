@@ -33,7 +33,10 @@ import {
   Phone,
   Mail,
   User,
-  Edit3
+  Edit3,
+  Landmark,
+  ShieldCheck,
+  History
 } from 'lucide-react';
 
 function parseBrazilianNumber(val: any): number {
@@ -108,6 +111,54 @@ export default function EditarContratoPage() {
   const [justificativaSetorial, setJustificativaSetorial] = useState('');
   const [indiceCct, setIndiceCct] = useState(false);
   const [dataOrcamentoEstimado, setDataOrcamentoEstimado] = useState('');
+
+  // Conta Vinculada & Alíquotas de Retenção (IN nº 02/2024 SEAD/RN)
+  const [retencaoContaVinculadaAtiva, setRetencaoContaVinculadaAtiva] = useState(false);
+  const [nivelContaVinculada, setNivelContaVinculada] = useState<'NIVEL_1_LEVE_31_54' | 'NIVEL_2_MEDIO_31_77' | 'NIVEL_3_GRAVE_32_00' | 'PERSONALIZADO'>('NIVEL_1_LEVE_31_54');
+  const [percentualDecimoTerceiro, setPercentualDecimoTerceiro] = useState('8.33');
+  const [percentualFerias, setPercentualFerias] = useState('8.33');
+  const [percentualTercoConstitucional, setPercentualTercoConstitucional] = useState('2.78');
+  const [percentualMultaFgts, setPercentualMultaFgts] = useState('4.00');
+  const [percentualEncargosSubmodulo, setPercentualEncargosSubmodulo] = useState('8.10');
+  const [normativoContaVinculadaRef, setNormativoContaVinculadaRef] = useState('Instrução Normativa-SEI nº 2, de 02 de julho de 2024 - SEAD/RN (Anexo I)');
+  const [justificativaAlteracaoAliquota, setJustificativaAlteracaoAliquota] = useState('');
+  const [historicoAliquotas, setHistoricoAliquotas] = useState<any[]>([]);
+
+  // Total calculado dinamicamente
+  const percentualTotalRetencao = useMemo(() => {
+    const p1 = parseFloat(percentualDecimoTerceiro) || 0;
+    const p2 = parseFloat(percentualFerias) || 0;
+    const p3 = parseFloat(percentualTercoConstitucional) || 0;
+    const p4 = parseFloat(percentualMultaFgts) || 0;
+    const p5 = parseFloat(percentualEncargosSubmodulo) || 0;
+    return Number((p1 + p2 + p3 + p4 + p5).toFixed(2));
+  }, [percentualDecimoTerceiro, percentualFerias, percentualTercoConstitucional, percentualMultaFgts, percentualEncargosSubmodulo]);
+
+  const aplicarNivelContaVinculada = (nivel: 'NIVEL_1_LEVE_31_54' | 'NIVEL_2_MEDIO_31_77' | 'NIVEL_3_GRAVE_32_00' | 'PERSONALIZADO') => {
+    setNivelContaVinculada(nivel);
+    if (nivel === 'NIVEL_1_LEVE_31_54') {
+      setPercentualDecimoTerceiro('8.33');
+      setPercentualFerias('8.33');
+      setPercentualTercoConstitucional('2.78');
+      setPercentualMultaFgts('4.00');
+      setPercentualEncargosSubmodulo('8.10');
+      setNormativoContaVinculadaRef('Instrução Normativa-SEI nº 2/2024 - SEAD/RN (Anexo I - Nível 1: SAT 1%)');
+    } else if (nivel === 'NIVEL_2_MEDIO_31_77') {
+      setPercentualDecimoTerceiro('8.33');
+      setPercentualFerias('8.33');
+      setPercentualTercoConstitucional('2.78');
+      setPercentualMultaFgts('4.00');
+      setPercentualEncargosSubmodulo('8.33');
+      setNormativoContaVinculadaRef('Instrução Normativa-SEI nº 2/2024 - SEAD/RN (Anexo I - Nível 2: SAT 2%)');
+    } else if (nivel === 'NIVEL_3_GRAVE_32_00') {
+      setPercentualDecimoTerceiro('8.33');
+      setPercentualFerias('8.33');
+      setPercentualTercoConstitucional('2.78');
+      setPercentualMultaFgts('4.00');
+      setPercentualEncargosSubmodulo('8.56');
+      setNormativoContaVinculadaRef('Instrução Normativa-SEI nº 2/2024 - SEAD/RN (Anexo I - Nível 3: SAT 3%)');
+    }
+  };
 
   // Módulo 2 - Itens
   const [tipoAgrupamento, setTipoAgrupamento] = useState('ITEM_INDIVIDUAL');
@@ -222,6 +273,34 @@ export default function EditarContratoPage() {
               setNomeIndiceSetorial(setorial.nomeIndiceSetorial || '');
               setJustificativaSetorial(setorial.justificativaSetorial || '');
             }
+          }
+
+          // Parâmetros de Conta Vinculada (IN 02/2024 SEAD/RN)
+          setRetencaoContaVinculadaAtiva(!!c.retencaoContaVinculadaAtiva);
+          setNivelContaVinculada(c.nivelContaVinculada || 'NIVEL_1_LEVE_31_54');
+          if (c.percentualDecimoTerceiro !== null && c.percentualDecimoTerceiro !== undefined) {
+            setPercentualDecimoTerceiro(String(c.percentualDecimoTerceiro));
+          }
+          if (c.percentualFerias !== null && c.percentualFerias !== undefined) {
+            setPercentualFerias(String(c.percentualFerias));
+          }
+          if (c.percentualTercoConstitucional !== null && c.percentualTercoConstitucional !== undefined) {
+            setPercentualTercoConstitucional(String(c.percentualTercoConstitucional));
+          }
+          if (c.percentualMultaFgts !== null && c.percentualMultaFgts !== undefined) {
+            setPercentualMultaFgts(String(c.percentualMultaFgts));
+          }
+          if (c.percentualEncargosSubmodulo !== null && c.percentualEncargosSubmodulo !== undefined) {
+            setPercentualEncargosSubmodulo(String(c.percentualEncargosSubmodulo));
+          }
+          if (c.normativoContaVinculadaRef) {
+            setNormativoContaVinculadaRef(c.normativoContaVinculadaRef);
+          }
+          if (c.justificativaAlteracaoAliquota) {
+            setJustificativaAlteracaoAliquota(c.justificativaAlteracaoAliquota);
+          }
+          if (c.historicoAliquotasJson && Array.isArray(c.historicoAliquotasJson)) {
+            setHistoricoAliquotas(c.historicoAliquotasJson);
           }
 
           // Itens
@@ -610,6 +689,17 @@ export default function EditarContratoPage() {
         dataOrcamentoEstimado: dataOrcamentoEstimado || null,
         fornecedorId,
         indices: listaIndices,
+        // Parâmetros de Conta Vinculada (IN 02/2024 SEAD/RN)
+        retencaoContaVinculadaAtiva,
+        nivelContaVinculada,
+        percentualDecimoTerceiro: parseFloat(percentualDecimoTerceiro) || 8.33,
+        percentualFerias: parseFloat(percentualFerias) || 8.33,
+        percentualTercoConstitucional: parseFloat(percentualTercoConstitucional) || 2.78,
+        percentualMultaFgts: parseFloat(percentualMultaFgts) || 4.00,
+        percentualEncargosSubmodulo: parseFloat(percentualEncargosSubmodulo) || 8.10,
+        percentualTotalRetencao: percentualTotalRetencao,
+        normativoContaVinculadaRef,
+        justificativaAlteracaoAliquota: justificativaAlteracaoAliquota || null,
         itens: itens.map((it) => {
           const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
             ? true
@@ -1360,6 +1450,309 @@ export default function EditarContratoPage() {
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none"
                 />
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* SEÇÃO 4.1: RETENÇÃO DE CONTA VINCULADA (IN nº 02/2024 SEAD/RN) */}
+        <div className="bg-white rounded-2xl p-6 border border-emerald-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 bg-emerald-100/80 text-emerald-800 rounded-xl">
+                <Landmark className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    4.1. Provisões Trabalhistas - Conta-Depósito Vinculada
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    IN nº 02/2024 SEAD/RN
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Retenção mensal obrigatória em contratos de mão de obra exclusiva para provisionamento de encargos e verbas rescisórias
+                </p>
+              </div>
+            </div>
+
+            <label className="flex items-center space-x-2 text-xs font-bold text-emerald-950 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={retencaoContaVinculadaAtiva}
+                onChange={(e) => setRetencaoContaVinculadaAtiva(e.target.checked)}
+                className="rounded text-emerald-700 focus:ring-emerald-600 h-4 w-4"
+              />
+              <span>Ativar Retenção de Conta Vinculada</span>
+            </label>
+          </div>
+
+          {retencaoContaVinculadaAtiva && (
+            <div className="space-y-4">
+              {/* Seletor de Níveis / Presets da IN 2/2024 */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Selecione o Grau de Risco / Alíquota Legal de Referência:</span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 italic">
+                    Conforme Grau de Risco SAT/GIIL-RAT x FAP (Anexo I)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => aplicarNivelContaVinculada('NIVEL_1_LEVE_31_54')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      nivelContaVinculada === 'NIVEL_1_LEVE_31_54'
+                        ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-200 text-emerald-950 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Nível 1 (Risco Leve)</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-200/70 text-emerald-900 rounded font-black text-[11px]">
+                        31,54%
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      SAT 1% • Subtotal 23,44% + Encargos 8,10%
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => aplicarNivelContaVinculada('NIVEL_2_MEDIO_31_77')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      nivelContaVinculada === 'NIVEL_2_MEDIO_31_77'
+                        ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-200 text-emerald-950 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Nível 2 (Risco Médio)</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-200/70 text-emerald-900 rounded font-black text-[11px]">
+                        31,77%
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      SAT 2% • Subtotal 23,44% + Encargos 8,33%
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => aplicarNivelContaVinculada('NIVEL_3_GRAVE_32_00')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      nivelContaVinculada === 'NIVEL_3_GRAVE_32_00'
+                        ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-200 text-emerald-950 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Nível 3 (Risco Grave)</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-200/70 text-emerald-900 rounded font-black text-[11px]">
+                        32,00%
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      SAT 3% • Subtotal 23,44% + Encargos 8,56%
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNivelContaVinculada('PERSONALIZADO')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      nivelContaVinculada === 'PERSONALIZADO'
+                        ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-200 text-amber-950 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Personalizado / Outras</span>
+                      <span className="px-1.5 py-0.5 bg-amber-200/70 text-amber-900 rounded font-black text-[11px]">
+                        {percentualTotalRetencao.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      Edição livre de rubricas ou legislação superveniente
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Rubricas Detalhadas Editáveis */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                    13º Salário (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={percentualDecimoTerceiro}
+                      onChange={(e) => {
+                        setPercentualDecimoTerceiro(e.target.value);
+                        setNivelContaVinculada('PERSONALIZADO');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-600"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Padrão: 8,33%</span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                    Férias (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={percentualFerias}
+                      onChange={(e) => {
+                        setPercentualFerias(e.target.value);
+                        setNivelContaVinculada('PERSONALIZADO');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-600"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Padrão: 8,33%</span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                    1/3 Constitucional (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={percentualTercoConstitucional}
+                      onChange={(e) => {
+                        setPercentualTercoConstitucional(e.target.value);
+                        setNivelContaVinculada('PERSONALIZADO');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-600"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Padrão: 2,78%</span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                    Multa FGTS / Rescisão (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={percentualMultaFgts}
+                      onChange={(e) => {
+                        setPercentualMultaFgts(e.target.value);
+                        setNivelContaVinculada('PERSONALIZADO');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-600"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Padrão: 4,00%</span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                    Encargos / RAT x FAP (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={percentualEncargosSubmodulo}
+                      onChange={(e) => {
+                        setPercentualEncargosSubmodulo(e.target.value);
+                        setNivelContaVinculada('PERSONALIZADO');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-600"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Nível 1=8,10% | 2=8,33% | 3=8,56%</span>
+                </div>
+
+                <div className="bg-emerald-500/10 border-2 border-emerald-500/30 p-2.5 rounded-xl flex flex-col justify-between">
+                  <span className="text-[10px] font-black uppercase text-emerald-950">
+                    Total a Reter em Fatura
+                  </span>
+                  <div className="text-xl font-black text-emerald-900 tracking-tight">
+                    {percentualTotalRetencao.toFixed(2)}%
+                  </div>
+                  <span className="text-[10px] text-emerald-800 font-semibold">
+                    Subtotal provisões: {( (parseFloat(percentualDecimoTerceiro)||0) + (parseFloat(percentualFerias)||0) + (parseFloat(percentualTercoConstitucional)||0) + (parseFloat(percentualMultaFgts)||0) ).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Fundamentação Normativa & Justificativa para Auditoria */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Normativo Legal de Referência:
+                  </label>
+                  <input
+                    type="text"
+                    value={normativoContaVinculadaRef}
+                    onChange={(e) => setNormativoContaVinculadaRef(e.target.value)}
+                    placeholder="Ex: Instrução Normativa-SEI nº 2, de 02 de julho de 2024 - SEAD/RN"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Justificativa / Enquadramento Legal da Alteração:
+                  </label>
+                  <input
+                    type="text"
+                    value={justificativaAlteracaoAliquota}
+                    onChange={(e) => setJustificativaAlteracaoAliquota(e.target.value)}
+                    placeholder="Ex: Alteração decorrente de novo decreto estadual ou enquadramento FAP 2026"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Histórico e Auditoria de Alterações de Alíquotas */}
+              {historicoAliquotas && historicoAliquotas.length > 0 && (
+                <div className="mt-3 bg-slate-50/80 border border-slate-200 rounded-xl p-3">
+                  <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 mb-2">
+                    <History className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Histórico de Parametrizações de Alíquotas ({historicoAliquotas.length} registros)</span>
+                  </div>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {historicoAliquotas.slice().reverse().map((h: any, idx: number) => (
+                      <div key={idx} className="bg-white p-2 rounded-lg border border-slate-100 text-[11px] flex flex-col sm:flex-row justify-between sm:items-center gap-1 shadow-2xs">
+                        <div>
+                          <span className="font-bold text-slate-800">{h.usuario || 'Usuário PROAD'}</span>: {h.motivo || 'Ajuste de alíquotas'}
+                          {h.aliquotas?.total && (
+                            <span className="ml-1 text-emerald-800 font-bold">
+                              (Alíquota Total: {h.aliquotas.total}%)
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {h.data ? new Date(h.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

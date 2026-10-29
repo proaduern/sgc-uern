@@ -175,6 +175,17 @@ export async function PUT(
       fornecedorId,
       indices,
       itens,
+      // Conta Vinculada
+      retencaoContaVinculadaAtiva,
+      nivelContaVinculada,
+      percentualDecimoTerceiro,
+      percentualFerias,
+      percentualTercoConstitucional,
+      percentualMultaFgts,
+      percentualEncargosSubmodulo,
+      percentualTotalRetencao,
+      normativoContaVinculadaRef,
+      justificativaAlteracaoAliquota,
     } = body;
 
     let dInicioAtualizado = contratoExistente.vigenciaInicio;
@@ -193,6 +204,50 @@ export async function PUT(
     const vGlobal = valorGlobal !== undefined ? (parseFloat(valorGlobal) || 0) : contratoExistente.valorGlobal;
 
     const anosVigenciaContrato = contratoExistente.anosVigencia || 1;
+
+    // Verificar se houve alteração nas alíquotas de Conta Vinculada para auditoria
+    const mudouAliquotas = (
+      retencaoContaVinculadaAtiva !== undefined && retencaoContaVinculadaAtiva !== contratoExistente.retencaoContaVinculadaAtiva
+    ) || (
+      percentualTotalRetencao !== undefined && parseFloat(percentualTotalRetencao) !== contratoExistente.percentualTotalRetencao
+    ) || (
+      nivelContaVinculada !== undefined && nivelContaVinculada !== contratoExistente.nivelContaVinculada
+    ) || (
+      percentualDecimoTerceiro !== undefined && parseFloat(percentualDecimoTerceiro) !== contratoExistente.percentualDecimoTerceiro
+    ) || (
+      percentualFerias !== undefined && parseFloat(percentualFerias) !== contratoExistente.percentualFerias
+    ) || (
+      percentualTercoConstitucional !== undefined && parseFloat(percentualTercoConstitucional) !== contratoExistente.percentualTercoConstitucional
+    ) || (
+      percentualMultaFgts !== undefined && parseFloat(percentualMultaFgts) !== contratoExistente.percentualMultaFgts
+    ) || (
+      percentualEncargosSubmodulo !== undefined && parseFloat(percentualEncargosSubmodulo) !== contratoExistente.percentualEncargosSubmodulo
+    );
+
+    let historicoAliquotasAtualizado = contratoExistente.historicoAliquotasJson;
+    if (mudouAliquotas) {
+      const historicoAnterior = Array.isArray(contratoExistente.historicoAliquotasJson)
+        ? (contratoExistente.historicoAliquotasJson as any[])
+        : [];
+      historicoAliquotasAtualizado = [
+        ...historicoAnterior,
+        {
+          data: new Date().toISOString(),
+          usuario: session.nome || session.email || 'Usuário PROAD',
+          motivo: justificativaAlteracaoAliquota || 'Alteração de alíquota / enquadramento normativo',
+          normativoRef: normativoContaVinculadaRef || contratoExistente.normativoContaVinculadaRef,
+          aliquotas: {
+            nivel: nivelContaVinculada ?? contratoExistente.nivelContaVinculada,
+            decimoTerceiro: percentualDecimoTerceiro !== undefined ? parseFloat(percentualDecimoTerceiro) : contratoExistente.percentualDecimoTerceiro,
+            ferias: percentualFerias !== undefined ? parseFloat(percentualFerias) : contratoExistente.percentualFerias,
+            tercoConstitucional: percentualTercoConstitucional !== undefined ? parseFloat(percentualTercoConstitucional) : contratoExistente.percentualTercoConstitucional,
+            multaFgts: percentualMultaFgts !== undefined ? parseFloat(percentualMultaFgts) : contratoExistente.percentualMultaFgts,
+            encargosSubmodulo: percentualEncargosSubmodulo !== undefined ? parseFloat(percentualEncargosSubmodulo) : contratoExistente.percentualEncargosSubmodulo,
+            total: percentualTotalRetencao !== undefined ? parseFloat(percentualTotalRetencao) : contratoExistente.percentualTotalRetencao,
+          }
+        }
+      ];
+    }
 
     const contratoAtualizado = await prisma.$transaction(
       async (tx) => {
@@ -220,6 +275,18 @@ export async function PUT(
             dataOrcamentoEstimado: dOrcamentoAtualizado,
             status: status || contratoExistente.status,
             fornecedorId: fornecedorId || contratoExistente.fornecedorId,
+            // Parâmetros de Conta Vinculada (IN 02/2024 SEAD/RN)
+            retencaoContaVinculadaAtiva: retencaoContaVinculadaAtiva !== undefined ? !!retencaoContaVinculadaAtiva : contratoExistente.retencaoContaVinculadaAtiva,
+            nivelContaVinculada: nivelContaVinculada !== undefined ? nivelContaVinculada : contratoExistente.nivelContaVinculada,
+            percentualDecimoTerceiro: percentualDecimoTerceiro !== undefined ? parseFloat(percentualDecimoTerceiro) : contratoExistente.percentualDecimoTerceiro,
+            percentualFerias: percentualFerias !== undefined ? parseFloat(percentualFerias) : contratoExistente.percentualFerias,
+            percentualTercoConstitucional: percentualTercoConstitucional !== undefined ? parseFloat(percentualTercoConstitucional) : contratoExistente.percentualTercoConstitucional,
+            percentualMultaFgts: percentualMultaFgts !== undefined ? parseFloat(percentualMultaFgts) : contratoExistente.percentualMultaFgts,
+            percentualEncargosSubmodulo: percentualEncargosSubmodulo !== undefined ? parseFloat(percentualEncargosSubmodulo) : contratoExistente.percentualEncargosSubmodulo,
+            percentualTotalRetencao: percentualTotalRetencao !== undefined ? parseFloat(percentualTotalRetencao) : contratoExistente.percentualTotalRetencao,
+            normativoContaVinculadaRef: normativoContaVinculadaRef !== undefined ? normativoContaVinculadaRef : contratoExistente.normativoContaVinculadaRef,
+            justificativaAlteracaoAliquota: justificativaAlteracaoAliquota !== undefined ? justificativaAlteracaoAliquota : contratoExistente.justificativaAlteracaoAliquota,
+            historicoAliquotasJson: (historicoAliquotasAtualizado as any) ?? undefined,
             updatedAt: new Date(),
           },
         });

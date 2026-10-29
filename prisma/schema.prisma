@@ -222,6 +222,19 @@ model Contrato {
   tipoEmpreitada              TipoEmpreitada @default(PRECO_UNITARIO)
   tipoMedicao                 TipoMedicao    @default(MENSAL)
   dataOrcamentoEstimado       DateTime?      // Data base para reajuste (interregno 1 ano)
+  
+  // Configuração e Alíquotas de Conta Vinculada (IN nº 02/2024 SEAD/RN)
+  retencaoContaVinculadaAtiva    Boolean        @default(false)
+  nivelContaVinculada            String?        @default("NIVEL_1_LEVE_31_54") // NIVEL_1_LEVE_31_54, NIVEL_2_MEDIO_31_77, NIVEL_3_GRAVE_32_00, PERSONALIZADO
+  percentualDecimoTerceiro       Float?         @default(8.33)
+  percentualFerias               Float?         @default(8.33)
+  percentualTercoConstitucional  Float?         @default(2.78)
+  percentualMultaFgts            Float?         @default(4.00)
+  percentualEncargosSubmodulo    Float?         @default(8.10)
+  percentualTotalRetencao        Float?         @default(31.54)
+  normativoContaVinculadaRef     String?        @default("Instrução Normativa-SEI nº 2/2024 - SEAD/RN")
+  justificativaAlteracaoAliquota String?
+  historicoAliquotasJson         Json?
   status                      StatusContrato @default(ATIVO)
   motivoEncerramento          String?
   saldoInexequivelJustificativa String?

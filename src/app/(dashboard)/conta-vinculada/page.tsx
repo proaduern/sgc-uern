@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   PiggyBank,
   DollarSign,
@@ -18,7 +19,9 @@ import {
   Edit3,
   X,
   Users,
-  MapPin
+  MapPin,
+  Landmark,
+  ShieldCheck,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -28,6 +31,7 @@ import OficioCadastroModal from '@/components/conta-vinculada/OficioCadastroModa
 export default function ContaVinculadaPage() {
   const [contratos, setContratos] = useState<any[]>([]);
   const [selectedContratoId, setSelectedContratoId] = useState('');
+  const [contratoConfig, setContratoConfig] = useState<any>(null);
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
   const [saldosPorRubrica, setSaldosPorRubrica] = useState<Record<string, number>>({});
   const [saldoTotal, setSaldoTotal] = useState(0);
@@ -144,6 +148,7 @@ export default function ContaVinculadaPage() {
         setSaldoTotal(data.saldoTotal || 0);
         setTrabalhadores(data.trabalhadores || []);
         setSaldosPorTrabalhador(data.saldosPorTrabalhador || {});
+        setContratoConfig(data.contratoConfig || null);
       }
     } catch (e) {
       console.error(e);
@@ -283,17 +288,23 @@ export default function ContaVinculadaPage() {
   };
 
   const getRubricaFormatada = (r: string) => {
+    const pFerias = contratoConfig?.percentualFerias ?? 8.33;
+    const pTerco = contratoConfig?.percentualTercoConstitucional ?? 2.78;
+    const pDecimo = contratoConfig?.percentualDecimoTerceiro ?? 8.33;
+    const pEncargos = contratoConfig?.percentualEncargosSubmodulo ?? 8.10;
+    const pMulta = contratoConfig?.percentualMultaFgts ?? 4.00;
+
     switch (r) {
       case 'FERIAS_8_33':
-        return 'Férias (8,33%)';
+        return `Férias (${pFerias.toFixed(2)}%)`;
       case 'TERCO_FERIAS_2_78':
-        return '1/3 Constitucional de Férias (2,78%)';
+        return `1/3 Constitucional de Férias (${pTerco.toFixed(2)}%)`;
       case 'DECIMO_TERCEIRO_8_33':
-        return '13º Salário (8,33%)';
+        return `13º Salário (${pDecimo.toFixed(2)}%)`;
       case 'FGTS_SOBRE_PROVISOES':
-        return 'FGTS sobre Provisões (8,00%)';
+        return `Encargos s/ Provisões (${pEncargos.toFixed(2)}%)`;
       case 'MULTA_RESCISORIA_FGTS':
-        return 'Multa Rescisória de FGTS (4,00%)';
+        return `Multa Rescisória de FGTS (${pMulta.toFixed(2)}%)`;
       default:
         return r;
     }
@@ -366,38 +377,90 @@ export default function ContaVinculadaPage() {
         </div>
       </div>
 
+      {/* Banner de Parâmetros de Retenção do Contrato (IN 02/2024 SEAD/RN) */}
+      {contratoConfig && (
+        <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+              <Landmark className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-emerald-950">
+                  Parâmetros de Retenção do Contrato:
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 text-[10px] font-bold">
+                  {contratoConfig.nivelContaVinculada === 'NIVEL_1_LEVE_31_54'
+                    ? 'Nível 1 (Risco Leve - SAT 1%)'
+                    : contratoConfig.nivelContaVinculada === 'NIVEL_2_MEDIO_31_77'
+                    ? 'Nível 2 (Risco Médio - SAT 2%)'
+                    : contratoConfig.nivelContaVinculada === 'NIVEL_3_GRAVE_32_00'
+                    ? 'Nível 3 (Risco Grave - SAT 3%)'
+                    : 'Personalizado'}
+                </span>
+                <span className="text-xs font-black text-emerald-900 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                  Alíquota Total: {(contratoConfig.percentualTotalRetencao ?? 31.54).toFixed(2)}%
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800 mt-0.5">
+                {contratoConfig.normativoContaVinculadaRef || 'Instrução Normativa-SEI nº 2, de 02 de julho de 2024 - SEAD/RN (Anexo I)'}
+                {contratoConfig.justificativaAlteracaoAliquota && ` • ${contratoConfig.justificativaAlteracaoAliquota}`}
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href={`/contratos/${selectedContratoId}/editar`}
+            className="inline-flex items-center space-x-1 px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold rounded-xl transition-all shadow-2xs shrink-0"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Editar Alíquotas</span>
+          </Link>
+        </div>
+      )}
+
       {/* Provisões Rubricas Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">Férias (8,33%)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+            Férias ({(contratoConfig?.percentualFerias ?? 8.33).toFixed(2)}%)
+          </span>
           <span className="text-base font-extrabold text-slate-800 mt-1 block">
             {(saldosPorRubrica['FERIAS_8_33'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">1/3 Férias (2,78%)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+            1/3 Férias ({(contratoConfig?.percentualTercoConstitucional ?? 2.78).toFixed(2)}%)
+          </span>
           <span className="text-base font-extrabold text-slate-800 mt-1 block">
             {(saldosPorRubrica['TERCO_FERIAS_2_78'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">13º Salário (8,33%)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+            13º Salário ({(contratoConfig?.percentualDecimoTerceiro ?? 8.33).toFixed(2)}%)
+          </span>
           <span className="text-base font-extrabold text-slate-800 mt-1 block">
             {(saldosPorRubrica['DECIMO_TERCEIRO_8_33'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">FGTS Provisões (8%)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+            Encargos Provisões ({(contratoConfig?.percentualEncargosSubmodulo ?? 8.10).toFixed(2)}%)
+          </span>
           <span className="text-base font-extrabold text-slate-800 mt-1 block">
             {(saldosPorRubrica['FGTS_SOBRE_PROVISOES'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">Multa FGTS (4%)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+            Multa FGTS ({(contratoConfig?.percentualMultaFgts ?? 4.00).toFixed(2)}%)
+          </span>
           <span className="text-base font-extrabold text-slate-800 mt-1 block">
             {(saldosPorRubrica['MULTA_RESCISORIA_FGTS'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
@@ -641,12 +704,21 @@ export default function ContaVinculadaPage() {
       {showRetencaoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="font-bold text-slate-800 text-base mb-1">Cálculo Mensal de Retenções (Caderno de Logística)</h3>
+            <h3 className="font-bold text-slate-800 text-base mb-1">
+              Cálculo Mensal de Retenções - {contratoConfig?.nivelContaVinculada === 'NIVEL_1_LEVE_31_54'
+                ? 'Nível 1 (Risco Leve: 31,54%)'
+                : contratoConfig?.nivelContaVinculada === 'NIVEL_2_MEDIO_31_77'
+                ? 'Nível 2 (Risco Médio: 31,77%)'
+                : contratoConfig?.nivelContaVinculada === 'NIVEL_3_GRAVE_32_00'
+                ? 'Nível 3 (Risco Grave: 32,00%)'
+                : `Alíquota Customizada: ${(contratoConfig?.percentualTotalRetencao ?? 31.54).toFixed(2)}%`}
+            </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Calcula e lança automaticamente as provisões para todos os trabalhadores ativos com base nas fórmulas oficiais:
-              <br />• Férias: 8,33% | 1/3 Férias: 2,78%
-              <br />• 13º Salário: 8,33% | FGTS Provisões: 8,00%
-              <br />• Multa Rescisória FGTS: 4,00%
+              Calcula e lança as provisões trabalhistas para os trabalhadores ativos conforme alíquotas do contrato ({contratoConfig?.normativoContaVinculadaRef || 'IN nº 02/2024 SEAD/RN'}):
+              <br />• 13º Salário: <strong>{(contratoConfig?.percentualDecimoTerceiro ?? 8.33).toFixed(2)}%</strong> | Férias: <strong>{(contratoConfig?.percentualFerias ?? 8.33).toFixed(2)}%</strong>
+              <br />• 1/3 Constitucional: <strong>{(contratoConfig?.percentualTercoConstitucional ?? 2.78).toFixed(2)}%</strong> | Multa FGTS: <strong>{(contratoConfig?.percentualMultaFgts ?? 4.00).toFixed(2)}%</strong>
+              <br />• Encargos Previdenciários (Grupo A / RAT x FAP): <strong>{(contratoConfig?.percentualEncargosSubmodulo ?? 8.10).toFixed(2)}%</strong>
+              <br /><span className="text-emerald-700 font-bold">• Total a Reter em Fatura: {(contratoConfig?.percentualTotalRetencao ?? 31.54).toFixed(2)}%</span>
             </p>
 
             <form onSubmit={handleProcessarRetencaoAutomatica} className="space-y-4">

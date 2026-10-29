@@ -106,12 +106,35 @@ export async function GET(request: NextRequest) {
         })
       : [];
 
+    const contratoConfig = contratoId
+      ? await prisma.contrato.findUnique({
+          where: { id: contratoId },
+          select: {
+            id: true,
+            numeroContrato: true,
+            objeto: true,
+            retencaoContaVinculadaAtiva: true,
+            nivelContaVinculada: true,
+            percentualDecimoTerceiro: true,
+            percentualFerias: true,
+            percentualTercoConstitucional: true,
+            percentualMultaFgts: true,
+            percentualEncargosSubmodulo: true,
+            percentualTotalRetencao: true,
+            normativoContaVinculadaRef: true,
+            justificativaAlteracaoAliquota: true,
+            historicoAliquotasJson: true,
+          },
+        })
+      : null;
+
     return NextResponse.json({
       movimentacoes,
       saldosPorRubrica,
       saldoTotal,
       saldosPorTrabalhador,
       trabalhadores,
+      contratoConfig,
     });
   } catch (error: any) {
     return NextResponse.json({ error: 'Erro ao buscar dados da Conta Vinculada' }, { status: 500 });
@@ -217,6 +240,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Competência (MM/AAAA) é obrigatória.' }, { status: 400 });
     }
 
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      select: {
+        id: true,
+        numeroContrato: true,
+        retencaoContaVinculadaAtiva: true,
+        nivelContaVinculada: true,
+        percentualDecimoTerceiro: true,
+        percentualFerias: true,
+        percentualTercoConstitucional: true,
+        percentualMultaFgts: true,
+        percentualEncargosSubmodulo: true,
+        percentualTotalRetencao: true,
+        normativoContaVinculadaRef: true,
+      },
+    });
+
     const trabalhadores = await prisma.trabalhadorTerceirizado.findMany({
       where: { contratoId, status: 'ATIVO' },
     });
@@ -228,17 +268,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Alíquotas configuradas especificamente para este contrato (conforme IN 02/2024 SEAD/RN)
+    const pFerias = ((contrato?.percentualFerias ?? 8.33) / 100);
+    const pTerco = ((contrato?.percentualTercoConstitucional ?? 2.78) / 100);
+    const pDecimo = ((contrato?.percentualDecimoTerceiro ?? 8.33) / 100);
+    const pMultaFgts = ((contrato?.percentualMultaFgts ?? 4.00) / 100);
+    const pEncargos = ((contrato?.percentualEncargosSubmodulo ?? 8.10) / 100);
+
     const retencoesCriadas = [];
 
     for (const t of trabalhadores) {
       const salario = t.salarioBaseCct;
 
-      // Fórmulas exatas do Caderno de Logística
-      const ferias = salario * 0.0833;
-      const terco = salario * 0.0278;
-      const decimo = salario * 0.0833;
-      const fgtsProvisoes = (ferias + terco + decimo) * 0.08;
-      const multaFgts = salario * 0.04;
+      // Cálculo parametrizado por contrato (Anexo I da IN 02/2024)
+      const ferias = salario * pFerias;
+      const terco = salario * pTerco;
+      const decimo = salario * pDecimo;
+      const fgtsProvisoes = salario * pEncargos; // Encargos previdenciários e FGTS s/ provisões
+      const multaFgts = salario * pMultaFgts;
 
       const rubricas = [
         { rubrica: 'FERIAS_8_33', valor: ferias },

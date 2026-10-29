@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Briefcase,
@@ -33,6 +34,7 @@ import {
   Check,
   Building2,
   Calendar,
+  Landmark,
   Layers,
   ArrowRight,
   TrendingUp
@@ -1148,6 +1150,31 @@ function TerceirizacaoContent() {
       {/* ======================================================== */}
       {activeTab === 'CONTA_VINCULADA' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+          {/* Banner de Acesso ao Módulo Completo */}
+          <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 rounded-2xl p-5 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <Landmark className="w-5 h-5 text-emerald-200" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Módulo Especializado de Conta Vinculada & Fatura Mensal
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 text-[10px] font-bold border border-emerald-300/30">
+                  IN nº 02/2024 SEAD/RN
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/90 max-w-2xl">
+                O controle nominal por trabalhador, a visão matricial por fatura mensal (espelho exato da planilha de fiscalização DAIN PCD com R$ 93.483,14 retidos), o extrato individual de cada funcionário, a edição pelo fiscal e o registro catalogado de liberações estão centralizados no painel oficial de Conta Vinculada.
+              </p>
+            </div>
+            <Link
+              href={`/conta-vinculada?contratoId=${selectedContratoId}`}
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl font-bold text-xs shadow-sm transition shrink-0"
+            >
+              <Landmark className="w-4 h-4 text-emerald-700" />
+              <span>Abrir Painel Completo de Conta Vinculada &rarr;</span>
+            </Link>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">

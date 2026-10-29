@@ -69,7 +69,7 @@ export default function Sidebar({ role }: SidebarProps) {
     },
     {
       name: 'Conta Vinculada',
-      href: '/terceirizacao?tab=CONTA_VINCULADA',
+      href: '/conta-vinculada',
       icon: PiggyBank,
       visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
     },

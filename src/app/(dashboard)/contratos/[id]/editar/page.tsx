@@ -124,6 +124,16 @@ export default function EditarContratoPage() {
   const [justificativaAlteracaoAliquota, setJustificativaAlteracaoAliquota] = useState('');
   const [historicoAliquotas, setHistoricoAliquotas] = useState<any[]>([]);
 
+  // Dados Bancários da Conta Vinculada
+  const [contaVinculadaBanco, setContaVinculadaBanco] = useState('BANCO DO BRASIL S.A.');
+  const [contaVinculadaAgencia, setContaVinculadaAgencia] = useState('');
+  const [contaVinculadaNumeroConta, setContaVinculadaNumeroConta] = useState('');
+  const [contaVinculadaDataAbertura, setContaVinculadaDataAbertura] = useState('');
+  const [contaVinculadaOficioAbertura, setContaVinculadaOficioAbertura] = useState('');
+  const [contaVinculadaProcessoSei, setContaVinculadaProcessoSei] = useState('');
+  const [contaVinculadaStatusConta, setContaVinculadaStatusConta] = useState('ATIVA');
+  const [contaVinculadaObservacoes, setContaVinculadaObservacoes] = useState('');
+
   // Total calculado dinamicamente
   const percentualTotalRetencao = useMemo(() => {
     const p1 = parseFloat(percentualDecimoTerceiro) || 0;
@@ -302,6 +312,16 @@ export default function EditarContratoPage() {
           if (c.historicoAliquotasJson && Array.isArray(c.historicoAliquotasJson)) {
             setHistoricoAliquotas(c.historicoAliquotasJson);
           }
+
+          // Dados Bancários da Conta Vinculada
+          setContaVinculadaBanco(c.contaVinculadaBanco || 'BANCO DO BRASIL S.A.');
+          setContaVinculadaAgencia(c.contaVinculadaAgencia || '');
+          setContaVinculadaNumeroConta(c.contaVinculadaNumeroConta || '');
+          setContaVinculadaDataAbertura(c.contaVinculadaDataAbertura ? new Date(c.contaVinculadaDataAbertura).toISOString().split('T')[0] : '');
+          setContaVinculadaOficioAbertura(c.contaVinculadaOficioAbertura || '');
+          setContaVinculadaProcessoSei(c.contaVinculadaProcessoSei || '');
+          setContaVinculadaStatusConta(c.contaVinculadaStatusConta || 'ATIVA');
+          setContaVinculadaObservacoes(c.contaVinculadaObservacoes || '');
 
           // Itens
           if (c.itens && Array.isArray(c.itens) && c.itens.length > 0) {
@@ -700,6 +720,15 @@ export default function EditarContratoPage() {
         percentualTotalRetencao: percentualTotalRetencao,
         normativoContaVinculadaRef,
         justificativaAlteracaoAliquota: justificativaAlteracaoAliquota || null,
+        // Dados Bancários da Conta Vinculada
+        contaVinculadaBanco: contaVinculadaBanco || null,
+        contaVinculadaAgencia: contaVinculadaAgencia || null,
+        contaVinculadaNumeroConta: contaVinculadaNumeroConta || null,
+        contaVinculadaDataAbertura: contaVinculadaDataAbertura ? new Date(contaVinculadaDataAbertura) : null,
+        contaVinculadaOficioAbertura: contaVinculadaOficioAbertura || null,
+        contaVinculadaProcessoSei: contaVinculadaProcessoSei || null,
+        contaVinculadaStatusConta: contaVinculadaStatusConta || null,
+        contaVinculadaObservacoes: contaVinculadaObservacoes || null,
         itens: itens.map((it) => {
           const isDemo = regimeExecucao === 'DEDICACAO_EXCLUSIVA'
             ? true
@@ -1753,6 +1782,135 @@ export default function EditarContratoPage() {
                   </div>
                 </div>
               )}
+
+              {/* Dados Oficiais da Conta Bancária Vinculada */}
+              <div className="mt-4 pt-4 border-t border-emerald-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+                      <Landmark className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">
+                        Dados Bancários da Conta Vinculada (Garantia Bloqueada)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Informações fornecidas pelo banco após a abertura da conta. São puxadas automaticamente nos ofícios de liberação.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold self-start sm:self-auto">
+                    {contaVinculadaStatusConta || 'ATIVA'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Instituição Financeira:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaBanco}
+                      onChange={(e) => setContaVinculadaBanco(e.target.value)}
+                      placeholder="Ex: BANCO DO BRASIL S.A."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Agência Bancária:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaAgencia}
+                      onChange={(e) => setContaVinculadaAgencia(e.target.value)}
+                      placeholder="Ex: 3795-8"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-mono font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Conta Corrente Bloqueada:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaNumeroConta}
+                      onChange={(e) => setContaVinculadaNumeroConta(e.target.value)}
+                      placeholder="Ex: 4900101224108"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-mono font-bold text-emerald-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Status da Conta:
+                    </label>
+                    <select
+                      value={contaVinculadaStatusConta}
+                      onChange={(e) => setContaVinculadaStatusConta(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                    >
+                      <option value="ATIVA">ATIVA / OPERACIONAL</option>
+                      <option value="PENDENTE_ABERTURA">AGUARDANDO ABERTURA PELO BANCO</option>
+                      <option value="ENCERRADA">ENCERRADA / EXTINTA</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Data da Abertura da Conta:
+                    </label>
+                    <input
+                      type="date"
+                      value={contaVinculadaDataAbertura}
+                      onChange={(e) => setContaVinculadaDataAbertura(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Nº do Ofício de Abertura:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaOficioAbertura}
+                      onChange={(e) => setContaVinculadaOficioAbertura(e.target.value)}
+                      placeholder="Ex: Ofício nº 084/2025-PROAD"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Processo SEI da Conta:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaProcessoSei}
+                      onChange={(e) => setContaVinculadaProcessoSei(e.target.value)}
+                      placeholder="Ex: 04410017.001048/2025-04"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Observações Bancárias:
+                    </label>
+                    <input
+                      type="text"
+                      value={contaVinculadaObservacoes}
+                      onChange={(e) => setContaVinculadaObservacoes(e.target.value)}
+                      placeholder="Ex: BB Setor Público RN"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

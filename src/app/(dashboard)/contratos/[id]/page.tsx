@@ -31,6 +31,7 @@ import {
   Building,
   Landmark,
   History,
+  CreditCard,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlanilhaCustosModal from '@/components/contratos/PlanilhaCustosModal';
@@ -38,6 +39,7 @@ import UploadLotePlanilhaCustosModal from '@/components/contratos/UploadLotePlan
 import AlteracoesContratuaisSection from '@/components/contratos/AlteracoesContratuaisSection';
 import EsteiraPosHomologacaoSection from '@/components/contratos/EsteiraPosHomologacaoSection';
 import GerarAtoDesignacaoModal from '@/components/fiscais/GerarAtoDesignacaoModal';
+import DadosContaVinculadaModal from '@/components/conta-vinculada/DadosContaVinculadaModal';
 
 export default function DetalhesContratoPage() {
   const router = useRouter();
@@ -54,6 +56,7 @@ export default function DetalhesContratoPage() {
   const [showPlanilhaModal, setShowPlanilhaModal] = useState(false);
   const [showUploadLoteModal, setShowUploadLoteModal] = useState(false);
   const [showGerarAtoModal, setShowGerarAtoModal] = useState(false);
+  const [showDadosBancariosModal, setShowDadosBancariosModal] = useState(false);
   const [filtroCampusPlanilha, setFiltroCampusPlanilha] = useState('TODOS');
   const [buscaPlanilha, setBuscaPlanilha] = useState('');
   const [planilhaParaEditar, setPlanilhaParaEditar] = useState<any | null>(null);
@@ -735,6 +738,90 @@ export default function DetalhesContratoPage() {
               </div>
             </div>
           )}
+
+          {/* Dados Oficiais da Conta Bancária Vinculada */}
+          <div className="bg-emerald-50/60 rounded-xl p-4 border border-emerald-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    Dados da Conta Vinculada Cadastrada
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Conta corrente garantia bloqueada utilizada para retenções e ofícios de liberação ao banco.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  contrato.contaVinculadaStatusConta === 'ATIVA'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                }`}>
+                  {contrato.contaVinculadaStatusConta || 'ATIVA'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowDadosBancariosModal(true)}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold shadow-2xs transition"
+                >
+                  Gerenciar Dados Bancários
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Banco</span>
+                <span className="font-bold text-slate-800 truncate block">
+                  {contrato.contaVinculadaBanco || 'Banco do Brasil S.A.'}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Agência</span>
+                <span className="font-mono font-bold text-slate-800 block">
+                  {contrato.contaVinculadaAgencia || '3795-8'}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-100 col-span-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Conta Corrente Bloqueada</span>
+                <span className="font-mono font-bold text-emerald-900 text-sm block">
+                  {contrato.contaVinculadaNumeroConta || '4900101224108'}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Data Abertura</span>
+                <span className="font-medium text-slate-700 block">
+                  {contrato.contaVinculadaDataAbertura
+                    ? new Date(contrato.contaVinculadaDataAbertura).toLocaleDateString('pt-BR')
+                    : '04/12/2025'}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Processo SEI</span>
+                <span className="font-mono text-[11px] text-slate-700 truncate block" title={contrato.contaVinculadaProcessoSei || contrato.processoSei}>
+                  {contrato.contaVinculadaProcessoSei || contrato.processoSei || '04410017.001048/2025-04'}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-emerald-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-[11px] text-emerald-950 font-medium">
+                Controle de retenções nominais por trabalhador, espelho da fatura mensal da planilha DAIN PCD e histórico de liberações.
+              </span>
+              <Link
+                href={`/conta-vinculada?contratoId=${contrato.id}`}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs transition"
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                <span>Acessar Painel Oficial da Conta Vinculada &rarr;</span>
+              </Link>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1301,6 +1388,18 @@ export default function DetalhesContratoPage() {
           onClose={() => setShowGerarAtoModal(false)}
           contratos={[contrato]}
           initialContratoId={contrato.id}
+        />
+      )}
+
+      {/* Modal de Gerenciamento dos Dados da Conta Vinculada */}
+      {showDadosBancariosModal && contrato && (
+        <DadosContaVinculadaModal
+          contrato={contrato}
+          onClose={() => setShowDadosBancariosModal(false)}
+          onSucesso={() => {
+            setShowDadosBancariosModal(false);
+            carregarContrato();
+          }}
         />
       )}
     </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   PiggyBank,
   DollarSign,
@@ -41,7 +42,10 @@ import DadosContaVinculadaModal from '@/components/conta-vinculada/DadosContaVin
 import EditarRetencaoModal from '@/components/conta-vinculada/EditarRetencaoModal';
 import RegistroLiberacaoModal from '@/components/conta-vinculada/RegistroLiberacaoModal';
 
-export default function ContaVinculadaPage() {
+function ContaVinculadaContent() {
+  const searchParams = useSearchParams();
+  const queryContratoId = searchParams.get('contratoId');
+
   const [contratos, setContratos] = useState<any[]>([]);
   const [selectedContratoId, setSelectedContratoId] = useState('');
   const [contratoConfig, setContratoConfig] = useState<any>(null);
@@ -85,9 +89,13 @@ export default function ContaVinculadaPage() {
       if (dataUser.user) setCurrentUser(dataUser.user);
       if (data.contratos && data.contratos.length > 0) {
         setContratos(data.contratos);
-        // Priorizar contrato de terceirização / dedicação exclusiva (ex: 035/2025)
-        const ctrPcd = data.contratos.find((c: any) => c.numeroContrato?.includes('035/2025'));
-        setSelectedContratoId(ctrPcd ? ctrPcd.id : data.contratos[0].id);
+        if (queryContratoId && data.contratos.some((c: any) => c.id === queryContratoId)) {
+          setSelectedContratoId(queryContratoId);
+        } else {
+          // Priorizar contrato de terceirização / dedicação exclusiva (ex: 035/2025)
+          const ctrPcd = data.contratos.find((c: any) => c.numeroContrato?.includes('035/2025'));
+          setSelectedContratoId(ctrPcd ? ctrPcd.id : data.contratos[0].id);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -1378,5 +1386,13 @@ export default function ContaVinculadaPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ContaVinculadaPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-semibold">Carregando painel de Conta Vinculada...</div>}>
+      <ContaVinculadaContent />
+    </Suspense>
   );
 }

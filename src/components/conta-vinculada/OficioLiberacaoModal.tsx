@@ -39,9 +39,9 @@ export default function OficioLiberacaoModal({
   // Dados do Ofício
   const [numeroOficio, setNumeroOficio] = useState('Ofício nº 162/2026/UERN - PROAD - DAS/UERN');
   const [processoSei, setProcessoSei] = useState(contrato?.processoSeiMae || '04410038.003805/2025-28');
-  const [bancoVinculado, setBancoVinculado] = useState('Banco do Brasil S.A.');
-  const [agenciaVinculada, setAgenciaVinculada] = useState('3795-8 – Escritório Setor Público RN');
-  const [contaVinculada, setContaVinculada] = useState('4900101224108');
+  const [bancoVinculado, setBancoVinculado] = useState(contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.');
+  const [agenciaVinculada, setAgenciaVinculada] = useState(contrato?.contaVinculadaAgencia || '3795-8 – Escritório Setor Público RN');
+  const [contaVinculada, setContaVinculada] = useState(contrato?.contaVinculadaNumeroConta || '4900101224108');
 
   // Conta de Crédito da Contratada
   const [bancoCredito, setBancoCredito] = useState('Caixa Econômica Federal');

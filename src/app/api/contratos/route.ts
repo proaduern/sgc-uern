@@ -186,6 +186,14 @@ export async function POST(request: NextRequest) {
       percentualTotalRetencao,
       normativoContaVinculadaRef,
       justificativaAlteracaoAliquota,
+      contaVinculadaBanco,
+      contaVinculadaAgencia,
+      contaVinculadaNumeroConta,
+      contaVinculadaDataAbertura,
+      contaVinculadaOficioAbertura,
+      contaVinculadaProcessoSei,
+      contaVinculadaStatusConta,
+      contaVinculadaObservacoes,
     } = body;
 
     // Validações Essenciais
@@ -318,6 +326,14 @@ export async function POST(request: NextRequest) {
               }
             }
           ] as any,
+          contaVinculadaBanco: contaVinculadaBanco || 'Banco do Brasil S.A.',
+          contaVinculadaAgencia: contaVinculadaAgencia || null,
+          contaVinculadaNumeroConta: contaVinculadaNumeroConta || null,
+          contaVinculadaDataAbertura: contaVinculadaDataAbertura ? new Date(contaVinculadaDataAbertura) : null,
+          contaVinculadaOficioAbertura: contaVinculadaOficioAbertura || null,
+          contaVinculadaProcessoSei: contaVinculadaProcessoSei || null,
+          contaVinculadaStatusConta: contaVinculadaStatusConta || 'AGUARDANDO_ABERTURA',
+          contaVinculadaObservacoes: contaVinculadaObservacoes || null,
         },
       });
 

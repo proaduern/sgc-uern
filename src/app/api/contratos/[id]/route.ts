@@ -186,6 +186,14 @@ export async function PUT(
       percentualTotalRetencao,
       normativoContaVinculadaRef,
       justificativaAlteracaoAliquota,
+      contaVinculadaBanco,
+      contaVinculadaAgencia,
+      contaVinculadaNumeroConta,
+      contaVinculadaDataAbertura,
+      contaVinculadaOficioAbertura,
+      contaVinculadaProcessoSei,
+      contaVinculadaStatusConta,
+      contaVinculadaObservacoes,
     } = body;
 
     let dInicioAtualizado = contratoExistente.vigenciaInicio;
@@ -287,6 +295,14 @@ export async function PUT(
             normativoContaVinculadaRef: normativoContaVinculadaRef !== undefined ? normativoContaVinculadaRef : contratoExistente.normativoContaVinculadaRef,
             justificativaAlteracaoAliquota: justificativaAlteracaoAliquota !== undefined ? justificativaAlteracaoAliquota : contratoExistente.justificativaAlteracaoAliquota,
             historicoAliquotasJson: (historicoAliquotasAtualizado as any) ?? undefined,
+            contaVinculadaBanco: contaVinculadaBanco !== undefined ? contaVinculadaBanco : contratoExistente.contaVinculadaBanco,
+            contaVinculadaAgencia: contaVinculadaAgencia !== undefined ? contaVinculadaAgencia : contratoExistente.contaVinculadaAgencia,
+            contaVinculadaNumeroConta: contaVinculadaNumeroConta !== undefined ? contaVinculadaNumeroConta : contratoExistente.contaVinculadaNumeroConta,
+            contaVinculadaDataAbertura: contaVinculadaDataAbertura ? new Date(contaVinculadaDataAbertura) : (contaVinculadaDataAbertura === null ? null : contratoExistente.contaVinculadaDataAbertura),
+            contaVinculadaOficioAbertura: contaVinculadaOficioAbertura !== undefined ? contaVinculadaOficioAbertura : contratoExistente.contaVinculadaOficioAbertura,
+            contaVinculadaProcessoSei: contaVinculadaProcessoSei !== undefined ? contaVinculadaProcessoSei : contratoExistente.contaVinculadaProcessoSei,
+            contaVinculadaStatusConta: contaVinculadaStatusConta !== undefined ? contaVinculadaStatusConta : contratoExistente.contaVinculadaStatusConta,
+            contaVinculadaObservacoes: contaVinculadaObservacoes !== undefined ? contaVinculadaObservacoes : contratoExistente.contaVinculadaObservacoes,
             updatedAt: new Date(),
           },
         });

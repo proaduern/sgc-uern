@@ -235,6 +235,16 @@ model Contrato {
   normativoContaVinculadaRef     String?        @default("Instrução Normativa-SEI nº 2/2024 - SEAD/RN")
   justificativaAlteracaoAliquota String?
   historicoAliquotasJson         Json?
+
+  // Dados Bancários da Conta Vinculada Aberta junto à Instituição Financeira
+  contaVinculadaBanco            String?        @default("Banco do Brasil S.A.")
+  contaVinculadaAgencia          String?
+  contaVinculadaNumeroConta      String?
+  contaVinculadaDataAbertura     DateTime?
+  contaVinculadaOficioAbertura   String?
+  contaVinculadaProcessoSei      String?
+  contaVinculadaStatusConta      String?        @default("AGUARDANDO_ABERTURA") // AGUARDANDO_ABERTURA, ATIVA, BLOQUEADA, ENCERRADA
+  contaVinculadaObservacoes      String?
   status                      StatusContrato @default(ATIVO)
   motivoEncerramento          String?
   saldoInexequivelJustificativa String?

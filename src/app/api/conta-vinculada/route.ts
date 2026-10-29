@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       MULTA_RESCISORIA_FGTS: 0,
     };
 
-    const saldosPorTrabalhador: Record<string, { total: number; porRubrica: Record<string, number> }> = {};
+    const saldosPorTrabalhador: Record<string, { retido: number; liberado: number; saldo: number; total: number; porRubrica: Record<string, number> }> = {};
     let saldoTotal = 0;
 
     for (const mov of movimentacoes) {
@@ -83,6 +83,9 @@ export async function GET(request: NextRequest) {
       if (mov.trabalhadorId) {
         if (!saldosPorTrabalhador[mov.trabalhadorId]) {
           saldosPorTrabalhador[mov.trabalhadorId] = {
+            retido: 0,
+            liberado: 0,
+            saldo: 0,
             total: 0,
             porRubrica: {
               FERIAS_8_33: 0,
@@ -93,6 +96,12 @@ export async function GET(request: NextRequest) {
             },
           };
         }
+        if (mov.tipoOperacao === 'RETENCAO_ENTRADA') {
+          saldosPorTrabalhador[mov.trabalhadorId].retido += mov.valor;
+        } else {
+          saldosPorTrabalhador[mov.trabalhadorId].liberado += mov.valor;
+        }
+        saldosPorTrabalhador[mov.trabalhadorId].saldo += valor;
         saldosPorTrabalhador[mov.trabalhadorId].total += valor;
         saldosPorTrabalhador[mov.trabalhadorId].porRubrica[mov.rubrica] =
           (saldosPorTrabalhador[mov.trabalhadorId].porRubrica[mov.rubrica] || 0) + valor;

@@ -621,6 +621,21 @@ export default function ContaVinculadaPage() {
             </button>
           </div>
 
+          {/* Aviso quando o contrato possui retenções globais em faturas ainda não individualizadas */}
+          {saldoTotal > 0 && Object.values(saldosPorTrabalhador).every((s: any) => s.saldo === 0) && (
+            <div className="mx-4 bg-amber-50 border border-amber-200 p-3.5 rounded-xl flex items-start space-x-3 text-amber-900 text-xs">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">
+                  Retenções Históricas Registradas em Fatura (Rateio Global)
+                </span>
+                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                  Este contrato possui <strong>{saldoTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> retidos na Conta Vinculada através das medições de fatura. Como a planilha original de pagamentos da PROAD registrava o valor global retido por fatura (sem individualização prévia da folha), os lançamentos constam no extrato como <em>Rateio Global</em>. O sistema suporta tanto a apuração individual por cálculo automático mensal quanto o rateio das competências passadas entre os {trabalhadores.length} colaboradores cadastrados.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
               <thead className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
@@ -663,11 +678,11 @@ export default function ContaVinculadaPage() {
                         <td className="py-3 px-4">
                           <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
                             <MapPin className="w-3 h-3 text-slate-400" />
-                            <span>{t.localidade || 'Campus Central Mossoró'}</span>
+                            <span>{t.campus || t.localidade || 'Campus Central Mossoró'}</span>
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700">
-                          {(t.salarioBase || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          {(t.salarioBaseCct || t.salarioBase || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </td>
                         <td className="py-3 px-4 text-right font-bold text-emerald-700 font-mono">
                           {saldos.retido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

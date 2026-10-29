@@ -22,6 +22,9 @@ import {
   MapPin,
   Landmark,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -40,6 +43,7 @@ export default function ContaVinculadaPage() {
   const [activeTab, setActiveTab] = useState<'extrato' | 'trabalhadores'>('extrato');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
 
   // Modals
   const [showRetencaoModal, setShowRetencaoModal] = useState(false);
@@ -648,64 +652,144 @@ export default function ContaVinculadaPage() {
                   <th className="py-3 px-4 text-right">Total Liberado (-)</th>
                   <th className="py-3 px-4 text-right">Saldo Bloqueado Atual</th>
                   <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Detalhamento</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
                       Carregando funcionários do contrato...
                     </td>
                   </tr>
                 ) : trabalhadores.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
                       Nenhum trabalhador cadastrado para este contrato. Cadastre trabalhadores na aba Mão de Obra para habilitar o controle individualizado.
                     </td>
                   </tr>
                 ) : (
                   trabalhadores.map((t) => {
-                    const saldos = saldosPorTrabalhador[t.id] || { retido: 0, liberado: 0, saldo: 0 };
+                    const saldos = saldosPorTrabalhador[t.id] || { retido: 0, liberado: 0, saldo: 0, porRubrica: {} };
+                    const isExpanded = expandedWorkerId === t.id;
                     return (
-                      <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-slate-700">
-                          {t.funcao || 'Operacional'}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span>{t.campus || t.localidade || 'Campus Central Mossoró'}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700">
-                          {(t.salarioBaseCct || t.salarioBase || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-emerald-700 font-mono">
-                          {saldos.retido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-rose-600 font-mono">
-                          {saldos.liberado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-blue-900 font-mono">
-                          {saldos.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {t.status === 'ATIVO' ? (
-                            <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Ativo</span>
+                      <React.Fragment key={t.id}>
+                        <tr className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-700">
+                            {t.funcao || 'Operacional'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span>{t.campus || t.localidade || 'Campus Central Mossoró'}</span>
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
-                              <span>Inativo</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700">
+                            {(t.salarioBaseCct || t.salarioBase || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-emerald-700 font-mono">
+                            {saldos.retido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-rose-600 font-mono">
+                            {saldos.liberado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-blue-900 font-mono">
+                            {saldos.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {t.status === 'ATIVO' ? (
+                              <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Ativo</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                                <span>{t.status === 'DEMITIDO' ? 'Demitido' : 'Inativo'}</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedWorkerId(isExpanded ? null : t.id)}
+                              className={`inline-flex items-center space-x-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>{isExpanded ? 'Ocultar' : 'Ver Rubricas'}</span>
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="bg-slate-50/70">
+                            <td colSpan={9} className="p-4 border-y border-slate-200">
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2">
+                                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                                    Detalhamento de Provisões Acumuladas • {t.nomeCompleto}
+                                  </span>
+                                  {t.dataAdmissao && (
+                                    <span className="text-[11px] text-slate-500 font-medium">
+                                      Admissão: {new Date(t.dataAdmissao).toLocaleDateString('pt-BR')}
+                                      {t.dataDemissao && ` • Demissão: ${new Date(t.dataDemissao).toLocaleDateString('pt-BR')}`}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Férias (8,33%)</span>
+                                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
+                                      {(saldos.porRubrica?.['FERIAS_8_33'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">1/3 Férias (2,78%)</span>
+                                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
+                                      {(saldos.porRubrica?.['TERCO_FERIAS_2_78'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">13º Salário (8,33%)</span>
+                                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
+                                      {(saldos.porRubrica?.['DECIMO_TERCEIRO_8_33'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Multa FGTS (5%)</span>
+                                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
+                                      {(saldos.porRubrica?.['MULTA_RESCISORIA_FGTS'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Encargos Submódulo 4.1</span>
+                                    <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">
+                                      {(saldos.porRubrica?.['FGTS_SOBRE_PROVISOES'] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {t.banco && (
+                                  <div className="pt-2 border-t border-slate-100 flex items-center space-x-2 text-[11px] text-slate-600">
+                                    <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>
+                                      <strong>Domicílio Bancário:</strong> {t.banco} • Agência: {t.agencia || '-'} • Conta: {t.contaCorrente || '-'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}

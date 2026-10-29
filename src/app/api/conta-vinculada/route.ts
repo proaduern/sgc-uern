@@ -110,8 +110,8 @@ export async function GET(request: NextRequest) {
 
     const trabalhadores = contratoId
       ? await prisma.trabalhadorTerceirizado.findMany({
-          where: { contratoId, status: 'ATIVO' },
-          orderBy: { nomeCompleto: 'asc' },
+          where: { contratoId },
+          orderBy: [{ status: 'asc' }, { nomeCompleto: 'asc' }],
         })
       : [];
 

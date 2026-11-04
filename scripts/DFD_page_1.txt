@@ -1,0 +1,26 @@
+DOCUMENTO DE FORMALIZAÇÃO DA DEMANDA – DFD nº xxxx/ano –
+NOME UNIDADE DEMANDANTE
+Unidade Demandante:
+<<UNIDADE>>
+Responsável pela Demanda: Matrícula:
+<<nome do responsável da unidade>> <<Matrícula>>
+E-mail (e-mail da unidade de vínculo do
+responsável pela solicitação):
+Telefone (opcional):
+<<E-mail da unidade>> <<Telefone para contato>>
+1. Descrição sumária da demanda (Informe o tipo de problema a ser resolvido):
+(Campo destinado à unidade informar o objeto que a demanda pretende atender. Por exemplo:
+"Estruturação de nova sala de aula".)
+2. Tipificação do problema (Informe o tipo de problema a ser resolvido):
+(conforme item selecionado da lista de tipos do sistema)
+3. Nível Prioridade
+(conforme nível de prioridade associado à frase selecionada na lista do sistema. Apresenta a frase
+selecionada e informa o nível de prioridade associado)
+4. Justificativa da necessidade (descreva o problema que pretende resolver)
+(Texto livre. Descreva o problema que precisa solucionar em sua unidade ou a demanda que pretende atender,
+informando todos os detalhes necessários a fim de justificar a sua necessidade ( exemplos: melhorar sala de aula
+xxxx, que comporta xxx alunos; ampliar auditório xxxxx, que comporta xxxx pessoas; equipar novo prédio, onde
+funcionará xxxxxx; minimizar problema apontado no relatório de avaliação de curso xxxxx, com a implantação do
+espaço xxxxxx, no bloco xxxxxxx; dar suporte a evento xxxxxx, etc))
+5. Lista de itens e origem dos recursos:
+Enquadramento da fonte dos recursos: Recursos Ordinários – Uern Geral

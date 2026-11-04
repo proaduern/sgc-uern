@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import PdfAutenticacaoInit from '@/components/PdfAutenticacaoInit';
 
 export const metadata: Metadata = {
   title: 'SGC-UERN | Sistema de Gestão de Contratos e Atas',
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="min-h-screen bg-slate-50 text-slate-900">
+        <PdfAutenticacaoInit modulo="SGC_DOCUMENTO" />
         {children}
       </body>
     </html>

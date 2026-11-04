@@ -1,0 +1,34 @@
+4. Requisitos da Contratação:
+Descrever os requisitos necessários à contratação com vistas ao atendimento da necessidade
+especificada, listando todos os requisitos que sejam essenciais, com os padrões mínimos de
+qualidade, de forma a permitir a seleção da proposta mais vantajosa, abstendo-se de relacionar
+requisitos desnecessários e especificações demasiadas, para não frustrar o caráter competitivo
+da futura licitação.
+4.1. Natureza da Contratação:
+(Definir e justificar se o serviço possui natureza continuada ou não)
+4.2. Duração Inicial do Contrato:
+(Avaliar a duração inicial do contrato de prestação de serviços de natureza continuada, que
+poderá, excepcionalmente, ser superior a 12 meses, e justificar a decisão)
+4.3. Sustentabilidade:
+(Incluir, se possível, critérios e práticas de sustentabilidade que devem ser veiculados como
+especificação técnica do objeto ou como obrigação da contratada)
+4.4. Padrões mínimos de qualidade:
+(Informar critérios de qualidade de forma a permitir a seleção da proposta mais vantajosa,
+abstendo-se de relacionar requisitos desnecessários e especificações demasiadas, para não
+frustrar o caráter competitivo da futura licitação)
+4.4. Transição Contratual:
+(Identificar a necessidade, ou não, de a contratada promover a transição contratual com
+transferência de conhecimento, tecnologia e técnicas empregadas)
+4.5. Relevância dos requisitos estipulados:
+Com base no Levantamento de Mercado (item 8 do presente documento), caso a quantidade de
+fornecedores seja considerada restrita, verificar se os requisitos que limitam a participação são
+realmente indispensáveis, de modo a avaliar a retirada ou flexibilização destes requisitos.
+Fundamentação: Art. 18, § 1º, III - requisitos da contratação.
+* Preenchimento Obrigatório
+5. Estimativa das Quantidades e memória de cálculo:
+Justificar as quantidades a serem adquiridas em função do consumo e provável utilização,
+devendo a estimativa ser obtida, a partir de fatos (consumo anterior, atentando para eventual
+ocorrência vindoura capaz de impactar o quantitativo demandado, como a criação de órgão,
+acréscimo de atividades, necessidade de substituição de bens atualmente disponíveis, etc). A
+estimativa das quantidades a serem contratadas deve ser acompanhada das memórias de
+cálculo

@@ -1,0 +1,34 @@
+Item Categoria Und Valor
+unitário
+estimado
+Qtde Valor total
+Total estimado da demanda
+Enquadramento da fonte dos recursos: Recursos arrecadados pela Unidade (Recursos Extra*)
+Item Categoria Und Valor
+unitário
+estimado
+Qtde Valor total
+Total estimado da demanda
+*Caso a opção marcada seja Recursos Extra, a unidade requisitante deve anexar à solicitação o extrato da
+conta certificando a existência e disponibilidade financeira para atendimento da demanda, além de fornecer os
+dados abaixo:
+Dados da Conta Bancária: Agência: <<Agência>> - Conta: <<Número da conta bancária>>
+Valor disponível para o objeto demandado: R$ <<Valor disponível na conta bancária>>
+Enquadramento da fonte dos recursos: Recursos Ordinários – Orçamento Participativo
+Item Categoria Und Valor
+unitário
+estimado
+Qtde Valor total
+Total estimado da demanda
+Enquadramento da fonte dos recursos: Recursos de Convênio(*)
+Item Categoria Und Valor
+unitário
+estimado
+Qtde Valor total
+Total estimado da demanda
+*Caso a opção marcada seja Recursos de Convênio, a unidade requisitante deve deve juntar à solicitação
+demandada declaração da Diretoria de Convênios e Contratos, certificando a existência e disponibilidade de
+saldo suficiente ao atendimento da demanda, além de fornecer os dados abaixo:.
+Identificação do Convênio: <<Informe o número do convênio>>
+Vigência do Convênio: <<Data de vigência do convênio>>
+Valor disponível no Convênio para o objeto demandado: R$ <<Valor disponível para o convênio>>

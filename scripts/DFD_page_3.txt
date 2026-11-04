@@ -1,0 +1,10 @@
+Se emenda, informar autor do convênio: <<Autor do Convênio (apenas no caso de emenda parlamentar)>>
+TOTAL ESTIMADO DA DEMANDA: (soma, em R$, do total das listas de item acima)
+6. Data pretendida de entrega
+(data informada no sistema)
+7. Natureza da demanda
+(conforme os tipos previstos no sistema):
+Identificação eletrônica do responsável da Unidade Demandante (nome e matrícula gerada pelo sistema,
+com base no login)
+Unidade Demandante
+Data da geração do DFD: dia/mês/ano

@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
             { objeto: { contains: 'civil', mode: 'insensitive' } },
             { objeto: { contains: 'reforma', mode: 'insensitive' } },
             { objeto: { contains: 'alvenaria', mode: 'insensitive' } },
+            { numeroContrato: { contains: '01/2016' } },
             { numeroContrato: { contains: '14/2025' } },
             { numeroContrato: { contains: '03/2025' } },
           ],
@@ -64,6 +65,17 @@ export async function GET(request: NextRequest) {
       include: {
         itens: {
           orderBy: { numeroItem: 'asc' },
+        },
+        trabalhadores: {
+          where: { dataDemissao: null },
+          select: {
+            id: true,
+            nomeCompleto: true,
+            cpf: true,
+            funcao: true,
+            campus: true,
+            setorLotacao: true,
+          },
         },
         fornecedor: {
           select: {
@@ -113,6 +125,7 @@ export async function GET(request: NextRequest) {
         objeto: c.objeto,
         vigenciaInicio: c.vigenciaInicio,
         vigenciaFim: c.vigenciaFim,
+        anosVigencia: c.anosVigencia || 1,
         valorGlobal: c.valorGlobal,
         valorAtualizado: c.valorAtualizado,
         totalEmpenhadoOs,
@@ -120,6 +133,7 @@ export async function GET(request: NextRequest) {
         saldoDisponivel,
         percentualConsumido: Number(((totalEmpenhadoOs / c.valorAtualizado) * 100).toFixed(2)),
         fornecedor: c.fornecedor,
+        trabalhadores: c.trabalhadores || [],
         totalOrdensServico: c.ordensServico.length,
         ordensServico: c.ordensServico.map((os) => ({
           id: os.id,
@@ -135,10 +149,17 @@ export async function GET(request: NextRequest) {
         itens: c.itens.map((it) => ({
           id: it.id,
           numeroItem: it.numeroItem,
+          cidade: it.cidade,
           descricao: it.descricao,
           unidadeMedida: it.unidade,
-          valorUnitario: it.valorUnitarioAtual,
+          categoriaItem: it.categoriaItem,
+          quantidadeAnual: it.quantidadeAnual,
+          quantidadeOriginal: it.quantidadeOriginal,
           saldoQuantidade: it.quantidadeAtual,
+          valorUnitario: it.valorUnitarioAtual,
+          valorTotalAnual: it.valorTotalAnual,
+          valorTotalPlurianual: it.valorTotalPlurianual,
+          valorTotalAtual: it.valorTotalAtual,
         })),
       };
     });

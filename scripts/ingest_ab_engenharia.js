@@ -836,6 +836,63 @@ const MEDICOES_DATA = [
     despesasPorCidade: [
       { cidade: 'Pau dos Ferros', nf: '173', valorBruto: 448.56, valorAtestado: 448.56 }
     ]
+  },
+  // 4. FATURAMENTOS DE SETEMBRO/2026 (R$ 180.263,37)
+  {
+    referenciaMesAno: '09/2026 - Mão de Obra Fixa',
+    processoSeiDespesa: '04410035.002260/2026-43',
+    numeroNotaFiscal: 'NFs Mossoró, Natal, Caicó, Patu, Assú, Pau dos Ferros (Setembro/2026)',
+    dataEmissaoNf: new Date('2026-10-10T12:00:00.000Z'),
+    valorNotaFiscal: 125044.07,
+    valorGlosa: 625.22,
+    motivoGlosa: 'Glosa IMR de 0,5% (50 pontos - descumprimento de prazos 10 pts, falta de ferramentas 5 pts, insumos 5 pts, prestação de contas 5 pts, atraso no pagamento de benefícios 25 pts) conforme item 7 do Termo de Referência.',
+    valorAtestadoFinal: 124418.85,
+    dataRecebimentoProvisorio: new Date('2026-10-20T12:00:00.000Z'),
+    dataRecebimentoDefinitivo: new Date('2026-10-28T12:00:00.000Z'),
+    status: 'RECEBIMENTO_DEFINITIVO_GESTOR',
+    despesasPorCidade: [
+      { cidade: 'Mossoró', nf: 'NFs Set/2026', valorBruto: 97362.38, valorAtestado: 96875.57 },
+      { cidade: 'Natal', nf: 'NFs Set/2026', valorBruto: 7133.34, valorAtestado: 7097.67 },
+      { cidade: 'Caicó', nf: 'NFs Set/2026', valorBruto: 7125.00, valorAtestado: 7089.38 },
+      { cidade: 'Patu', nf: 'NFs Set/2026', valorBruto: 3360.41, valorAtestado: 3343.61 },
+      { cidade: 'Assú', nf: 'NFs Set/2026', valorBruto: 3354.18, valorAtestado: 3337.41 },
+      { cidade: 'Pau dos Ferros', nf: 'NFs Set/2026', valorBruto: 6708.76, valorAtestado: 6675.22 }
+    ]
+  },
+  {
+    referenciaMesAno: '09/2026 - Serviços Eventuais',
+    processoSeiDespesa: '04410035.002260/2026-43',
+    numeroNotaFiscal: 'NFs Serviços Eventuais Setembro/2026',
+    dataEmissaoNf: new Date('2026-10-14T12:00:00.000Z'),
+    valorNotaFiscal: 55096.92,
+    valorGlosa: 0.00,
+    motivoGlosa: 'Atesto integral de serviços eventuais nos Campi Mossoró (R$ 41.454,46), Pau dos Ferros (R$ 1.137,27), Caicó (R$ 8.112,19) e Natal (R$ 4.393,00). Nota IMR 5 pontos (tolerância aceitável até 5 pontos, 0% de glosa).',
+    valorAtestadoFinal: 55096.92,
+    dataRecebimentoProvisorio: new Date('2026-10-22T12:00:00.000Z'),
+    dataRecebimentoDefinitivo: new Date('2026-10-29T12:00:00.000Z'),
+    status: 'RECEBIMENTO_DEFINITIVO_GESTOR',
+    despesasPorCidade: [
+      { cidade: 'Mossoró', nf: 'NFs Eventuais Set/2026', valorBruto: 41454.46, valorAtestado: 41454.46 },
+      { cidade: 'Pau dos Ferros', nf: 'NFs Eventuais Set/2026', valorBruto: 1137.27, valorAtestado: 1137.27 },
+      { cidade: 'Caicó', nf: 'NFs Eventuais Set/2026', valorBruto: 8112.19, valorAtestado: 8112.19 },
+      { cidade: 'Natal', nf: 'NFs Eventuais Set/2026', valorBruto: 4393.00, valorAtestado: 4393.00 }
+    ]
+  },
+  {
+    referenciaMesAno: '09/2026 - Diárias',
+    processoSeiDespesa: '04410035.002260/2026-43',
+    numeroNotaFiscal: 'Solicitação de Diárias 04/2026',
+    dataEmissaoNf: new Date('2026-09-30T12:00:00.000Z'),
+    valorNotaFiscal: 747.60,
+    valorGlosa: 0.00,
+    motivoGlosa: '5 meias-diárias (R$ 149,52 cada) para deslocamento da equipe (Ryan Miqueias, Tiago, Francisco Antônio, Ivanaldo e Clevanir) à serviço no Campus de Pau dos Ferros.',
+    valorAtestadoFinal: 747.60,
+    dataRecebimentoProvisorio: new Date('2026-10-05T12:00:00.000Z'),
+    dataRecebimentoDefinitivo: new Date('2026-10-15T12:00:00.000Z'),
+    status: 'RECEBIMENTO_DEFINITIVO_GESTOR',
+    despesasPorCidade: [
+      { cidade: 'Pau dos Ferros', nf: 'Solicitação 04/2026', valorBruto: 747.60, valorAtestado: 747.60 }
+    ]
   }
 ];
 
@@ -911,6 +968,33 @@ const IMR_DATA = [
       { item: 'Descumprimento de tempo médio de atendimento (5 pts)', pontos: 5 },
       { item: 'Descumprimento de prazo estabelecido para conclusão de serviços (10 pts)', pontos: 10 },
       { item: 'Falta de ferramentas (5 pts) e insumos (5 pts)', pontos: 10 }
+    ]
+  },
+  {
+    mesCompetencia: '09/2026',
+    localCampus: 'Mossoró / Geral',
+    totalPontos: 50,
+    percentualGlosa: 0.5,
+    valorGlosa: 625.22,
+    observacoes: 'Mão de Obra: 50 pontos acumulados no IMR (fator de 99,5% com glosa de R$ 625,22). Atraso no pagamento de benefícios (25 pts), descumprimento de prazos (10 pts), ferramentas (5 pts), insumos (5 pts) e relatórios periódicos (5 pts).',
+    itens: [
+      { item: 'Atraso no pagamento de benefícios previstos em convenção coletiva (25 pts)', pontos: 25 },
+      { item: 'Descumprimento de prazo estabelecido para conclusão de serviços (10 pts)', pontos: 10 },
+      { item: 'Falta de ferramentas para realização de serviços (5 pts)', pontos: 5 },
+      { item: 'Falta de insumos para realização de serviços (5 pts)', pontos: 5 },
+      { item: 'Falha no envio de Relatórios Periódicos de Prestação de Contas (5 pts)', pontos: 5 }
+    ]
+  },
+  {
+    mesCompetencia: '09/2026 - Serviços Eventuais',
+    localCampus: 'Mossoró / Geral',
+    totalPontos: 5,
+    percentualGlosa: 0.0,
+    valorGlosa: 0.0,
+    observacoes: 'Serviços Eventuais: 5 pontos acumulados no IMR (tolerância aceitável até 5 pontos sem glosa financeira). Pontuação por goteiras (2 pts) e calhas (3 pts).',
+    itens: [
+      { item: 'Aparecimento de goteiras em locais recuperados (2 pts)', pontos: 2 },
+      { item: 'Vazamento em calhas (3 pts)', pontos: 3 }
     ]
   }
 ];
@@ -1216,7 +1300,8 @@ async function main() {
     { comp: '05/2026', folder: '05 - MAIO 2026', sei: '04410035.001128/2026-14' },
     { comp: '06/2026', folder: '06 - JUNHO 2026', sei: '04410035.001421/2026-81' },
     { comp: '07/2026', folder: '07 - JULHO 2026', sei: '04410035.001676/2026-44' },
-    { comp: '08/2026', folder: '08 - AGOSTO 2026', sei: '04410035.001969/2026-21' }
+    { comp: '08/2026', folder: '08 - AGOSTO 2026', sei: '04410035.001969/2026-21' },
+    { comp: '09/2026', folder: '09 - SETEMBRO 2026', sei: '04410035.002260/2026-43' }
   ];
 
   let runningBalance = 0;

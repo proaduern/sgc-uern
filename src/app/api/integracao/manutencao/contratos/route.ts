@@ -68,7 +68,6 @@ export async function GET(request: NextRequest) {
           orderBy: { numeroItem: 'asc' },
         },
         trabalhadores: {
-          where: { dataDemissao: null },
           select: {
             id: true,
             nomeCompleto: true,
@@ -81,8 +80,11 @@ export async function GET(request: NextRequest) {
             agencia: true,
             contaCorrente: true,
             dataAdmissao: true,
+            dataDemissao: true,
             status: true,
+            beneficiosInfo: true,
           },
+          orderBy: [{ status: 'asc' }, { nomeCompleto: 'asc' }],
         },
         fornecedor: {
           select: {

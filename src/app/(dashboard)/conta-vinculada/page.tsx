@@ -33,6 +33,7 @@ import {
   Check,
   ArrowLeft,
   FileSpreadsheet,
+  Clock,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -67,7 +68,7 @@ function ContaVinculadaContent() {
   // Filtros
   const [filtroCompetencia, setFiltroCompetencia] = useState<string>('TODAS');
   const [buscaTrabalhador, setBuscaTrabalhador] = useState('');
-  const [filtroStatusTrabalhador, setFiltroStatusTrabalhador] = useState<'TODOS' | 'ATIVO' | 'DEMITIDO'>('TODOS');
+  const [filtroStatusTrabalhador, setFiltroStatusTrabalhador] = useState<'TODOS' | 'ATIVO' | 'SUBSTITUIDO' | 'DEMITIDO'>('TODOS');
   const [trabalhadorSelecionadoDetalhe, setTrabalhadorSelecionadoDetalhe] = useState<any | null>(null);
 
   // Modals
@@ -1049,7 +1050,7 @@ function ContaVinculadaContent() {
 
                 <div className="flex items-center space-x-2">
                   <span className="text-xs font-bold text-slate-500">Status:</span>
-                  {(['TODOS', 'ATIVO', 'DEMITIDO'] as const).map((st) => (
+                  {(['TODOS', 'ATIVO', 'SUBSTITUIDO', 'DEMITIDO'] as const).map((st) => (
                     <button
                       key={st}
                       type="button"
@@ -1060,7 +1061,7 @@ function ContaVinculadaContent() {
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      {st === 'TODOS' ? 'Todos' : st === 'ATIVO' ? 'Ativos' : 'Demitidos'}
+                      {st === 'TODOS' ? 'Todos' : st === 'ATIVO' ? 'Ativos' : st === 'SUBSTITUIDO' ? 'Substituídos' : 'Demitidos'}
                     </button>
                   ))}
                 </div>
@@ -1090,6 +1091,16 @@ function ContaVinculadaContent() {
                             <td className="py-3 px-4">
                               <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
                               <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
+                              {t.status === 'SUBSTITUIDO' && (
+                                <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
+                                  Substituído em 31/08/2026 por Ryan Miqueias
+                                </div>
+                              )}
+                              {t.cpf === '701.180.294-14' && (
+                                <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
+                                  Substituiu Ícaro Patrick em 01/09/2026
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 px-4">
                               <span className="inline-flex items-center space-x-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
@@ -1111,12 +1122,17 @@ function ContaVinculadaContent() {
                             </td>
                             <td className="py-3 px-4 text-center">
                               {t.status === 'ATIVO' ? (
-                                <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200">
                                   <CheckCircle2 className="w-3 h-3" />
                                   <span>Ativo</span>
                                 </span>
+                              ) : t.status === 'SUBSTITUIDO' ? (
+                                <span className="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full text-[10px] font-bold border border-purple-200">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Substituído</span>
+                                </span>
                               ) : (
-                                <span className="inline-flex items-center space-x-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <span className="inline-flex items-center space-x-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200">
                                   <span>Demitido</span>
                                 </span>
                               )}

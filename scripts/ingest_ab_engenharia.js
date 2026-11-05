@@ -34,8 +34,24 @@ const WORKERS_DATA = [
     agencia: '0001',
     contaCorrente: '14346265-5',
     dataAdmissao: new Date('2026-03-08T00:00:00.000Z'),
+    dataDemissao: new Date('2026-08-31T23:59:59.000Z'),
+    status: 'SUBSTITUIDO',
+    beneficiosInfo: 'Auxílio Alimentação: R$ 214,00 | Auxílio Saúde: R$ 147,63 | Seguro de Vida: R$ 2,00 | BSF: R$ 16,80 [Substituído a partir de 01/09/2026 por Ryan Miqueias Oliveira Mesquita conforme Processo SEI 04410035.002260/2026-43 e Relatório de Faturamento Setembro/2026]'
+  },
+  {
+    nomeCompleto: 'Ryan Miqueias Oliveira Mesquita',
+    cpf: '701.180.294-14',
+    funcao: 'SUPERVISOR PARA ACOMPANHAMENTO DE SERVIÇOS DE CAMPO',
+    campus: 'Campus Central (Mossoró)',
+    setorLotacao: 'DIINFRA / Manutenção Predial - Mossoró',
+    salarioBaseCct: 2389.81,
+    banco: 'Nubank (0260)',
+    agencia: '0001',
+    contaCorrente: '14346265-5',
+    dataAdmissao: new Date('2026-09-01T00:00:00.000Z'),
+    dataDemissao: null,
     status: 'ATIVO',
-    beneficiosInfo: 'Auxílio Alimentação: R$ 214,00 | Auxílio Saúde: R$ 147,63 | Seguro de Vida: R$ 2,00 | BSF: R$ 16,80'
+    beneficiosInfo: 'Auxílio Alimentação: R$ 214,00 | Auxílio Saúde: R$ 147,63 | Seguro de Vida: R$ 2,00 | BSF: R$ 16,80 [Substituiu Ícaro Patrick de Oliveira no posto de Supervisor a partir de 01/09/2026 conforme Processo SEI 04410035.002260/2026-43]'
   },
   {
     nomeCompleto: 'Kerginaldo Benjamin Mesquita Trajano',
@@ -957,16 +973,16 @@ async function main() {
   });
   console.log('✔ Contrato atualizado para nº 01/2026 e configurado com Conta Vinculada (33,25%).');
 
-  // 3. Ensure Nayara Glenda is registered as FISCAL_ADMINISTRATIVO on this contract
-  let nayara = await prisma.user.findFirst({
-    where: { OR: [{ matricula: '12902-0' }, { nome: { contains: 'Nayara Glenda', mode: 'insensitive' } }] }
+  // 3. Ensure Erione de Souza Costa is registered as FISCAL_ADMINISTRATIVO on this contract
+  let erione = await prisma.user.findFirst({
+    where: { OR: [{ matricula: '012866-0' }, { nome: { contains: 'Erione de Souza Costa', mode: 'insensitive' } }] }
   });
-  if (!nayara) {
-    nayara = await prisma.user.create({
+  if (!erione) {
+    erione = await prisma.user.create({
       data: {
-        nome: 'Nayara Glenda Vidal Padre de Medeiros',
-        email: 'nayaramedeiros@uern.br',
-        matricula: '12902-0',
+        nome: 'Erione de Souza Costa',
+        email: 'erionecosta@uern.br',
+        matricula: '012866-0',
         senhaHash: '$2a$10$X7vG6k8Z9W0Y1Z2A3B4C5u6v7w8x9y0z1A2B3C4D5E6F7G8H9I0J',
         role: 'FISCAL_ADMINISTRATIVO',
         unidadeSigla: 'DAS/PROAD',
@@ -974,21 +990,26 @@ async function main() {
         campus: 'Campus Central (Mossoró)'
       }
     });
+  } else {
+    await prisma.user.update({
+      where: { id: erione.id },
+      data: { role: 'FISCAL_ADMINISTRATIVO' }
+    });
   }
   await prisma.contratoResponsavel.upsert({
     where: {
       contratoId_userId_tipoAtuacao: {
         contratoId: CONTRATO_ID,
-        userId: nayara.id,
+        userId: erione.id,
         tipoAtuacao: 'FISCAL_ADMINISTRATIVO'
       }
     },
     update: { ativo: true, campusSetor: 'DAS / PROAD' },
     create: {
       contratoId: CONTRATO_ID,
-      userId: nayara.id,
+      userId: erione.id,
       tipoAtuacao: 'FISCAL_ADMINISTRATIVO',
-      numeroAtoDesignacao: 'Portaria PROAD/UERN -Contrato 01/2026',
+      numeroAtoDesignacao: 'Portaria PROAD/UERN - Contrato 01/2026',
       idSeiAtoDesignacao: '04410038.000993/2025-32',
       campusSetor: 'DAS / PROAD',
       ativo: true

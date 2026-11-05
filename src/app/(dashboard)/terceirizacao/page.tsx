@@ -74,6 +74,7 @@ function TerceirizacaoContent() {
   const [movimentacoesCV, setMovimentacoesCV] = useState<any[]>([]);
   const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>('03/2026');
   const [filtroCampus, setFiltroCampus] = useState<string>('');
+  const [filtroStatus, setFiltroStatus] = useState<string>('TODOS');
   const [buscaTrabalhador, setBuscaTrabalhador] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -280,11 +281,19 @@ function TerceirizacaoContent() {
       ? cidadeTrabalhador === campusDesignado
       : (!filtroCampus || cidadeTrabalhador === normalizarCidadeCampus(filtroCampus));
 
-    return matchContrato && matchBusca && matchCampus;
+    const matchStatus =
+      filtroStatus === 'TODOS' ||
+      (filtroStatus === 'ATIVO' && t.status === 'ATIVO') ||
+      (filtroStatus === 'SUBSTITUIDO' && (t.status === 'SUBSTITUIDO' || t.status === 'DEMITIDO'));
+
+    return matchContrato && matchBusca && matchCampus && matchStatus;
   });
 
   // KPIs
   const totalTrabalhadoresAtivos = trabalhadoresFiltrados.filter((t) => t.status === 'ATIVO').length;
+  const totalTrabalhadoresSubstituidos = trabalhadoresFiltrados.filter(
+    (t) => t.status === 'SUBSTITUIDO' || t.status === 'DEMITIDO'
+  ).length;
   const totalDocumentos = trabalhadoresFiltrados.reduce((acc, t) => acc + (t.documentos?.length || 0), 0);
   const totalDocumentosPendentes = trabalhadoresFiltrados.reduce(
     (acc, t) => acc + (t.documentos?.filter((d: any) => d.statusConferencia === 'PENDENTE').length || 0),
@@ -572,7 +581,14 @@ function TerceirizacaoContent() {
             <span className="text-[10px] uppercase font-bold text-slate-300 block">Trabalhadores Ativos</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-black text-amber-400">{totalTrabalhadoresAtivos}</span>
-              <span className="text-[11px] text-slate-400">de {trabalhadoresFiltrados.length} no quadro</span>
+              <span className="text-[11px] text-slate-400">
+                de {trabalhadoresFiltrados.length} no quadro
+                {totalTrabalhadoresSubstituidos > 0 && (
+                  <span className="text-purple-300 font-semibold ml-1">
+                    ({totalTrabalhadoresSubstituidos} {totalTrabalhadoresSubstituidos === 1 ? 'substituído' : 'substituídos'})
+                  </span>
+                )}
+              </span>
             </div>
           </div>
 
@@ -787,6 +803,17 @@ function TerceirizacaoContent() {
               </select>
             )}
 
+            {/* Filtro de Status do Trabalhador */}
+            <select
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 outline-none focus:border-blue-500 font-medium"
+            >
+              <option value="TODOS">Todos os Status ({trabalhadores.length})</option>
+              <option value="ATIVO">Apenas Ativos ({trabalhadores.filter(t => t.status === 'ATIVO').length})</option>
+              <option value="SUBSTITUIDO">Substituídos / Histórico ({trabalhadores.filter(t => t.status === 'SUBSTITUIDO' || t.status === 'DEMITIDO').length})</option>
+            </select>
+
             <div className="text-xs text-slate-500 flex items-center justify-end">
               <span>Exibindo <strong>{trabalhadoresFiltrados.length}</strong> funcionários</span>
             </div>
@@ -822,6 +849,18 @@ function TerceirizacaoContent() {
                         <td className="p-3">
                           <div className="font-bold text-slate-900">{t.nomeCompleto}</div>
                           <div className="text-[11px] text-slate-400 font-mono">CPF: {t.cpf}</div>
+                          {t.status === 'SUBSTITUIDO' && (
+                            <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                              <span>Substituído em 31/08/2026 por Ryan Miqueias</span>
+                            </div>
+                          )}
+                          {t.cpf === '701.180.294-14' && (
+                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Substituiu Ícaro Patrick em 01/09/2026</span>
+                            </div>
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="font-semibold text-slate-800">{t.funcao}</div>
@@ -857,13 +896,22 @@ function TerceirizacaoContent() {
                         </td>
                         <td className="p-3">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
                               t.status === 'ATIVO'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : t.status === 'SUBSTITUIDO'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}
                           >
-                            {t.status}
+                            {t.status === 'SUBSTITUIDO' ? (
+                              <>
+                                <Clock className="w-3 h-3 text-purple-600" />
+                                Substituído
+                              </>
+                            ) : (
+                              t.status
+                            )}
                           </span>
                         </td>
                         <td className="p-3 text-right">

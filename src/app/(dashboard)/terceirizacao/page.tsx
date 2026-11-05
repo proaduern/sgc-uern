@@ -849,16 +849,34 @@ function TerceirizacaoContent() {
                         <td className="p-3">
                           <div className="font-bold text-slate-900">{t.nomeCompleto}</div>
                           <div className="text-[11px] text-slate-400 font-mono">CPF: {t.cpf}</div>
-                          {t.status === 'SUBSTITUIDO' && (
+                          {t.cpf === '124.400.384-07' && (
                             <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
                               <Clock className="w-3 h-3 text-purple-600 shrink-0" />
                               <span>Substituído em 31/08/2026 por Ryan Miqueias</span>
+                            </div>
+                          )}
+                          {t.cpf === '124.466.594-03' && (
+                            <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                              <span>Substituído em 31/07/2026 por Domício de Paula</span>
+                            </div>
+                          )}
+                          {t.status === 'SUBSTITUIDO' && t.cpf !== '124.400.384-07' && t.cpf !== '124.466.594-03' && (
+                            <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                              <span>Substituído</span>
                             </div>
                           )}
                           {t.cpf === '701.180.294-14' && (
                             <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                               <span>Substituiu Ícaro Patrick em 01/09/2026</span>
+                            </div>
+                          )}
+                          {t.cpf === '094.853.144-42' && (
+                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Substituiu Lucas Matheus em 01/08/2026</span>
                             </div>
                           )}
                         </td>

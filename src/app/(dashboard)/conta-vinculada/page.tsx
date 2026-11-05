@@ -1091,14 +1091,29 @@ function ContaVinculadaContent() {
                             <td className="py-3 px-4">
                               <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
                               <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
-                              {t.status === 'SUBSTITUIDO' && (
+                              {t.cpf === '124.400.384-07' && (
                                 <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
                                   Substituído em 31/08/2026 por Ryan Miqueias
+                                </div>
+                              )}
+                              {t.cpf === '124.466.594-03' && (
+                                <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
+                                  Substituído em 31/07/2026 por Domício de Paula
+                                </div>
+                              )}
+                              {t.status === 'SUBSTITUIDO' && t.cpf !== '124.400.384-07' && t.cpf !== '124.466.594-03' && (
+                                <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
+                                  Substituído
                                 </div>
                               )}
                               {t.cpf === '701.180.294-14' && (
                                 <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
                                   Substituiu Ícaro Patrick em 01/09/2026
+                                </div>
+                              )}
+                              {t.cpf === '094.853.144-42' && (
+                                <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
+                                  Substituiu Lucas Matheus em 01/08/2026
                                 </div>
                               )}
                             </td>

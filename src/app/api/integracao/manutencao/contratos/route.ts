@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
             { objeto: { contains: 'civil', mode: 'insensitive' } },
             { objeto: { contains: 'reforma', mode: 'insensitive' } },
             { objeto: { contains: 'alvenaria', mode: 'insensitive' } },
+            { numeroContrato: { contains: '01/2026' } },
             { numeroContrato: { contains: '01/2016' } },
             { numeroContrato: { contains: '14/2025' } },
             { numeroContrato: { contains: '03/2025' } },
@@ -75,6 +76,12 @@ export async function GET(request: NextRequest) {
             funcao: true,
             campus: true,
             setorLotacao: true,
+            salarioBaseCct: true,
+            banco: true,
+            agencia: true,
+            contaCorrente: true,
+            dataAdmissao: true,
+            status: true,
           },
         },
         fornecedor: {
@@ -85,6 +92,8 @@ export async function GET(request: NextRequest) {
             cnpj: true,
             telefone: true,
             email: true,
+            endereco: true,
+            nomeRepresentanteLegal: true,
           },
         },
         ordensServico: {
@@ -103,10 +112,19 @@ export async function GET(request: NextRequest) {
         medicoes: {
           select: {
             id: true,
-            valorAtestadoFinal: true,
+            referenciaMesAno: true,
+            processoSeiDespesa: true,
+            numeroNotaFiscal: true,
+            dataEmissaoNf: true,
             valorNotaFiscal: true,
+            valorGlosa: true,
+            motivoGlosa: true,
+            valorAtestadoFinal: true,
+            dataRecebimentoProvisorio: true,
+            dataRecebimentoDefinitivo: true,
             status: true,
           },
+          orderBy: { createdAt: 'asc' },
         },
       },
       orderBy: { vigenciaFim: 'desc' },
@@ -114,8 +132,28 @@ export async function GET(request: NextRequest) {
 
     const contratosFormatados = contratos.map((c) => {
       const totalEmpenhadoOs = c.ordensServico.reduce((acc, os) => acc + (os.valorEstimado || 0), 0);
-      const totalMedido = c.medicoes.reduce((acc, m) => acc + (m.valorAtestadoFinal || m.valorNotaFiscal || 0), 0);
-      const saldoDisponivel = Math.max(0, c.valorAtualizado - totalEmpenhadoOs);
+      const totalMedido = c.medicoes.reduce((acc, m) => acc + (m.valorAtestadoFinal ?? m.valorNotaFiscal ?? 0), 0);
+      const consumidoEfetivo = Math.max(totalEmpenhadoOs, totalMedido);
+      const saldoDisponivel = Math.max(0, c.valorAtualizado - consumidoEfetivo);
+
+      let maoObraExecutado = 0;
+      let servicosEventuaisExecutado = 0;
+      let insumosExecutado = 0;
+      let diariasExecutado = 0;
+
+      for (const m of c.medicoes) {
+        const val = m.valorAtestadoFinal ?? m.valorNotaFiscal ?? 0;
+        const ref = (m.referenciaMesAno || '').toUpperCase();
+        if (ref.includes('MÃO DE OBRA') || ref.includes('MAO DE OBRA')) {
+          maoObraExecutado += val;
+        } else if (ref.includes('EVENTUAIS') || ref.includes('EVENTUAL')) {
+          servicosEventuaisExecutado += val;
+        } else if (ref.includes('INSUMOS') || ref.includes('INSUMO')) {
+          insumosExecutado += val;
+        } else if (ref.includes('DIÁRIAS') || ref.includes('DIARIAS')) {
+          diariasExecutado += val;
+        }
+      }
 
       return {
         id: c.id,
@@ -128,10 +166,18 @@ export async function GET(request: NextRequest) {
         anosVigencia: c.anosVigencia || 1,
         valorGlobal: c.valorGlobal,
         valorAtualizado: c.valorAtualizado,
-        totalEmpenhadoOs,
-        totalMedido,
-        saldoDisponivel,
-        percentualConsumido: Number(((totalEmpenhadoOs / c.valorAtualizado) * 100).toFixed(2)),
+        totalEmpenhadoOs: Number(totalEmpenhadoOs.toFixed(2)),
+        totalMedido: Number(totalMedido.toFixed(2)),
+        saldoDisponivel: Number(saldoDisponivel.toFixed(2)),
+        percentualConsumido: Number(((consumidoEfetivo / (c.valorAtualizado || 1)) * 100).toFixed(2)),
+        execucaoPorRubrica: {
+          maoObra: Number(maoObraExecutado.toFixed(2)),
+          servicosEventuais: Number(servicosEventuaisExecutado.toFixed(2)),
+          insumos: Number(insumosExecutado.toFixed(2)),
+          diarias: Number(diariasExecutado.toFixed(2)),
+          totalExecutado: Number(totalMedido.toFixed(2)),
+        },
+        medicoes: c.medicoes,
         fornecedor: c.fornecedor,
         trabalhadores: c.trabalhadores || [],
         totalOrdensServico: c.ordensServico.length,

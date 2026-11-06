@@ -14,6 +14,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 
 interface OficioCadastroModalProps {
   contrato: any;
@@ -21,17 +22,25 @@ interface OficioCadastroModalProps {
 }
 
 export default function OficioCadastroModal({ contrato, onClose }: OficioCadastroModalProps) {
-  const [numeroOficio, setNumeroOficio] = useState('Ofício nº 151/2026/UERN - PROAD - DAS/UERN');
-  const [bancoNome, setBancoNome] = useState('Banco do Brasil S.A. - Escritório Setor Público RN');
-  const [agenciaRelacionamento, setAgenciaRelacionamento] = useState('4687-6');
-  const [contaRelacionamento, setContaRelacionamento] = useState('39.869-1');
+  const [numeroOficio, setNumeroOficio] = useState(
+    contrato?.contaVinculadaOficioAbertura || 'Ofício nº 37/2026 - DAS/PROAD/UERN'
+  );
+  const [bancoNome, setBancoNome] = useState(
+    contrato?.contaVinculadaBanco ? `${contrato.contaVinculadaBanco} - Escritório Setor Público RN` : 'Banco do Brasil S.A. - Escritório Setor Público RN'
+  );
+  const [agenciaRelacionamento, setAgenciaRelacionamento] = useState(
+    contrato?.contaVinculadaAgencia || '3795-8'
+  );
+  const [contaRelacionamento, setContaRelacionamento] = useState(
+    contrato?.contaVinculadaNumeroConta || '900129411157'
+  );
   const [responsavelNome, setResponsavelNome] = useState('Pedro Eloy de Paiva Farias');
   const [responsavelMatricula, setResponsavelMatricula] = useState('12.757-4');
   const [portariaDiretor, setPortariaDiretor] = useState('Portaria Nº 3827/2025-GP/FUERN');
   const [telefoneContato, setTelefoneContato] = useState('(84) 3315-2122 / 98733-3375');
   const [emailContato, setEmailContato] = useState('diradm@uern.br');
 
-  const gerarPdfOficioCadastro = () => {
+  const gerarPdfOficioCadastro = (abrirPreview = false) => {
     const doc = new jsPDF();
 
     // Cabeçalho Oficial
@@ -125,7 +134,17 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
       ],
     });
 
-    doc.save(`Oficio_Cadastro_CV_${contrato?.numeroContrato || 'Contrato'}.pdf`);
+    const contratoSanitizado = (contrato?.numeroContrato || 'Contrato').replace(/[\/\\?%*:|"<>]/g, '_');
+    const nomeArquivo = `Oficio_Abertura_CV_${contratoSanitizado}.pdf`;
+
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'OFICIO_ABERTURA_CV');
+
+    if (abrirPreview) {
+      const blobUrl = doc.output('bloburl');
+      window.open(blobUrl, '_blank');
+    } else {
+      doc.save(nomeArquivo);
+    }
   };
 
   return (
@@ -227,14 +246,26 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
             Fechar
           </button>
 
-          <button
-            type="button"
-            onClick={gerarPdfOficioCadastro}
-            className="inline-flex items-center space-x-2 px-5 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-bold rounded-xl shadow cursor-pointer transition-all"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Gerar Ofício de Cadastro + Ficha Cadastral (PDF)</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => gerarPdfOficioCadastro(true)}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              title="Abrir prévia do ofício em uma nova aba do navegador"
+            >
+              <FileText className="w-4 h-4 text-slate-700" />
+              <span>Visualizar / Imprimir (Nova Aba)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => gerarPdfOficioCadastro(false)}
+              className="inline-flex items-center space-x-2 px-5 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-bold rounded-xl shadow cursor-pointer transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Baixar Ofício em PDF</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

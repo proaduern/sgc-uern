@@ -553,6 +553,16 @@ function ContaVinculadaContent() {
               <span>Ofício de Abertura</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setShowOficioModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+              title="Gerar Ofício Bancário de Liberação de Provisões Trabalhistas"
+            >
+              <Printer className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Ofício de Liberação</span>
+            </button>
+
             <Link
               href={`/contratos/${selectedContratoId}/editar`}
               className="inline-flex items-center space-x-1.5 px-3 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition-all cursor-pointer"

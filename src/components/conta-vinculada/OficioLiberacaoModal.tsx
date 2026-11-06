@@ -14,12 +14,14 @@ import {
   Layers,
   Search,
   Check,
-  MapPin
+  MapPin,
+  FileText
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { valorPorExtenso } from '@/lib/numero-extenso';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 
 interface OficioLiberacaoModalProps {
   contrato: any;
@@ -37,11 +39,21 @@ export default function OficioLiberacaoModal({
   onSucesso,
 }: OficioLiberacaoModalProps) {
   // Dados do Ofício
-  const [numeroOficio, setNumeroOficio] = useState('Ofício nº 162/2026/UERN - PROAD - DAS/UERN');
-  const [processoSei, setProcessoSei] = useState(contrato?.processoSeiMae || '04410038.003805/2025-28');
-  const [bancoVinculado, setBancoVinculado] = useState(contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.');
-  const [agenciaVinculada, setAgenciaVinculada] = useState(contrato?.contaVinculadaAgencia || '3795-8 – Escritório Setor Público RN');
-  const [contaVinculada, setContaVinculada] = useState(contrato?.contaVinculadaNumeroConta || '4900101224108');
+  const [numeroOficio, setNumeroOficio] = useState('Ofício nº 42/2026/UERN - PROAD - DAS/UERN');
+  const [processoSei, setProcessoSei] = useState(
+    contrato?.contaVinculadaProcessoSei || contrato?.processoSeiMae || '04410035.000714/2026-41'
+  );
+  const [bancoVinculado, setBancoVinculado] = useState(
+    contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.'
+  );
+  const [agenciaVinculada, setAgenciaVinculada] = useState(
+    contrato?.contaVinculadaAgencia
+      ? `${contrato.contaVinculadaAgencia} – Escritório Setor Público RN`
+      : '3795-8 – Escritório Setor Público RN'
+  );
+  const [contaVinculada, setContaVinculada] = useState(
+    contrato?.contaVinculadaNumeroConta || '900129411157'
+  );
 
   // Conta de Crédito da Contratada
   const [bancoCredito, setBancoCredito] = useState('Caixa Econômica Federal');
@@ -140,7 +152,7 @@ export default function OficioLiberacaoModal({
   }, [calculados, filtroCampus, busca]);
 
   // 1. Gerar Ofício em PDF
-  const gerarOficioPdf = () => {
+  const gerarOficioPdf = (abrirPreview = false) => {
     const doc = new jsPDF();
 
     // Cabeçalho UERN Oficial
@@ -252,7 +264,17 @@ export default function OficioLiberacaoModal({
       body: rowsTabela,
     });
 
-    doc.save(`Oficio_Liberacao_Conta_Vinculada_${Date.now()}.pdf`);
+    const contratoNum = (contrato?.numeroContrato || contrato?.numeroEmpenho || 'Contrato').replace(/[\/\\?%*:|"<>]/g, '_');
+    const nomeArquivo = `Oficio_Liberacao_Conta_Vinculada_${contratoNum}.pdf`;
+
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'OFICIO_LIBERACAO_CV');
+
+    if (abrirPreview) {
+      const blobUrl = doc.output('bloburl');
+      window.open(blobUrl, '_blank');
+    } else {
+      doc.save(nomeArquivo);
+    }
   };
 
   // 2. Baixar Memória de Cálculo em Excel (.xlsx)
@@ -701,12 +723,23 @@ export default function OficioLiberacaoModal({
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
-                onClick={gerarOficioPdf}
+                onClick={() => gerarOficioPdf(true)}
+                disabled={selecionados.length === 0}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow transition-all cursor-pointer disabled:opacity-40"
+                title="Visualizar documento oficial do Ofício em nova aba"
+              >
+                <FileText className="w-4 h-4 text-blue-100" />
+                <span>Visualizar / Imprimir (Nova Aba)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => gerarOficioPdf(false)}
                 disabled={selecionados.length === 0}
                 className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold backdrop-blur-md transition-all cursor-pointer disabled:opacity-40"
-                title="Visualizar e baixar documento oficial do Ofício em PDF"
+                title="Baixar documento oficial do Ofício em PDF"
               >
-                <Printer className="w-4 h-4 text-blue-300" />
+                <Download className="w-4 h-4 text-blue-300" />
                 <span>Baixar Ofício (.PDF)</span>
               </button>
 

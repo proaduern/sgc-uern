@@ -22,6 +22,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { valorPorExtenso } from '@/lib/numero-extenso';
 import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
+import { DADOS_DIRETORIA_DAS_PADRAO } from '@/lib/config/diretoria';
 
 interface OficioLiberacaoModalProps {
   contrato: any;
@@ -52,6 +53,12 @@ export default function OficioLiberacaoModal({
   const [contaVinculada, setContaVinculada] = useState(
     contrato?.contaVinculadaNumeroConta || ''
   );
+
+  // Signatário Institucional (Diretor da DAS/PROAD)
+  const [diretorNome, setDiretorNome] = useState(DADOS_DIRETORIA_DAS_PADRAO.nome);
+  const [diretorMatricula, setDiretorMatricula] = useState(DADOS_DIRETORIA_DAS_PADRAO.matricula);
+  const [diretorCargo, setDiretorCargo] = useState(DADOS_DIRETORIA_DAS_PADRAO.cargo);
+  const [diretorPortaria, setDiretorPortaria] = useState(DADOS_DIRETORIA_DAS_PADRAO.portariaNomeacao);
 
   // Conta de Crédito da Contratada (Destino)
   const [bancoCredito, setBancoCredito] = useState(contrato?.empresaContaBanco || '');
@@ -243,19 +250,26 @@ export default function OficioLiberacaoModal({
       ],
     });
 
-    let currentY = (doc as any).lastAutoTable.finalY + 20;
+    let currentY = (doc as any).lastAutoTable.finalY + 18;
 
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
     doc.text('Atenciosamente,', 15, currentY);
 
     currentY += 15;
     doc.setFont('helvetica', 'bold');
-    doc.text('Diretoria de Administração e Serviços - DAS / PROAD', 15, currentY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(diretorNome, 15, currentY);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(8.5);
+    doc.text(`Matrícula nº ${diretorMatricula}`, 15, currentY + 4);
+    doc.text(`${diretorCargo} – ${diretorPortaria}`, 15, currentY + 8);
+    doc.text('Diretoria de Administração e Serviços / PROAD / UERN', 15, currentY + 12);
+    doc.setFontSize(7.5);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Documento emitido pelo Sistema SGC-UERN e assinado eletronicamente conforme Decreto Estadual nº 27.685/2018.`, 15, currentY + 5);
-    doc.text(`Referência: Caso responda este Ofício, indicar expressamente o Processo nº ${processoSei}`, 15, currentY + 9);
+    doc.text('Documento emitido pelo Sistema SGC-UERN e assinado eletronicamente conforme Decreto Estadual nº 27.685/2018.', 15, currentY + 18);
+    doc.text(`Referência: Caso responda este Ofício, indicar expressamente o Processo nº ${processoSei || 'SEI/UERN'}`, 15, currentY + 22);
 
     // Nova Página com o Anexo I - Memória de Cálculo
     doc.addPage();
@@ -647,6 +661,54 @@ export default function OficioLiberacaoModal({
                       }}
                       placeholder="Ex: 6702-0"
                       className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-950"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Signatário Institucional (Diretor da DAS/PROAD) */}
+            <div className="pt-2 border-t border-slate-200">
+              <div className="bg-slate-100/70 p-3 rounded-xl border border-slate-200">
+                <span className="font-bold text-[11px] text-slate-800 flex items-center space-x-1.5 mb-2">
+                  <Users className="w-3.5 h-3.5 text-blue-700" />
+                  <span>SIGNATÁRIO INSTITUCIONAL (DIRETOR DE ADMINISTRAÇÃO E SERVIÇOS - DAS/PROAD)</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-500 font-bold block">Nome do Diretor:</label>
+                    <input
+                      type="text"
+                      value={diretorNome}
+                      onChange={(e) => setDiretorNome(e.target.value)}
+                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 font-bold block">Matrícula:</label>
+                    <input
+                      type="text"
+                      value={diretorMatricula}
+                      onChange={(e) => setDiretorMatricula(e.target.value)}
+                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 font-bold block">Cargo / Função:</label>
+                    <input
+                      type="text"
+                      value={diretorCargo}
+                      onChange={(e) => setDiretorCargo(e.target.value)}
+                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 font-bold block">Portaria de Nomeação (Editável):</label>
+                    <input
+                      type="text"
+                      value={diretorPortaria}
+                      onChange={(e) => setDiretorPortaria(e.target.value)}
+                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-blue-900"
                     />
                   </div>
                 </div>

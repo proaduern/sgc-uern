@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 import OficioLiberacaoModal from '@/components/conta-vinculada/OficioLiberacaoModal';
 import OficioCadastroModal from '@/components/conta-vinculada/OficioCadastroModal';
 import DadosContaVinculadaModal from '@/components/conta-vinculada/DadosContaVinculadaModal';
@@ -275,23 +276,93 @@ function ContaVinculadaContent() {
       body: rows,
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || 160;
+    const finalY = (doc as any).lastAutoTable?.finalY || 140;
 
-    // Assinaturas
-    if (finalY < 175) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text('Atesto que as provisões acima foram calculadas e conferidas em conformidade com a folha e a IN nº 02/2024 SEAD/RN.', 14, finalY + 12);
+    // Identificação dos responsáveis oficiais do contrato
+    const fiscalAdm = contratoConfig?.responsaveis?.find(
+      (r: any) => r.tipoAtuacao === 'FISCAL_ADMINISTRATIVO' && r.ativo
+    );
+    const gestor = contratoConfig?.responsaveis?.find(
+      (r: any) => r.tipoAtuacao === 'GESTOR' && r.ativo
+    );
 
-      doc.setDrawColor(120, 120, 120);
-      doc.line(40, finalY + 30, 120, finalY + 30);
-      doc.text('Fiscal Administrativo do Contrato', 80, finalY + 34, { align: 'center' });
+    const nomeFiscal = fiscalAdm?.user?.nome || 'Erione de Souza Costa';
+    const matFiscal = fiscalAdm?.user?.matricula || '012866-0';
+    const atoFiscal = fiscalAdm?.numeroAtoDesignacao ? `Designação: ${fiscalAdm.numeroAtoDesignacao}` : '';
 
-      doc.line(170, finalY + 30, 250, finalY + 30);
-      doc.text('Gestor do Contrato / Diretoria DAS', 210, finalY + 34, { align: 'center' });
+    const nomeGestor = gestor?.user?.nome || 'Pedro Eloy de Paiva Farias';
+    const matGestor = gestor?.user?.matricula || '012757-4';
+    const atoGestor = contratoConfig?.portariaDesignacaoGestor
+      ? `Portaria: ${contratoConfig.portariaDesignacaoGestor}`
+      : (gestor?.numeroAtoDesignacao ? `Designação: ${gestor.numeroAtoDesignacao}` : '');
+
+    let sigY = finalY;
+    if (sigY > 140) {
+      doc.addPage();
+      sigY = 25;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(0, 51, 102);
+      doc.text('TERMO DE CONFERÊNCIA E ATESTO DE RETENÇÕES DE CONTA VINCULADA', 148.5, sigY, { align: 'center' });
+      sigY += 10;
+    } else {
+      sigY += 12;
     }
 
-    doc.save(`Extrato_Fatura_${competencia.replace(/[^a-zA-Z0-9]/g, '_')}_CTR_${contratoConfig?.numeroContrato || '035_2025'}.pdf`);
+    // Atesto Eletrônico
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(60, 60, 60);
+    doc.text(
+      'Atestamos para os devidos fins que os valores nominais de retenção de provisões trabalhistas da competência foram apurados, calculados e conferidos em estrita conformidade com a folha de pagamento da contratada, o contrato administrativo e a Instrução Normativa-SEI nº 2/2024 - SEAD/RN.',
+      14,
+      sigY,
+      { maxWidth: 269, align: 'justify' }
+    );
+
+    sigY += 16;
+    doc.setDrawColor(140, 140, 140);
+    doc.setLineWidth(0.4);
+
+    // Assinatura Fiscal Administrativo (Esquerda)
+    doc.line(30, sigY + 12, 125, sigY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(nomeFiscal, 77.5, sigY + 16, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Matrícula nº ${matFiscal}`, 77.5, sigY + 20, { align: 'center' });
+    doc.text(`Fiscal Administrativo do Contrato nº ${contratoConfig?.numeroContrato || '-'}`, 77.5, sigY + 24, { align: 'center' });
+    if (atoFiscal) doc.text(atoFiscal, 77.5, sigY + 28, { align: 'center' });
+
+    // Assinatura Gestor do Contrato (Direita)
+    doc.line(170, sigY + 12, 265, sigY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text(nomeGestor, 217.5, sigY + 16, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Matrícula nº ${matGestor}`, 217.5, sigY + 20, { align: 'center' });
+    doc.text(`Gestor do Contrato nº ${contratoConfig?.numeroContrato || '-'}`, 217.5, sigY + 24, { align: 'center' });
+    if (atoGestor) doc.text(atoGestor, 217.5, sigY + 28, { align: 'center' });
+
+    // Nota de emissão eletrônica pelo sistema
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.text(
+      `Documento gerado eletronicamente pelo Sistema de Gestão de Contratos (SGC-UERN) em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`,
+      148.5,
+      sigY + 36,
+      { align: 'center' }
+    );
+
+    const contratoLimpo = (contratoConfig?.numeroContrato || 'Contrato').replace(/[\/\\?%*:|"<>]/g, '_');
+    const compLimpa = competencia.replace(/[\/\\?%*:|"<>]/g, '_');
+    const nomeArquivo = `Extrato_Fatura_${compLimpa}_CTR_${contratoLimpo}.pdf`;
+
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'EXTRATO_FATURA_CV');
+    doc.save(nomeArquivo);
   };
 
   // 2. Exportar Ficha Individual do Trabalhador em PDF
@@ -408,7 +479,9 @@ function ContaVinculadaContent() {
     doc.setTextColor(80, 80, 80);
     doc.text(`Declaro que as informações acima conferem com os depósitos bancários na Conta Vinculada nº ${contratoConfig?.contaVinculadaNumeroConta || '-'} do Banco do Brasil.`, 14, nextY + 14);
 
-    doc.save(`Ficha_Conta_Vinculada_${t.nomeCompleto.replace(/\s+/g, '_')}.pdf`);
+    const nomeArquivoFicha = `Ficha_Conta_Vinculada_${t.nomeCompleto.replace(/[\/\\?%*:|"<>]/g, '_')}.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivoFicha, 'FICHA_INDIVIDUAL_CV');
+    doc.save(nomeArquivoFicha);
   };
 
   // Excluir movimentação

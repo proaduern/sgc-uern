@@ -15,6 +15,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
+import { DADOS_DIRETORIA_DAS_PADRAO } from '@/lib/config/diretoria';
 
 interface OficioCadastroModalProps {
   contrato: any;
@@ -34,11 +35,12 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
   const [contaRelacionamento, setContaRelacionamento] = useState(
     contrato?.contaVinculadaNumeroConta || ''
   );
-  const [responsavelNome, setResponsavelNome] = useState('Pedro Eloy de Paiva Farias');
-  const [responsavelMatricula, setResponsavelMatricula] = useState('12.757-4');
-  const [portariaDiretor, setPortariaDiretor] = useState('Portaria Nº 3827/2025-GP/FUERN');
-  const [telefoneContato, setTelefoneContato] = useState('(84) 3315-2122 / 98733-3375');
-  const [emailContato, setEmailContato] = useState('diradm@uern.br');
+  const [responsavelNome, setResponsavelNome] = useState(DADOS_DIRETORIA_DAS_PADRAO.nome);
+  const [responsavelMatricula, setResponsavelMatricula] = useState(DADOS_DIRETORIA_DAS_PADRAO.matricula);
+  const [portariaDiretor, setPortariaDiretor] = useState(DADOS_DIRETORIA_DAS_PADRAO.portariaNomeacao);
+  const [cargoDiretor, setCargoDiretor] = useState(DADOS_DIRETORIA_DAS_PADRAO.cargo);
+  const [telefoneContato, setTelefoneContato] = useState(DADOS_DIRETORIA_DAS_PADRAO.telefone);
+  const [emailContato, setEmailContato] = useState(DADOS_DIRETORIA_DAS_PADRAO.email);
   const [erro, setErro] = useState<string | null>(null);
 
   const gerarPdfOficioCadastro = (abrirPreview = false) => {
@@ -102,12 +104,16 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
     const finalY = 160;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
+    doc.setTextColor(0, 0, 0);
     doc.text(responsavelNome, 105, finalY, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.text(`Matrícula nº ${responsavelMatricula}`, 105, finalY + 4, { align: 'center' });
-    doc.text(`Diretor - ${portariaDiretor}`, 105, finalY + 8, { align: 'center' });
+    doc.text(`${cargoDiretor} – ${portariaDiretor}`, 105, finalY + 8, { align: 'center' });
     doc.text('Diretoria de Administração e Serviços / PROAD / UERN', 105, finalY + 12, { align: 'center' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Documento emitido pelo Sistema SGC-UERN e assinado eletronicamente conforme Decreto Estadual nº 27.685/2018.', 105, finalY + 18, { align: 'center' });
 
     // Página 2: FICHA CADASTRAL
     doc.addPage();
@@ -230,11 +236,11 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
 
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
             <span className="font-bold text-slate-800 text-[11px] block">
-              Dados do Diretor Signatário (DAS/PROAD):
+              Dados do Diretor Signatário (Diretoria de Administração e Serviços - DAS/PROAD):
             </span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-500 block">Nome:</label>
+                <label className="text-[10px] text-slate-500 font-bold block">Nome do Diretor:</label>
                 <input
                   type="text"
                   value={responsavelNome}
@@ -243,12 +249,32 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 block">Matrícula & Portaria:</label>
+                <label className="text-[10px] text-slate-500 font-bold block">Matrícula:</label>
+                <input
+                  type="text"
+                  value={responsavelMatricula}
+                  onChange={(e) => setResponsavelMatricula(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold block">Cargo / Função:</label>
+                <input
+                  type="text"
+                  value={cargoDiretor}
+                  onChange={(e) => setCargoDiretor(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold block">Portaria de Nomeação (Editável):</label>
                 <input
                   type="text"
                   value={portariaDiretor}
                   onChange={(e) => setPortariaDiretor(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-blue-950"
                 />
               </div>
             </div>

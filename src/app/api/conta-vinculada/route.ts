@@ -245,6 +245,27 @@ export async function GET(request: NextRequest) {
             empresaContaNumero: true,
             empresaContaTipo: true,
             empresaChavePix: true,
+            portariaDesignacaoGestor: true,
+            dataDesignacaoGestor: true,
+            responsaveis: {
+              where: { ativo: true },
+              select: {
+                id: true,
+                tipoAtuacao: true,
+                numeroAtoDesignacao: true,
+                idSeiAtoDesignacao: true,
+                campusSetor: true,
+                user: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    matricula: true,
+                    email: true,
+                    role: true,
+                  },
+                },
+              },
+            },
             fornecedor: {
               select: {
                 id: true,

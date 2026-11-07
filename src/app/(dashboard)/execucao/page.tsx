@@ -29,6 +29,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 import { normalizarCidadeCampus } from '@/lib/cidades-constantes';
 
 export default function ExecucaoPage() {
@@ -672,7 +673,9 @@ export default function ExecucaoPage() {
     doc.setTextColor(0, 0, 0);
     doc.text(`Código Verificador / Hash: ${ordem.hashAssinaturaEletronica}`, 20, assinaturasY + 36);
 
-    doc.save(`${isOrdemCompra ? 'OC' : 'OS'}_${ordem.numeroOs}_${ordem.ano}_UERN.pdf`);
+    const nomeArquivoOs = `${isOrdemCompra ? 'OC' : 'OS'}_${ordem.numeroOs}_${ordem.ano}_UERN.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivoOs, isOrdemCompra ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO');
+    doc.save(nomeArquivoOs);
   };
 
   // Ordens filtradas para a visualização na aba correspondente

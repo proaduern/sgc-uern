@@ -19,6 +19,7 @@ import {
   Save,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 import {
   MembroEquipeAto,
   SubscritorProad,
@@ -420,7 +421,9 @@ export default function GerarAtoDesignacaoModal({
     });
 
     const numSanitized = numeroAto.replace(/[^a-zA-Z0-9_-]/g, '_');
-    doc.save(`Ato_Designacao_${numSanitized || 'SEI'}.pdf`);
+    const nomeArquivo = `Ato_Designacao_${numSanitized || 'SEI'}.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'ATO_DESIGNACAO');
+    doc.save(nomeArquivo);
   };
 
   if (!isOpen) return null;

@@ -474,10 +474,41 @@ function ContaVinculadaContent() {
       nextY = (doc as any).lastAutoTable?.finalY || nextY + 30;
     }
 
+    let signY = nextY + 10;
+    if (signY > 230) {
+      doc.addPage();
+      signY = 25;
+    }
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(80, 80, 80);
-    doc.text(`Declaro que as informações acima conferem com os depósitos bancários na Conta Vinculada nº ${contratoConfig?.contaVinculadaNumeroConta || '-'} do Banco do Brasil.`, 14, nextY + 14);
+    doc.text(
+      `Declaro que as informações e provisões constantes nesta ficha individual foram apuradas e conferidas com base na folha de pagamento e nos depósitos da Conta Vinculada nº ${contratoConfig?.contaVinculadaNumeroConta || '-'} do Banco do Brasil.`,
+      14,
+      signY,
+      { maxWidth: 182, align: 'justify' }
+    );
+
+    signY += 16;
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.4);
+    doc.line(30, signY + 10, 180, signY + 10);
+
+    const fiscalAdm = contratoConfig?.responsaveis?.find(
+      (r: any) => r.tipoAtuacao === 'FISCAL_ADMINISTRATIVO' && r.ativo
+    );
+    const nomeFiscal = fiscalAdm?.user?.nome || 'Erione de Souza Costa';
+    const matFiscal = fiscalAdm?.user?.matricula || '012866-0';
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(nomeFiscal, 105, signY + 14, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Matrícula nº ${matFiscal} • Fiscal Administrativo do Contrato nº ${contratoConfig?.numeroContrato || '-'}`, 105, signY + 18, { align: 'center' });
+    doc.text('Diretoria de Administração e Serviços - DAS / PROAD / UERN', 105, signY + 22, { align: 'center' });
 
     const nomeArquivoFicha = `Ficha_Conta_Vinculada_${t.nomeCompleto.replace(/[\/\\?%*:|"<>]/g, '_')}.pdf`;
     estamparAutenticacaoNoJsPdf(doc, nomeArquivoFicha, 'FICHA_INDIVIDUAL_CV');

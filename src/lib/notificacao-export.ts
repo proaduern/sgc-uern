@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 
 export interface DadosNotificacaoUern {
   numeroNotificacao: string; // Ex: 15/2026
@@ -171,14 +172,10 @@ export function exportarNotificacaoPdf(dados: DadosNotificacaoUern): jsPDF {
   doc.text(`Fiscal / Gestor do Contrato Administrativo - Ato de Designação nº ${dados.atoDesignacaoNumero || 'Em vigor'}`, 105, tablePos2 + 43, { align: 'center' });
   doc.text('Diretoria de Administração e Serviços - DAS / PROAD / UERN', 105, tablePos2 + 47, { align: 'center' });
 
-  // Rodapé com validação eletrônica
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.4);
-  doc.line(14, 275, 196, 275);
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Termo de Notificação ${dados.numeroNotificacao} - SEI ${dados.processoSei} - SGC UERN - Página 1 de 1`, 105, 280, { align: 'center' });
-  doc.text('Documento gerado em conformidade com o Decreto Estadual nº 27.685/2018 e a IN nº 01/2026 - PROAD/UERN', 105, 284, { align: 'center' });
+  // Estampar rodapé oficial de autenticação digital da PROAD
+  const numLimpo = (dados.numeroNotificacao || 'SEI').replace(/[\/\\?%*:|"<>]/g, '_');
+  const nomeArquivo = `Termo_Notificacao_${numLimpo}.pdf`;
+  estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'NOTIFICACAO_PENALIDADE');
 
   return doc;
 }

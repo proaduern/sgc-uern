@@ -27,6 +27,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 
 const CIDADES_UERN = [
   'Mossoró',
@@ -345,32 +346,55 @@ export default function RelatoriosPage() {
 
     const finalY = (doc as any).lastAutoTable.finalY + 12;
 
+    const nomeGestorPadrao = currentUser?.nome || 'Pedro Eloy de Paiva Farias';
+    const matGestorPadrao = currentUser?.matricula || '012757-4';
+
     let signY = finalY;
-    if (signY > 175) {
+    if (signY > 165) {
       doc.addPage();
-      signY = 30;
+      signY = 25;
     }
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(80, 80, 80);
-    doc.text('Declaro que os processos estimativos acima foram analisados pelo Gestor/Fiscal do Contrato para subsidiar o Fechamento Contábil e o Balanço Geral da UERN.', 14, signY);
+    doc.setTextColor(70, 70, 70);
+    doc.text(
+      'Declaro para os devidos fins que os processos estimativos acima foram analisados e apurados pela Gestão e Fiscalização de Contratos para subsidiar o Fechamento Contábil e o Balanço Geral da UERN, em conformidade com as normas financeiras do Estado do RN.',
+      14,
+      signY,
+      { maxWidth: 269, align: 'justify' }
+    );
 
     signY += 16;
-    doc.setDrawColor(180, 180, 180);
-    doc.line(30, signY, 120, signY);
-    doc.line(160, signY, 250, signY);
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.4);
 
+    // Bloco Gestor do Contrato / PROAD
+    doc.line(30, signY + 10, 125, signY + 10);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(20, 20, 20);
-    doc.text('Gestão e Fiscalização de Contratos', 75, signY + 4, { align: 'center' });
-    doc.text('PROAD / UERN', 75, signY + 8, { align: 'center' });
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(nomeGestorPadrao, 77.5, signY + 14, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Matrícula nº ${matGestorPadrao}`, 77.5, signY + 18, { align: 'center' });
+    doc.text('Gestão de Contratos / Diretoria de Administração e Serviços', 77.5, signY + 22, { align: 'center' });
+    doc.text('PROAD / UERN', 77.5, signY + 26, { align: 'center' });
 
-    doc.text('Setor de Contabilidade e Orçamento', 205, signY + 4, { align: 'center' });
-    doc.text('PROPLAN / UERN', 205, signY + 8, { align: 'center' });
+    // Bloco Contabilidade / PROPLAN
+    doc.line(170, signY + 10, 265, signY + 10);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Setor de Contabilidade e Orçamento', 217.5, signY + 14, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Visto de Apropriação Contábil (SIAFI / SIGEF)', 217.5, signY + 18, { align: 'center' });
+    doc.text('Pró-Reitoria de Planejamento - PROPLAN / UERN', 217.5, signY + 22, { align: 'center' });
 
-    doc.save(`Fechamento_Contabil_Despesas_UERN_${fechamentoAno}.pdf`);
+    const nomeArquivoFechamento = `Fechamento_Contabil_Despesas_UERN_${fechamentoAno}.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivoFechamento, 'FECHAMENTO_CONTABIL');
+    doc.save(nomeArquivoFechamento);
   };
 
   // Exportar Relatório de Despesas em Excel (.xlsx)
@@ -477,18 +501,45 @@ export default function RelatoriosPage() {
     });
 
     const finalY = (doc as any).lastAutoTable.finalY + 12;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Relatório emitido automaticamente pelo Sistema de Gestão de Contratos da UERN (SGC-UERN) em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 14, finalY);
+    const nomeGestorPadrao = currentUser?.nome || 'Pedro Eloy de Paiva Farias';
+    const matGestorPadrao = currentUser?.matricula || '012757-4';
 
-    doc.save(`Relatorio_Despesas_Consolidado_UERN_${new Date().toISOString().split('T')[0]}.pdf`);
+    let signY = finalY;
+    if (signY > 165) {
+      doc.addPage();
+      signY = 25;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(90, 90, 90);
+    doc.text(`Relatório gerado eletronicamente pelo Sistema de Gestão de Contratos da UERN (SGC-UERN) em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 14, signY);
+
+    signY += 14;
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.4);
+    doc.line(75, signY + 10, 222, signY + 10);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(nomeGestorPadrao, 148.5, signY + 14, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Matrícula nº ${matGestorPadrao} • Gestor de Contratos / Diretoria de Administração e Serviços`, 148.5, signY + 18, { align: 'center' });
+    doc.text('Pró-Reitoria de Administração - PROAD / UERN', 148.5, signY + 22, { align: 'center' });
+
+    const nomeArquivoDespesas = `Relatorio_Despesas_Consolidado_UERN_${new Date().toISOString().split('T')[0]}.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivoDespesas, 'RELATORIO_DESPESAS');
+    doc.save(nomeArquivoDespesas);
   };
 
   // Emitir Relatório Consolidado de Ficha do Contrato em PDF
   const emitirRelatorioPdf = () => {
     if (!contratoAtual) return;
     const doc = new jsPDF();
+    const nomeGestorPadrao = currentUser?.nome || 'Pedro Eloy de Paiva Farias';
+    const matGestorPadrao = currentUser?.matricula || '012757-4';
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
@@ -526,17 +577,40 @@ export default function RelatoriosPage() {
       ],
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    let signY = (doc as any).lastAutoTable.finalY + 14;
+    if (signY > 230) {
+      doc.addPage();
+      signY = 25;
+    }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('DECLARAÇÃO DE CONFORMIDADE E AUDITORIA', 15, finalY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(0, 51, 102);
+    doc.text('DECLARAÇÃO DE CONFORMIDADE E AUDITORIA', 15, signY);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Relatório emitido pelo SGC-UERN contendo histórico de medições, glosas e retenções aplicadas no exercício de fiscalização em estrita consonância com a IN nº 01/2026 - PROAD.', 15, finalY + 6, { maxWidth: 180 });
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Relatório emitido pelo SGC-UERN contendo histórico de medições, glosas e retenções aplicadas no exercício de fiscalização em estrita consonância com a IN nº 01/2026 - PROAD e Lei nº 14.133/2021.', 15, signY + 6, { maxWidth: 180, align: 'justify' });
 
-    doc.save(`Relatorio_Contrato_${contratoAtual.numeroContrato || 'UERN'}.pdf`);
+    signY += 26;
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.4);
+    doc.line(30, signY + 10, 180, signY + 10);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(nomeGestorPadrao, 105, signY + 14, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(`Matrícula nº ${matGestorPadrao} • Gestor do Contrato Administrativo`, 105, signY + 18, { align: 'center' });
+    doc.text('Diretoria de Administração e Serviços - DAS / PROAD / UERN', 105, signY + 22, { align: 'center' });
+
+    const contratoLimpo = (contratoAtual.numeroContrato || contratoAtual.numeroEmpenho || 'UERN').replace(/[\/\\?%*:|"<>]/g, '_');
+    const nomeArquivoContrato = `Relatorio_Contrato_${contratoLimpo}.pdf`;
+    estamparAutenticacaoNoJsPdf(doc, nomeArquivoContrato, 'RELATORIO_CONTRATUAL');
+    doc.save(nomeArquivoContrato);
   };
 
   // Apenas bloqueia usuários que não são Admin, nem Gestor, nem Fiscal Administrativo (ex: Fiscais Técnicos/Setoriais)

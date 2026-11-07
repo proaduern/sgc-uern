@@ -1,9 +1,9 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { getSession, obterSessaoReal } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import ChatDrawer from '@/components/chat/ChatDrawer';
+import BarraImpersonacaoAdmin from '@/components/layout/BarraImpersonacaoAdmin';
 
 export default async function DashboardLayout({
   children,
@@ -16,12 +16,15 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  if (session.deveTrocarSenha) {
+  const sessaoReal = await obterSessaoReal();
+
+  if (session.deveTrocarSenha && sessaoReal?.id === session.id) {
     redirect('/trocar-senha');
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      <BarraImpersonacaoAdmin sessaoReal={sessaoReal} sessaoAtual={session} />
       <Navbar user={session} />
       <div className="flex flex-1">
         <Sidebar role={session.role} />
@@ -29,8 +32,6 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
-      {/* Assistente de IA mantido no sistema, temporariamente oculto para futuros ajustes */}
-      {/* <ChatDrawer /> */}
     </div>
   );
 }

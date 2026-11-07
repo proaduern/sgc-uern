@@ -500,14 +500,15 @@ function ContaVinculadaContent() {
                 <span>Conta Vinculada de Garantia (Bloqueada)</span>
               </span>
               <span className="text-xs font-mono text-blue-200 font-bold">
-                Contrato nº {contratoConfig?.numeroContrato || '035/2025'}
+                Contrato nº {contratoConfig?.numeroContrato || contratoConfig?.numeroEmpenho || '-'}
               </span>
             </div>
 
             <h2 className="text-lg sm:text-xl font-black text-white flex items-center space-x-2">
               <Landmark className="w-5 h-5 text-amber-300 shrink-0" />
               <span>
-                {contratoConfig?.contaVinculadaBanco || 'Banco do Brasil S.A.'} • Agência {contratoConfig?.contaVinculadaAgencia || '3795-8'}
+                {contratoConfig?.contaVinculadaBanco || 'Banco não informado'}
+                {contratoConfig?.contaVinculadaAgencia ? ` • Agência ${contratoConfig.contaVinculadaAgencia}` : ''}
               </span>
             </h2>
 
@@ -515,14 +516,18 @@ function ContaVinculadaContent() {
               <div>
                 <strong>Conta Corrente Vinculada:</strong>{' '}
                 <span className="font-mono font-bold text-amber-300">
-                  {contratoConfig?.contaVinculadaNumeroConta || 'Aguardando cadastro da conta aberta'}
+                  {contratoConfig?.contaVinculadaNumeroConta || 'Aguardando cadastro da conta vinculada'}
                 </span>
               </div>
               {contratoConfig?.contaVinculadaStatusConta && (
                 <div className="flex items-center space-x-1">
                   <strong>Status:</strong>
                   <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md text-[10px] font-bold border border-emerald-400/30">
-                    {contratoConfig.contaVinculadaStatusConta}
+                    {contratoConfig.contaVinculadaStatusConta === 'ATIVA'
+                      ? 'ATIVA (BLOQUEADA)'
+                      : contratoConfig.contaVinculadaStatusConta === 'AGUARDANDO_ABERTURA'
+                      ? 'AGUARDANDO ABERTURA'
+                      : contratoConfig.contaVinculadaStatusConta}
                   </span>
                 </div>
               )}
@@ -531,37 +536,56 @@ function ContaVinculadaContent() {
                   <strong>Processo SEI:</strong> <span className="font-mono">{contratoConfig.processoSeiMae}</span>
                 </div>
               )}
+              {contratoConfig?.empresaContaNumero && (
+                <div>
+                  <strong>Conta Destino (Empresa):</strong>{' '}
+                  <span className="font-mono text-emerald-300">
+                    {contratoConfig.empresaContaBanco ? `${contratoConfig.empresaContaBanco} ` : ''}
+                    {contratoConfig.empresaContaAgencia ? `Ag: ${contratoConfig.empresaContaAgencia} ` : ''}
+                    C/C: {contratoConfig.empresaContaNumero}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Ações do Cabeçalho */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowDadosBancariosModal(true)}
               className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold rounded-xl transition-all cursor-pointer backdrop-blur-xs"
+              title="Cadastrar ou editar os dados oficiais da Conta Vinculada e da Conta da Empresa"
             >
               <Landmark className="w-3.5 h-3.5 text-amber-300" />
               <span>Dados da Conta Bancária</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setShowOficioCadastroModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold rounded-xl transition-all cursor-pointer backdrop-blur-xs"
-            >
-              <FileText className="w-3.5 h-3.5 text-blue-300" />
-              <span>Ofício de Abertura</span>
-            </button>
+            {/* SE NÃO TEM CONTA VINCULADA: Exibe apenas Ofício de Abertura */}
+            {!contratoConfig?.contaVinculadaNumeroConta && (
+              <button
+                type="button"
+                onClick={() => setShowOficioCadastroModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-blue-600/90 hover:bg-blue-600 text-white border border-blue-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+                title="Gerar Ofício Bancário para solicitação de abertura de conta vinculada"
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-200" />
+                <span>Ofício de Abertura</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setShowOficioModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
-              title="Gerar Ofício Bancário de Liberação de Provisões Trabalhistas"
-            >
-              <Printer className="w-3.5 h-3.5 text-emerald-200" />
-              <span>Ofício de Liberação</span>
-            </button>
+            {/* SE JÁ TEM CONTA VINCULADA CADASTRADA: Some abertura e aparece apenas Liberação */}
+            {Boolean(contratoConfig?.contaVinculadaNumeroConta) && (
+              <button
+                type="button"
+                onClick={() => setShowOficioModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+                title="Gerar Ofício Bancário de Liberação de Provisões Trabalhistas"
+              >
+                <Printer className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Ofício de Liberação</span>
+              </button>
+            )}
 
             <Link
               href={`/contratos/${selectedContratoId}/editar`}
@@ -1212,11 +1236,30 @@ function ContaVinculadaContent() {
 
               <button
                 type="button"
-                onClick={() => setShowOficioModal(true)}
-                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                onClick={() => {
+                  if (!contratoConfig?.contaVinculadaNumeroConta) {
+                    setShowDadosBancariosModal(true);
+                  } else {
+                    setShowOficioModal(true);
+                  }
+                }}
+                className={`inline-flex items-center space-x-1.5 px-3 py-2 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer ${
+                  contratoConfig?.contaVinculadaNumeroConta
+                    ? 'bg-blue-700 hover:bg-blue-800'
+                    : 'bg-slate-500 hover:bg-slate-600'
+                }`}
+                title={
+                  contratoConfig?.contaVinculadaNumeroConta
+                    ? 'Emitir Ofício Bancário em Lote'
+                    : 'Cadastre os dados da Conta Vinculada para emitir ofício de liberação'
+                }
               >
                 <Printer className="w-4 h-4" />
-                <span>Emitir Ofício Bancário em Lote</span>
+                <span>
+                  {contratoConfig?.contaVinculadaNumeroConta
+                    ? 'Emitir Ofício Bancário em Lote'
+                    : 'Cadastrar Conta Vinculada para Liberar'}
+                </span>
               </button>
             </div>
           </div>

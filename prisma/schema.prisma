@@ -245,6 +245,13 @@ model Contrato {
   contaVinculadaProcessoSei      String?
   contaVinculadaStatusConta      String?        @default("AGUARDANDO_ABERTURA") // AGUARDANDO_ABERTURA, ATIVA, BLOQUEADA, ENCERRADA
   contaVinculadaObservacoes      String?
+
+  // Dados Bancários da Empresa Contratada (Conta de Crédito para Liberações de Conta Vinculada)
+  empresaContaBanco              String?
+  empresaContaAgencia            String?
+  empresaContaNumero             String?
+  empresaContaTipo               String?        @default("CORRENTE") // CORRENTE, POUPANCA
+  empresaChavePix                String?
   status                      StatusContrato @default(ATIVO)
   motivoEncerramento          String?
   saldoInexequivelJustificativa String?

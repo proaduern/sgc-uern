@@ -39,27 +39,27 @@ export default function OficioLiberacaoModal({
   onSucesso,
 }: OficioLiberacaoModalProps) {
   // Dados do Ofício
-  const [numeroOficio, setNumeroOficio] = useState('Ofício nº 42/2026/UERN - PROAD - DAS/UERN');
+  const [numeroOficio, setNumeroOficio] = useState('');
   const [processoSei, setProcessoSei] = useState(
-    contrato?.contaVinculadaProcessoSei || contrato?.processoSeiMae || '04410035.000714/2026-41'
+    contrato?.contaVinculadaProcessoSei || contrato?.processoSeiMae || ''
   );
   const [bancoVinculado, setBancoVinculado] = useState(
     contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.'
   );
   const [agenciaVinculada, setAgenciaVinculada] = useState(
-    contrato?.contaVinculadaAgencia
-      ? `${contrato.contaVinculadaAgencia} – Escritório Setor Público RN`
-      : '3795-8 – Escritório Setor Público RN'
+    contrato?.contaVinculadaAgencia || ''
   );
   const [contaVinculada, setContaVinculada] = useState(
-    contrato?.contaVinculadaNumeroConta || '900129411157'
+    contrato?.contaVinculadaNumeroConta || ''
   );
 
-  // Conta de Crédito da Contratada
-  const [bancoCredito, setBancoCredito] = useState('Caixa Econômica Federal');
-  const [agenciaCredito, setAgenciaCredito] = useState('2183');
-  const [contaCredito, setContaCredito] = useState('6702-0');
+  // Conta de Crédito da Contratada (Destino)
+  const [bancoCredito, setBancoCredito] = useState(contrato?.empresaContaBanco || '');
+  const [agenciaCredito, setAgenciaCredito] = useState(contrato?.empresaContaAgencia || '');
+  const [contaCredito, setContaCredito] = useState(contrato?.empresaContaNumero || '');
   const [cnpjCredito, setCnpjCredito] = useState(contrato?.fornecedor?.cnpj || '');
+  const [salvarDadosEmpresa, setSalvarDadosEmpresa] = useState(false);
+  const [erroValidacao, setErroValidacao] = useState<string | null>(null);
 
   // Rubrica & Alíquota
   const [rubrica, setRubrica] = useState('DECIMO_TERCEIRO_8_33');
@@ -151,8 +151,45 @@ export default function OficioLiberacaoModal({
     });
   }, [calculados, filtroCampus, busca]);
 
+  const salvarDadosBancariosEmpresaNoContrato = async () => {
+    if (!contrato?.id) return;
+    try {
+      await fetch('/api/conta-vinculada', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_DADOS_BANCARIOS',
+          contratoId: contrato.id,
+          empresaContaBanco: bancoCredito.trim() || null,
+          empresaContaAgencia: agenciaCredito.trim() || null,
+          empresaContaNumero: contaCredito.trim() || null,
+        }),
+      });
+    } catch (e) {
+      console.warn('Erro ao salvar conta da empresa:', e);
+    }
+  };
+
   // 1. Gerar Ofício em PDF
-  const gerarOficioPdf = (abrirPreview = false) => {
+  const gerarOficioPdf = async (abrirPreview = false) => {
+    if (!numeroOficio.trim()) {
+      setErroValidacao('Informe o número do Ofício Bancário antes de gerar o documento.');
+      return;
+    }
+    if (!contaVinculada.trim()) {
+      setErroValidacao('Informe o número da Conta Vinculada de débito da FUERN.');
+      return;
+    }
+    if (!bancoCredito.trim() || !contaCredito.trim()) {
+      setErroValidacao('Informe o Banco e a Conta Corrente de destino da empresa para crédito.');
+      return;
+    }
+    setErroValidacao(null);
+
+    if (salvarDadosEmpresa) {
+      await salvarDadosBancariosEmpresaNoContrato();
+    }
+
     const doc = new jsPDF();
 
     // Cabeçalho UERN Oficial
@@ -472,71 +509,148 @@ export default function OficioLiberacaoModal({
             </div>
           )}
 
+          {erroValidacao && (
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl font-bold text-xs flex items-center space-x-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{erroValidacao}</span>
+            </div>
+          )}
+
           {/* Dados do Ofício e Contas Bancárias */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Nº do Ofício Bancário:</label>
-              <input
-                type="text"
-                value={numeroOficio}
-                onChange={(e) => setNumeroOficio(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:border-blue-600"
-              />
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Nº do Ofício Bancário *:</label>
+                <input
+                  type="text"
+                  value={numeroOficio}
+                  onChange={(e) => {
+                    setNumeroOficio(e.target.value);
+                    if (erroValidacao) setErroValidacao(null);
+                  }}
+                  placeholder="Ex: Ofício nº .../2026 - DAS/PROAD/UERN"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Processo SEI de Referência:</label>
+                <input
+                  type="text"
+                  value={processoSei}
+                  onChange={(e) => setProcessoSei(e.target.value)}
+                  placeholder="Ex: 04410035.000714/2026-41"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Rubrica a Liberar:</label>
+                <select
+                  value={rubrica}
+                  onChange={(e) => setRubrica(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-blue-900 outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  <option value="DECIMO_TERCEIRO_8_33">13º Salário (Provisão 8,33%)</option>
+                  <option value="FERIAS_8_33">Férias (Provisão 8,33%)</option>
+                  <option value="TERCO_FERIAS_2_78">1/3 Constitucional de Férias (2,78%)</option>
+                  <option value="MULTA_RESCISORIA_FGTS">Multa Rescisória de FGTS (4,00%)</option>
+                  <option value="FGTS_SOBRE_PROVISOES">FGTS sobre Provisões (8,00%)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Processo SEI de Referência:</label>
-              <input
-                type="text"
-                value={processoSei}
-                onChange={(e) => setProcessoSei(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:border-blue-600"
-              />
-            </div>
+            {/* Origem e Destino Bancário */}
+            <div className="pt-2 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Origem: Conta Vinculada */}
+              <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100 space-y-2">
+                <span className="font-bold text-[11px] text-blue-950 flex items-center space-x-1.5">
+                  <Building className="w-3.5 h-3.5 text-blue-700" />
+                  <span>ORIGEM (Conta Vinculada FUERN no Banco do Brasil)</span>
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-600 font-bold block">Banco / Agência:</label>
+                    <input
+                      type="text"
+                      value={bancoVinculado ? `${bancoVinculado}${agenciaVinculada ? ` - Ag: ${agenciaVinculada}` : ''}` : ''}
+                      onChange={(e) => setAgenciaVinculada(e.target.value)}
+                      placeholder="Ex: BB - Ag: 3795-8"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-600 font-bold block">Nº Conta Vinculada (Débito) *:</label>
+                    <input
+                      type="text"
+                      value={contaVinculada}
+                      onChange={(e) => {
+                        setContaVinculada(e.target.value);
+                        if (erroValidacao) setErroValidacao(null);
+                      }}
+                      placeholder="Número da conta"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-900"
+                    />
+                  </div>
+                </div>
+              </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Rubrica a Liberar:</label>
-              <select
-                value={rubrica}
-                onChange={(e) => setRubrica(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-blue-900 outline-none focus:border-blue-600"
-              >
-                <option value="DECIMO_TERCEIRO_8_33">13º Salário (Provisão 8,33%)</option>
-                <option value="FERIAS_8_33">Férias (Provisão 8,33%)</option>
-                <option value="TERCO_FERIAS_2_78">1/3 Constitucional de Férias (2,78%)</option>
-                <option value="MULTA_RESCISORIA_FGTS">Multa Rescisória de FGTS (4,00%)</option>
-                <option value="FGTS_SOBRE_PROVISOES">FGTS sobre Provisões (8,00%)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Banco / Agência da Conta Vinculada:</label>
-              <input
-                type="text"
-                value={`${bancoVinculado} - ${agenciaVinculada}`}
-                onChange={(e) => setAgenciaVinculada(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Nº da Conta Vinculada (Débito):</label>
-              <input
-                type="text"
-                value={contaVinculada}
-                onChange={(e) => setContaVinculada(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none focus:border-blue-600"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Conta de Crédito da Contratada:</label>
-              <input
-                type="text"
-                value={`${bancoCredito} Ag: ${agenciaCredito} C/C: ${contaCredito}`}
-                onChange={(e) => setContaCredito(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-mono text-slate-700 outline-none"
-              />
+              {/* Destino: Conta da Empresa */}
+              <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-emerald-950 flex items-center space-x-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>DESTINO DO CRÉDITO (Conta da Contratada)</span>
+                  </span>
+                  <label className="flex items-center space-x-1 cursor-pointer text-[10px] font-semibold text-emerald-900 bg-white/70 px-1.5 py-0.5 rounded border border-emerald-200 hover:bg-white transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={salvarDadosEmpresa}
+                      onChange={(e) => setSalvarDadosEmpresa(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Salvar no contrato</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-600 font-bold block">Banco *:</label>
+                    <input
+                      type="text"
+                      value={bancoCredito}
+                      onChange={(e) => {
+                        setBancoCredito(e.target.value);
+                        if (erroValidacao) setErroValidacao(null);
+                      }}
+                      placeholder="Ex: CEF, BB, Bradesco..."
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-600 font-bold block">Agência:</label>
+                    <input
+                      type="text"
+                      value={agenciaCredito}
+                      onChange={(e) => setAgenciaCredito(e.target.value)}
+                      placeholder="Ex: 2183"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-600 font-bold block">Conta Corrente *:</label>
+                    <input
+                      type="text"
+                      value={contaCredito}
+                      onChange={(e) => {
+                        setContaCredito(e.target.value);
+                        if (erroValidacao) setErroValidacao(null);
+                      }}
+                      placeholder="Ex: 6702-0"
+                      className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-950"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

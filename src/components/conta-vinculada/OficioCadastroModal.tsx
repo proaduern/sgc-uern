@@ -23,24 +23,31 @@ interface OficioCadastroModalProps {
 
 export default function OficioCadastroModal({ contrato, onClose }: OficioCadastroModalProps) {
   const [numeroOficio, setNumeroOficio] = useState(
-    contrato?.contaVinculadaOficioAbertura || 'Ofício nº 37/2026 - DAS/PROAD/UERN'
+    contrato?.contaVinculadaOficioAbertura || ''
   );
   const [bancoNome, setBancoNome] = useState(
     contrato?.contaVinculadaBanco ? `${contrato.contaVinculadaBanco} - Escritório Setor Público RN` : 'Banco do Brasil S.A. - Escritório Setor Público RN'
   );
   const [agenciaRelacionamento, setAgenciaRelacionamento] = useState(
-    contrato?.contaVinculadaAgencia || '3795-8'
+    contrato?.contaVinculadaAgencia || ''
   );
   const [contaRelacionamento, setContaRelacionamento] = useState(
-    contrato?.contaVinculadaNumeroConta || '900129411157'
+    contrato?.contaVinculadaNumeroConta || ''
   );
   const [responsavelNome, setResponsavelNome] = useState('Pedro Eloy de Paiva Farias');
   const [responsavelMatricula, setResponsavelMatricula] = useState('12.757-4');
   const [portariaDiretor, setPortariaDiretor] = useState('Portaria Nº 3827/2025-GP/FUERN');
   const [telefoneContato, setTelefoneContato] = useState('(84) 3315-2122 / 98733-3375');
   const [emailContato, setEmailContato] = useState('diradm@uern.br');
+  const [erro, setErro] = useState<string | null>(null);
 
   const gerarPdfOficioCadastro = (abrirPreview = false) => {
+    if (!numeroOficio.trim()) {
+      setErro('Informe o número do Ofício emitido antes de gerar o documento.');
+      return;
+    }
+    setErro(null);
+
     const doc = new jsPDF();
 
     // Cabeçalho Oficial
@@ -173,14 +180,25 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4 flex-1 text-slate-700 text-xs">
+          {erro && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+              <span className="font-bold">Atenção:</span>
+              <span>{erro}</span>
+            </div>
+          )}
+
           <div>
             <label className="text-[11px] font-bold text-slate-700 block mb-1">
-              Número do Ofício *
+              Número do Ofício de Abertura *
             </label>
             <input
               type="text"
               value={numeroOficio}
-              onChange={(e) => setNumeroOficio(e.target.value)}
+              onChange={(e) => {
+                setNumeroOficio(e.target.value);
+                if (erro) setErro(null);
+              }}
+              placeholder="Ex: Ofício nº .../2026 - DAS/PROAD/UERN"
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none focus:border-blue-600"
             />
           </div>

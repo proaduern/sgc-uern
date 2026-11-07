@@ -34,7 +34,7 @@ export default function RegistroLiberacaoModal({
   const [trabalhadorId, setTrabalhadorId] = useState(trabalhadores[0]?.id || '');
   const [rubrica, setRubrica] = useState('FERIAS_8_33');
   const [valor, setValor] = useState('');
-  const [numeroOficio, setNumeroOficio] = useState('Ofício nº 180/2026/UERN - PROAD');
+  const [numeroOficio, setNumeroOficio] = useState('');
   const [processoSei, setProcessoSei] = useState(contrato?.processoSeiMae || '');
   const [competencia, setCompetencia] = useState(
     `${new Date().getMonth() + 1 < 10 ? '0' : ''}${new Date().getMonth() + 1}/${new Date().getFullYear()}`

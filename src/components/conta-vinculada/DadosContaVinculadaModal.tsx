@@ -24,8 +24,9 @@ export default function DadosContaVinculadaModal({
   onClose,
   onSucesso,
 }: DadosContaVinculadaModalProps) {
+  // 1. Dados da Conta Vinculada (Origem das Retenções)
   const [banco, setBanco] = useState(contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.');
-  const [agencia, setAgencia] = useState(contrato?.contaVinculadaAgencia || '3795-8');
+  const [agencia, setAgencia] = useState(contrato?.contaVinculadaAgencia || '');
   const [numeroConta, setNumeroConta] = useState(contrato?.contaVinculadaNumeroConta || '');
   const [dataAbertura, setDataAbertura] = useState(() => {
     if (contrato?.contaVinculadaDataAbertura) {
@@ -34,7 +35,7 @@ export default function DadosContaVinculadaModal({
     return '';
   });
   const [oficioAbertura, setOficioAbertura] = useState(
-    contrato?.contaVinculadaOficioAbertura || 'Ofício nº 151/2026/UERN - PROAD'
+    contrato?.contaVinculadaOficioAbertura || ''
   );
   const [processoSei, setProcessoSei] = useState(
     contrato?.contaVinculadaProcessoSei || contrato?.processoSeiMae || ''
@@ -44,16 +45,18 @@ export default function DadosContaVinculadaModal({
   );
   const [observacoes, setObservacoes] = useState(contrato?.contaVinculadaObservacoes || '');
 
+  // 2. Dados da Conta Corrente da Empresa Contratada (Destino dos Créditos nas Liberações)
+  const [empresaBanco, setEmpresaBanco] = useState(contrato?.empresaContaBanco || '');
+  const [empresaAgencia, setEmpresaAgencia] = useState(contrato?.empresaContaAgencia || '');
+  const [empresaConta, setEmpresaConta] = useState(contrato?.empresaContaNumero || '');
+  const [empresaTipoConta, setEmpresaTipoConta] = useState(contrato?.empresaContaTipo || 'CORRENTE');
+  const [empresaPix, setEmpresaPix] = useState(contrato?.empresaChavePix || '');
+
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!numeroConta.trim()) {
-      setErro('Informe o número da conta vinculada fornecido pelo banco.');
-      return;
-    }
-
     setSalvando(true);
     setErro(null);
 
@@ -64,14 +67,19 @@ export default function DadosContaVinculadaModal({
         body: JSON.stringify({
           action: 'UPDATE_DADOS_BANCARIOS',
           contratoId: contrato.id,
-          contaVinculadaBanco: banco,
-          contaVinculadaAgencia: agencia,
-          contaVinculadaNumeroConta: numeroConta,
+          contaVinculadaBanco: banco.trim() || null,
+          contaVinculadaAgencia: agencia.trim() || null,
+          contaVinculadaNumeroConta: numeroConta.trim() || null,
           contaVinculadaDataAbertura: dataAbertura || null,
-          contaVinculadaOficioAbertura: oficioAbertura,
-          contaVinculadaProcessoSei: processoSei,
-          contaVinculadaStatusConta: statusConta,
-          contaVinculadaObservacoes: observacoes,
+          contaVinculadaOficioAbertura: oficioAbertura.trim() || null,
+          contaVinculadaProcessoSei: processoSei.trim() || null,
+          contaVinculadaStatusConta: numeroConta.trim() ? statusConta : 'AGUARDANDO_ABERTURA',
+          contaVinculadaObservacoes: observacoes.trim() || null,
+          empresaContaBanco: empresaBanco.trim() || null,
+          empresaContaAgencia: empresaAgencia.trim() || null,
+          empresaContaNumero: empresaConta.trim() || null,
+          empresaContaTipo: empresaTipoConta,
+          empresaChavePix: empresaPix.trim() || null,
         }),
       });
 
@@ -125,18 +133,19 @@ export default function DadosContaVinculadaModal({
             </div>
           )}
 
+          {/* Seção 1: Conta Vinculada */}
           <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed">
             <span className="font-bold flex items-center space-x-1.5 mb-1 text-blue-950">
               <ShieldCheck className="w-4 h-4 text-blue-700" />
-              <span>Confirmação Bancária Oficial</span>
+              <span>1. Conta Vinculada Bloqueada (Origem das Retenções)</span>
             </span>
-            Cadastre aqui os dados da conta garantia bloqueada fornecidos pela agência bancária após a abertura do convênio. Estes dados serão <strong>puxados automaticamente em todos os ofícios de liberação</strong>.
+            Cadastre os dados da conta garantia fornecidos pelo banco após abertura do convênio. Se o contrato for novo e ainda não tiver conta, deixe em branco para emitir o <strong>Ofício de Abertura</strong>.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Instituição Bancária
+                Instituição Bancária (Convenente)
               </label>
               <input
                 type="text"
@@ -144,13 +153,12 @@ export default function DadosContaVinculadaModal({
                 onChange={(e) => setBanco(e.target.value)}
                 placeholder="Ex: Banco do Brasil S.A."
                 className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-                required
               />
             </div>
 
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Agência com Dígito
+                Agência da Conta Vinculada
               </label>
               <input
                 type="text"
@@ -158,7 +166,6 @@ export default function DadosContaVinculadaModal({
                 onChange={(e) => setAgencia(e.target.value)}
                 placeholder="Ex: 3795-8"
                 className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-                required
               />
             </div>
           </div>
@@ -166,15 +173,14 @@ export default function DadosContaVinculadaModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Conta Corrente Vinculada
+                Número da Conta Vinculada
               </label>
               <input
                 type="text"
                 value={numeroConta}
                 onChange={(e) => setNumeroConta(e.target.value)}
-                placeholder="Ex: 4900101224108"
+                placeholder="Número oficial da conta garantia"
                 className="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-                required
               />
             </div>
 
@@ -198,7 +204,7 @@ export default function DadosContaVinculadaModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Data de Abertura / Confirmação
+                Data de Abertura da Conta
               </label>
               <input
                 type="date"
@@ -216,7 +222,7 @@ export default function DadosContaVinculadaModal({
                 type="text"
                 value={processoSei}
                 onChange={(e) => setProcessoSei(e.target.value)}
-                placeholder="Ex: 04410017.001048/2025-04"
+                placeholder="Número do processo SEI"
                 className="w-full text-xs font-mono px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
               />
             </div>
@@ -224,26 +230,105 @@ export default function DadosContaVinculadaModal({
 
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-              Ofício de Abertura Emitido pela UERN
+              Ofício de Abertura Formalizado
             </label>
             <input
               type="text"
               value={oficioAbertura}
               onChange={(e) => setOficioAbertura(e.target.value)}
-              placeholder="Ex: Ofício nº 151/2026/UERN - PROAD"
+              placeholder="Ex: Ofício nº .../2026 - DAS/PROAD/UERN"
               className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
             />
           </div>
 
+          {/* Seção 2: Conta da Empresa Contratada para Crédito */}
+          <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-950 leading-relaxed mt-4">
+            <span className="font-bold flex items-center space-x-1.5 mb-1 text-emerald-900">
+              <Landmark className="w-4 h-4 text-emerald-700" />
+              <span>2. Conta Bancária da Contratada (Destino das Liberações)</span>
+            </span>
+            Informe a conta corrente operacional da empresa <strong>{contrato?.fornecedor?.razaoSocial || 'Contratada'}</strong>. Ao emitir o <strong>Ofício de Liberação</strong>, estes dados serão preenchidos automaticamente na ordem de transferência.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                Banco da Empresa
+              </label>
+              <input
+                type="text"
+                value={empresaBanco}
+                onChange={(e) => setEmpresaBanco(e.target.value)}
+                placeholder="Ex: Caixa Econômica, Bradesco..."
+                className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                Agência da Empresa
+              </label>
+              <input
+                type="text"
+                value={empresaAgencia}
+                onChange={(e) => setEmpresaAgencia(e.target.value)}
+                placeholder="Ex: 2183"
+                className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                Conta Corrente da Empresa
+              </label>
+              <input
+                type="text"
+                value={empresaConta}
+                onChange={(e) => setEmpresaConta(e.target.value)}
+                placeholder="Ex: 6702-0"
+                className="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                Tipo de Conta
+              </label>
+              <select
+                value={empresaTipoConta}
+                onChange={(e) => setEmpresaTipoConta(e.target.value)}
+                className="w-full text-xs font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all cursor-pointer"
+              >
+                <option value="CORRENTE">Conta Corrente (Pessoa Jurídica)</option>
+                <option value="POUPANCA">Conta Poupança</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                Chave PIX da Empresa (Opcional)
+              </label>
+              <input
+                type="text"
+                value={empresaPix}
+                onChange={(e) => setEmpresaPix(e.target.value)}
+                placeholder="CNPJ ou chave PIX cadastrada"
+                className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-              Observações Adicionais do Banco
+              Observações Adicionais
             </label>
             <textarea
               rows={2}
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Ex: Gerente de relacionamento: João Silva (Ramal 2122). Convênio firmado com tarifa isenta."
+              placeholder="Informações adicionais de relacionamento bancário..."
               className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
             />
           </div>

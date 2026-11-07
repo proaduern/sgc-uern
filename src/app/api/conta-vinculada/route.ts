@@ -240,6 +240,11 @@ export async function GET(request: NextRequest) {
             contaVinculadaProcessoSei: true,
             contaVinculadaStatusConta: true,
             contaVinculadaObservacoes: true,
+            empresaContaBanco: true,
+            empresaContaAgencia: true,
+            empresaContaNumero: true,
+            empresaContaTipo: true,
+            empresaChavePix: true,
             fornecedor: {
               select: {
                 id: true,
@@ -523,6 +528,11 @@ export async function PUT(request: NextRequest) {
         contaVinculadaProcessoSei,
         contaVinculadaStatusConta,
         contaVinculadaObservacoes,
+        empresaContaBanco,
+        empresaContaAgencia,
+        empresaContaNumero,
+        empresaContaTipo,
+        empresaChavePix,
       } = body;
 
       if (!contratoId) {
@@ -535,11 +545,16 @@ export async function PUT(request: NextRequest) {
           contaVinculadaBanco: contaVinculadaBanco !== undefined ? contaVinculadaBanco : undefined,
           contaVinculadaAgencia: contaVinculadaAgencia !== undefined ? contaVinculadaAgencia : undefined,
           contaVinculadaNumeroConta: contaVinculadaNumeroConta !== undefined ? contaVinculadaNumeroConta : undefined,
-          contaVinculadaDataAbertura: contaVinculadaDataAbertura ? new Date(contaVinculadaDataAbertura) : undefined,
+          contaVinculadaDataAbertura: contaVinculadaDataAbertura ? new Date(contaVinculadaDataAbertura) : (contaVinculadaDataAbertura === null ? null : undefined),
           contaVinculadaOficioAbertura: contaVinculadaOficioAbertura !== undefined ? contaVinculadaOficioAbertura : undefined,
           contaVinculadaProcessoSei: contaVinculadaProcessoSei !== undefined ? contaVinculadaProcessoSei : undefined,
           contaVinculadaStatusConta: contaVinculadaStatusConta !== undefined ? contaVinculadaStatusConta : undefined,
           contaVinculadaObservacoes: contaVinculadaObservacoes !== undefined ? contaVinculadaObservacoes : undefined,
+          empresaContaBanco: empresaContaBanco !== undefined ? empresaContaBanco : undefined,
+          empresaContaAgencia: empresaContaAgencia !== undefined ? empresaContaAgencia : undefined,
+          empresaContaNumero: empresaContaNumero !== undefined ? empresaContaNumero : undefined,
+          empresaContaTipo: empresaContaTipo !== undefined ? empresaContaTipo : undefined,
+          empresaChavePix: empresaChavePix !== undefined ? empresaChavePix : undefined,
         },
       });
 

@@ -912,3 +912,28 @@ model AvaliacaoUsuarioContrato {
 
   @@map("avaliacoes_usuario_contrato")
 }
+
+
+model ParametrosKpiContrato {
+  id                               String   @id @default("CONFIG_PADRAO")
+  diasAlertaNovaLicitacaoMin       Int      @default(180)
+  diasAlertaNovaLicitacaoMax       Int      @default(240)
+  diasAlertaProrrogacao            Int      @default(120)
+  limiteMaximoAcrescimoLegal       Float    @default(25.0)
+  pesoComUsuarioImr                Float    @default(30.0)
+  pesoComUsuarioNps                Float    @default(20.0)
+  pesoComUsuarioTrabalhista        Float    @default(20.0)
+  pesoComUsuarioPenalidades        Float    @default(15.0)
+  pesoComUsuarioFiscal             Float    @default(15.0)
+  pesoSemUsuarioImr                Float    @default(40.0)
+  pesoSemUsuarioTrabalhista        Float    @default(25.0)
+  pesoSemUsuarioPenalidades        Float    @default(20.0)
+  pesoSemUsuarioFiscal             Float    @default(15.0)
+  limiarDiamante                   Int      @default(90)
+  limiarOuro                       Int      @default(75)
+  limiarPrata                      Int      @default(50)
+  atualizadoPor                    String?
+  updatedAt                        DateTime @updatedAt
+
+  @@map("parametros_kpi_contrato")
+}

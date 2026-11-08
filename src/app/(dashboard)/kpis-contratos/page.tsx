@@ -17,6 +17,7 @@ import {
   FilePlus,
   RefreshCw,
   Sparkles,
+  Sliders,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,14 @@ export default async function KpisContratosPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/kpis-contratos/parametros"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-[#003366] hover:bg-slate-50 transition shadow-sm"
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#003366]" />
+            Configurar Parâmetros &amp; Pesos
+          </Link>
           <Link
             href="/planejamento-pca"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 text-xs font-bold text-[#003366] hover:bg-blue-100 transition shadow-sm"

@@ -8,6 +8,157 @@ export type TipoAlertaContinuidade =
   | "RISCO_ESGOTAMENTO_SALDO"
   | "REGULAR";
 
+export interface ParametrosContratoPadrao {
+  diasAlertaNovaLicitacaoMin: number; // 180 dias
+  diasAlertaNovaLicitacaoMax: number; // 240 dias
+  diasAlertaProrrogacao: number; // 120 dias
+  limiteMaximoAcrescimoLegal: number; // 25.0%
+  pesoComUsuarioImr: number; // 30.0%
+  pesoComUsuarioNps: number; // 20.0%
+  pesoComUsuarioTrabalhista: number; // 20.0%
+  pesoComUsuarioPenalidades: number; // 15.0%
+  pesoComUsuarioFiscal: number; // 15.0%
+  pesoSemUsuarioImr: number; // 40.0%
+  pesoSemUsuarioTrabalhista: number; // 25.0%
+  pesoSemUsuarioPenalidades: number; // 20.0%
+  pesoSemUsuarioFiscal: number; // 15.0%
+  limiarDiamante: number; // 90
+  limiarOuro: number; // 75
+  limiarPrata: number; // 50
+}
+
+export const PARAMETROS_CONTRATO_PADRAO: ParametrosContratoPadrao = {
+  diasAlertaNovaLicitacaoMin: 180,
+  diasAlertaNovaLicitacaoMax: 240,
+  diasAlertaProrrogacao: 120,
+  limiteMaximoAcrescimoLegal: 25.0,
+  pesoComUsuarioImr: 30.0,
+  pesoComUsuarioNps: 20.0,
+  pesoComUsuarioTrabalhista: 20.0,
+  pesoComUsuarioPenalidades: 15.0,
+  pesoComUsuarioFiscal: 15.0,
+  pesoSemUsuarioImr: 40.0,
+  pesoSemUsuarioTrabalhista: 25.0,
+  pesoSemUsuarioPenalidades: 20.0,
+  pesoSemUsuarioFiscal: 15.0,
+  limiarDiamante: 90,
+  limiarOuro: 75,
+  limiarPrata: 50,
+};
+
+export interface ParametrosCompletosContrato {
+  config: ParametrosContratoPadrao;
+  isCustomizado: boolean;
+  atualizadoPor?: string | null;
+  updatedAt?: string | null;
+}
+
+export async function obterParametrosKpiContrato(): Promise<ParametrosCompletosContrato> {
+  try {
+    const p = await prisma.parametrosKpiContrato.findUnique({
+      where: { id: "CONFIG_PADRAO" },
+    });
+
+    if (!p) {
+      return {
+        config: { ...PARAMETROS_CONTRATO_PADRAO },
+        isCustomizado: false,
+      };
+    }
+
+    return {
+      config: {
+        diasAlertaNovaLicitacaoMin: p.diasAlertaNovaLicitacaoMin,
+        diasAlertaNovaLicitacaoMax: p.diasAlertaNovaLicitacaoMax,
+        diasAlertaProrrogacao: p.diasAlertaProrrogacao,
+        limiteMaximoAcrescimoLegal: p.limiteMaximoAcrescimoLegal,
+        pesoComUsuarioImr: p.pesoComUsuarioImr,
+        pesoComUsuarioNps: p.pesoComUsuarioNps,
+        pesoComUsuarioTrabalhista: p.pesoComUsuarioTrabalhista,
+        pesoComUsuarioPenalidades: p.pesoComUsuarioPenalidades,
+        pesoComUsuarioFiscal: p.pesoComUsuarioFiscal,
+        pesoSemUsuarioImr: p.pesoSemUsuarioImr,
+        pesoSemUsuarioTrabalhista: p.pesoSemUsuarioTrabalhista,
+        pesoSemUsuarioPenalidades: p.pesoSemUsuarioPenalidades,
+        pesoSemUsuarioFiscal: p.pesoSemUsuarioFiscal,
+        limiarDiamante: p.limiarDiamante,
+        limiarOuro: p.limiarOuro,
+        limiarPrata: p.limiarPrata,
+      },
+      isCustomizado: true,
+      atualizadoPor: p.atualizadoPor,
+      updatedAt: p.updatedAt?.toISOString(),
+    };
+  } catch (err) {
+    console.warn("Aviso ao carregar parametros do contrato, usando padroes:", err);
+    return {
+      config: { ...PARAMETROS_CONTRATO_PADRAO },
+      isCustomizado: false,
+    };
+  }
+}
+
+export async function salvarParametrosKpiContrato(
+  dados: Partial<ParametrosContratoPadrao>,
+  atualizadoPor?: string
+) {
+  const merged = { ...PARAMETROS_CONTRATO_PADRAO, ...dados };
+
+  return await prisma.parametrosKpiContrato.upsert({
+    where: { id: "CONFIG_PADRAO" },
+    create: {
+      id: "CONFIG_PADRAO",
+      diasAlertaNovaLicitacaoMin: Math.max(1, Math.round(merged.diasAlertaNovaLicitacaoMin)),
+      diasAlertaNovaLicitacaoMax: Math.max(1, Math.round(merged.diasAlertaNovaLicitacaoMax)),
+      diasAlertaProrrogacao: Math.max(1, Math.round(merged.diasAlertaProrrogacao)),
+      limiteMaximoAcrescimoLegal: Math.max(0, Number(merged.limiteMaximoAcrescimoLegal.toFixed(1))),
+      pesoComUsuarioImr: Number(merged.pesoComUsuarioImr.toFixed(1)),
+      pesoComUsuarioNps: Number(merged.pesoComUsuarioNps.toFixed(1)),
+      pesoComUsuarioTrabalhista: Number(merged.pesoComUsuarioTrabalhista.toFixed(1)),
+      pesoComUsuarioPenalidades: Number(merged.pesoComUsuarioPenalidades.toFixed(1)),
+      pesoComUsuarioFiscal: Number(merged.pesoComUsuarioFiscal.toFixed(1)),
+      pesoSemUsuarioImr: Number(merged.pesoSemUsuarioImr.toFixed(1)),
+      pesoSemUsuarioTrabalhista: Number(merged.pesoSemUsuarioTrabalhista.toFixed(1)),
+      pesoSemUsuarioPenalidades: Number(merged.pesoSemUsuarioPenalidades.toFixed(1)),
+      pesoSemUsuarioFiscal: Number(merged.pesoSemUsuarioFiscal.toFixed(1)),
+      limiarDiamante: Math.max(1, Math.min(100, Math.round(merged.limiarDiamante))),
+      limiarOuro: Math.max(1, Math.min(100, Math.round(merged.limiarOuro))),
+      limiarPrata: Math.max(1, Math.min(100, Math.round(merged.limiarPrata))),
+      atualizadoPor: atualizadoPor || "Administrador PROAD",
+    },
+    update: {
+      diasAlertaNovaLicitacaoMin: Math.max(1, Math.round(merged.diasAlertaNovaLicitacaoMin)),
+      diasAlertaNovaLicitacaoMax: Math.max(1, Math.round(merged.diasAlertaNovaLicitacaoMax)),
+      diasAlertaProrrogacao: Math.max(1, Math.round(merged.diasAlertaProrrogacao)),
+      limiteMaximoAcrescimoLegal: Math.max(0, Number(merged.limiteMaximoAcrescimoLegal.toFixed(1))),
+      pesoComUsuarioImr: Number(merged.pesoComUsuarioImr.toFixed(1)),
+      pesoComUsuarioNps: Number(merged.pesoComUsuarioNps.toFixed(1)),
+      pesoComUsuarioTrabalhista: Number(merged.pesoComUsuarioTrabalhista.toFixed(1)),
+      pesoComUsuarioPenalidades: Number(merged.pesoComUsuarioPenalidades.toFixed(1)),
+      pesoComUsuarioFiscal: Number(merged.pesoComUsuarioFiscal.toFixed(1)),
+      pesoSemUsuarioImr: Number(merged.pesoSemUsuarioImr.toFixed(1)),
+      pesoSemUsuarioTrabalhista: Number(merged.pesoSemUsuarioTrabalhista.toFixed(1)),
+      pesoSemUsuarioPenalidades: Number(merged.pesoSemUsuarioPenalidades.toFixed(1)),
+      pesoSemUsuarioFiscal: Number(merged.pesoSemUsuarioFiscal.toFixed(1)),
+      limiarDiamante: Math.max(1, Math.min(100, Math.round(merged.limiarDiamante))),
+      limiarOuro: Math.max(1, Math.min(100, Math.round(merged.limiarOuro))),
+      limiarPrata: Math.max(1, Math.min(100, Math.round(merged.limiarPrata))),
+      atualizadoPor: atualizadoPor || "Administrador PROAD",
+    },
+  });
+}
+
+export async function restaurarParametrosKpiContratoPadrao() {
+  try {
+    await prisma.parametrosKpiContrato.delete({
+      where: { id: "CONFIG_PADRAO" },
+    });
+  } catch {
+    // Se não existia, sem erro
+  }
+  return { sucesso: true };
+}
+
 export interface KpiContratoIndividual {
   id: string;
   numeroContrato: string | null;
@@ -76,12 +227,13 @@ export interface KpisContratosConsolidado {
   };
 
   satisfacaoUsuarioGeral: {
-    mediaNota: number; // 1 a 5
-    mediaPercentual: number; // 0 a 100%
+    mediaNota: number;
+    mediaPercentual: number;
     totalAvaliacoesRegistradas: number;
   };
 
   contratos: KpiContratoIndividual[];
+  parametrosVigentes: ParametrosCompletosContrato;
 }
 
 function diffEmDias(data1: Date, data2: Date): number {
@@ -94,14 +246,17 @@ function diffEmMeses(data1: Date, data2: Date): number {
   return Math.max(0, meses);
 }
 
-function classificarFaixa(score: number): FaixaRatingContrato {
-  if (score >= 90) return "DIAMANTE";
-  if (score >= 75) return "OURO";
-  if (score >= 50) return "PRATA";
+function classificarFaixa(score: number, limiares: { diamante: number; ouro: number; prata: number }): FaixaRatingContrato {
+  if (score >= limiares.diamante) return "DIAMANTE";
+  if (score >= limiares.ouro) return "OURO";
+  if (score >= limiares.prata) return "PRATA";
   return "BRONZE_CRITICO";
 }
 
 export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
+  const paramsWrapper = await obterParametrosKpiContrato();
+  const CFG = paramsWrapper.config;
+
   const hoje = new Date();
 
   const contratos = await prisma.contrato.findMany({
@@ -174,12 +329,10 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
     const diasParaVencer = diffEmDias(hoje, vigFim);
     const anosVigencia = c.anosVigencia ?? 1;
 
-    // Limite legal de prorrogação (Lei 14.133/2021)
     const isContinuado = c.tipoVigencia === "CONTINUADO";
     const limiteLegalAnos = isContinuado ? 10 : 1;
     const podeProrrogar = isContinuado && anosVigencia < limiteLegalAnos;
 
-    // Saldo e Medições
     const totalMedido = c.medicoes.reduce((acc, m) => {
       return acc + (m.valorAtestadoFinal ?? m.valorNotaFiscal ?? 0);
     }, 0);
@@ -200,7 +353,7 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
     const saldoSuficiente = deficitProjetado <= 0;
     const percentualAditivoNecessario = valorAtualizado > 0 ? Number(((deficitProjetado / valorAtualizado) * 100).toFixed(1)) : 0;
 
-    // Radar de Continuidade
+    // Radar de Continuidade com parâmetros dinâmicos
     let alertaContinuidade: TipoAlertaContinuidade = "REGULAR";
     let mensagemAlertaContinuidade: string | null = null;
     let sugestaoAcao: string | null = null;
@@ -208,36 +361,32 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
     if (!saldoSuficiente && mesesRestantes > 0) {
       alertaContinuidade = "RISCO_ESGOTAMENTO_SALDO";
       countRiscoSaldo++;
-      if (percentualAditivoNecessario <= 25) {
+      if (percentualAditivoNecessario <= CFG.limiteMaximoAcrescimoLegal) {
         mensagemAlertaContinuidade = `Projeção de queima de saldo indica déficit de R$ ${deficitProjetado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${percentualAditivoNecessario}%) antes do fim da vigência.`;
-        sugestaoAcao = `Elaborar Termo Aditivo de Acréscimo de ${percentualAditivoNecessario}% (dentro do limite legal de 25% do art. 125 da Lei 14.133/2021).`;
+        sugestaoAcao = `Elaborar Termo Aditivo de Acréscimo de ${percentualAditivoNecessario}% (dentro do limite legal de ${CFG.limiteMaximoAcrescimoLegal}% do art. 125 da Lei 14.133/2021).`;
       } else {
-        mensagemAlertaContinuidade = `Déficit estimado de R$ ${deficitProjetado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${percentualAditivoNecessario}%) excede o limite legal de acréscimo de 25%.`;
+        mensagemAlertaContinuidade = `Déficit estimado de R$ ${deficitProjetado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${percentualAditivoNecessario}%) excede o limite legal de acréscimo de ${CFG.limiteMaximoAcrescimoLegal}%.`;
         sugestaoAcao = "Deflagrar processo de licitação suplementar ou novo certame imediatamente no PCA para evitar descontinuidade.";
       }
-    } else if (!podeProrrogar && diasParaVencer <= 240 && diasParaVencer > 0) {
+    } else if (!podeProrrogar && diasParaVencer <= CFG.diasAlertaNovaLicitacaoMax && diasParaVencer > 0) {
       alertaContinuidade = "DEFLAGRAR_NOVA_LICITACAO_PCA";
       countNovaLicitacao++;
       mensagemAlertaContinuidade = `Vencimento em ${diasParaVencer} dias. Contrato em fase final não renovável (limite legal ou não continuado).`;
       sugestaoAcao = "Deflagrar imediatamente planejamento de nova licitação no PCA para transição tempestiva.";
-    } else if (podeProrrogar && diasParaVencer <= 120 && diasParaVencer > 0) {
+    } else if (podeProrrogar && diasParaVencer <= CFG.diasAlertaProrrogacao && diasParaVencer > 0) {
       alertaContinuidade = "PRORROGAR_CONTRATO_TEMPESTIVO";
       countProrrogacao++;
       mensagemAlertaContinuidade = `Vencimento em ${diasParaVencer} dias. Prazo hábil para prorrogação de vigência.`;
       sugestaoAcao = "Iniciar pesquisa de vantajosidade de mercado e minuta de Termo Aditivo de Renovação.";
     }
 
-    // ----------------------------------------------------
-    // IQContrato: Cálculo Multidimensional
-    // ----------------------------------------------------
-    // 1. IMR
+    // IQContrato
     let scoreImr = 100;
     if (c.imrAvaliacoes.length > 0) {
       const mediaGlosas = c.imrAvaliacoes.reduce((acc, i) => acc + (i.percentualGlosa ?? 0), 0) / c.imrAvaliacoes.length;
       scoreImr = Math.max(0, Math.round(100 - mediaGlosas));
     }
 
-    // 2. Satisfação do Usuário / NPS
     let scoreUsuario: number | null = null;
     let temAvaliacaoUsuario = false;
     let totalRespostas = 0;
@@ -255,12 +404,10 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
       somaNotasUsuario += notaMedia * totalRespostas;
       countRespostasUsuario += totalRespostas;
     } else if (c.regimeExecucao === "DEDICACAO_EXCLUSIVA" || c.objeto.toLowerCase().includes("limpeza") || c.objeto.toLowerCase().includes("vigil")) {
-      // Contratos com usuários intensos sem avaliação direta ainda: nota referencial base
       temAvaliacaoUsuario = true;
       scoreUsuario = 90;
     }
 
-    // 3. Conformidade Trabalhista & Conta Vinculada
     let scoreTrabalhista = 100;
     if (c.retencaoContaVinculadaAtiva) {
       if (c.contaVinculadaStatusConta === "BLOQUEADA") {
@@ -272,14 +419,12 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
       }
     }
 
-    // 4. Histórico Sancionatório
     let scorePenalidades = 100;
     if (c.penalidades.length > 0) {
       const somaImpacto = c.penalidades.reduce((acc, p) => acc + (p.impactoScore ?? 5), 0);
       scorePenalidades = Math.max(0, Math.round(100 - somaImpacto));
     }
 
-    // 5. Regularidade Fiscal
     let scoreFiscal = 100;
     if (c.fornecedor.statusSicaf === "IRREGULAR" || c.fornecedor.statusSicaf === "SUSPENSO") {
       scoreFiscal = 0;
@@ -287,26 +432,33 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
       scoreFiscal = 70;
     }
 
-    // Ponderação do IQContrato conforme público usuário
+    // Ponderação dinâmica conforme pesos configurados
     let iqCalculado = 100;
     if (temAvaliacaoUsuario && scoreUsuario !== null) {
       iqCalculado = Math.round(
-        scoreImr * 0.30 +
-        scoreUsuario * 0.20 +
-        scoreTrabalhista * 0.20 +
-        scorePenalidades * 0.15 +
-        scoreFiscal * 0.15
+        (scoreImr * CFG.pesoComUsuarioImr +
+          scoreUsuario * CFG.pesoComUsuarioNps +
+          scoreTrabalhista * CFG.pesoComUsuarioTrabalhista +
+          scorePenalidades * CFG.pesoComUsuarioPenalidades +
+          scoreFiscal * CFG.pesoComUsuarioFiscal) /
+          100
       );
     } else {
       iqCalculado = Math.round(
-        scoreImr * 0.40 +
-        scoreTrabalhista * 0.25 +
-        scorePenalidades * 0.20 +
-        scoreFiscal * 0.15
+        (scoreImr * CFG.pesoSemUsuarioImr +
+          scoreTrabalhista * CFG.pesoSemUsuarioTrabalhista +
+          scorePenalidades * CFG.pesoSemUsuarioPenalidades +
+          scoreFiscal * CFG.pesoSemUsuarioFiscal) /
+          100
       );
     }
 
-    const faixaIq = classificarFaixa(iqCalculado);
+    const faixaIq = classificarFaixa(iqCalculado, {
+      diamante: CFG.limiarDiamante,
+      ouro: CFG.limiarOuro,
+      prata: CFG.limiarPrata,
+    });
+
     if (faixaIq === "DIAMANTE") countDiamante++;
     else if (faixaIq === "OURO") countOuro++;
     else if (faixaIq === "PRATA") countPrata++;
@@ -357,7 +509,11 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
   }
 
   const iqMedioCarteira = contagemContratos > 0 ? Math.round(somaIqCarteira / contagemContratos) : 100;
-  const faixaIqCarteira = classificarFaixa(iqMedioCarteira);
+  const faixaIqCarteira = classificarFaixa(iqMedioCarteira, {
+    diamante: CFG.limiarDiamante,
+    ouro: CFG.limiarOuro,
+    prata: CFG.limiarPrata,
+  });
 
   const mediaNotaUsuario = countRespostasUsuario > 0 ? Number((somaNotasUsuario / countRespostasUsuario).toFixed(2)) : 4.8;
   const mediaPercentualUsuario = Number(((mediaNotaUsuario / 5) * 100).toFixed(1));
@@ -386,5 +542,6 @@ export async function obterKpisContratos(): Promise<KpisContratosConsolidado> {
       totalAvaliacoesRegistradas: countRespostasUsuario,
     },
     contratos: listaContratosKpi,
+    parametrosVigentes: paramsWrapper,
   };
 }

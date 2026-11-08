@@ -17,7 +17,8 @@ import {
   Building2,
   FileSpreadsheet,
   Wrench,
-  Plane
+  Plane,
+  Award
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -90,6 +91,12 @@ export default function Sidebar({ role }: SidebarProps) {
       href: '/relatorios',
       icon: BarChart3,
       visible: isAdmin || isGestor || isFiscalAdm, // PROAD, Gestores e Fiscais Adm para Fechamento Contábil
+    },
+    {
+      name: 'KPIs & IQContrato',
+      href: '/kpis-contratos',
+      icon: Award,
+      visible: true,
     },
 
     {

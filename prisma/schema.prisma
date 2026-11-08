@@ -288,6 +288,7 @@ model Contrato {
   imrAvaliacoes               ImrAvaliacao[]
   frequenciasTrabalhadores    FrequenciaTrabalhador[]
   repactuacoes                RepactuacaoCalculo[]
+  avaliacoesUsuario           AvaliacaoUsuarioContrato[]
 
   @@map("contratos")
 }
@@ -893,3 +894,21 @@ model RepactuacaoComprovante {
 
 
 
+
+
+model AvaliacaoUsuarioContrato {
+  id                  String   @id @default(uuid())
+  contratoId          String
+  contrato            Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  mesCompetencia      String   // MM/AAAA
+  campus              String   // Mossoró, Assú, Caicó, Patu, Pau dos Ferros, Natal, Geral
+  setorDemandante     String?  // Ex: DINF, DAE, Gabinete, Biblioteca
+  nota                Float    // 1.0 a 5.0
+  quantidadeRespostas Int      @default(1)
+  comentarios         String?
+  origem              String   @default("DIRETA") // "DIRETA", "CHAMADOS", "FORMULARIO_CAMPUS"
+  avaliadoPor         String?
+  createdAt           DateTime @default(now())
+
+  @@map("avaliacoes_usuario_contrato")
+}

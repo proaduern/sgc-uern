@@ -96,7 +96,7 @@ export default function Sidebar({ role }: SidebarProps) {
       name: 'KPIs & IQContrato',
       href: '/kpis-contratos',
       icon: Award,
-      visible: true,
+      visible: isAdmin, // Restrito ao Administrador Geral (PROAD)
     },
 
     {

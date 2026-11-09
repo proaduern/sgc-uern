@@ -56,6 +56,10 @@ export default function ParametrosKpiContratosPage() {
     async function carregar() {
       try {
         const res = await fetch('/api/kpis/contratos/parametros');
+        if (res.status === 401 || res.status === 403) {
+          router.push('/');
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.config) {

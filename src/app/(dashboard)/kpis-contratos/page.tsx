@@ -1,5 +1,8 @@
 import React from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { isAdminRole } from "@/lib/rbac";
 import { obterKpisContratos, type FaixaRatingContrato, type TipoAlertaContinuidade } from "@/lib/services/kpi-contratos";
 import {
   Award,
@@ -52,6 +55,11 @@ function formatarFaixaBadge(faixa: FaixaRatingContrato) {
 }
 
 export default async function KpisContratosPage() {
+  const session = await getSession();
+  if (!session || !isAdminRole(session.role)) {
+    redirect("/");
+  }
+
   const kpis = await obterKpisContratos();
   const badgeCarteira = formatarFaixaBadge(kpis.faixaIqCarteira);
 

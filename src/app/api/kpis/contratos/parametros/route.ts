@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { isAdminRole } from "@/lib/rbac";
 import {
   obterParametrosKpiContrato,
   salvarParametrosKpiContrato,
@@ -9,6 +11,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json(
+        { erro: "Acesso restrito ao administrador geral do sistema." },
+        { status: 403 }
+      );
+    }
+
     const params = await obterParametrosKpiContrato();
     return NextResponse.json(params);
   } catch (error: any) {
@@ -21,6 +31,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || !isAdminRole(session.role)) {
+      return NextResponse.json(
+        { erro: "Acesso restrito ao administrador geral do sistema." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     if (body.restaurarPadroes) {

@@ -68,21 +68,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=token_invalido_destino', request.url));
     }
 
-    // 2. Mapeia role do Portal para o enum Role do SGC (Apenas ADMIN_PROAD, FORNECEDOR ou USUARIO)
+    // 2. Mapeia role do Portal para o enum Role do SGC (suportando múltiplos perfis separados por vírgula)
     // Os papéis finos de Gestor/Fiscal são dinâmicos por contrato na tabela contrato_responsaveis
     let sgcRole: Role = Role.USUARIO;
     const roleUpper = (role || '').toUpperCase();
     const emailLimpo = email.toLowerCase().trim();
 
     if (
-      roleUpper === 'ADMIN_PROAD' ||
-      roleUpper === 'ADMIN' ||
+      roleUpper.includes('ADMIN_PROAD') ||
+      roleUpper.includes('ADMIN') ||
       emailLimpo === 'adj.proad@uern.br' ||
       emailLimpo === 'pedroreboucas@uern.br'
     ) {
       sgcRole = Role.ADMIN_PROAD;
-    } else if (roleUpper === 'FORNECEDOR') {
+    } else if (roleUpper.includes('FORNECEDOR')) {
       sgcRole = Role.FORNECEDOR;
+    } else if (roleUpper.includes('GESTOR_ATA')) {
+      sgcRole = Role.GESTOR_ATA;
     } else {
       sgcRole = Role.USUARIO;
     }
@@ -162,6 +164,7 @@ export async function GET(request: NextRequest) {
       path: '/',
       maxAge: 60 * 60 * 24, // 24 hours
     });
+    response.cookies.delete('sgc_uern_token_impersonacao');
 
     return response;
   } catch (err: any) {

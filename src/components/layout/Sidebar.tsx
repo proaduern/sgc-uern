@@ -66,13 +66,13 @@ export default function Sidebar({ role }: SidebarProps) {
       name: 'Módulo de Terceirização',
       href: '/terceirizacao',
       icon: Users,
-      visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
+      visible: isAdmin || isGestor || isGestorAta || isFiscalAdm, // Gestor, Gestor de Ata e Fiscal Adm
     },
     {
       name: 'Conta Vinculada',
       href: '/conta-vinculada',
       icon: PiggyBank,
-      visible: isAdmin || isGestor || isFiscalAdm, // Gestor e Fiscal Adm
+      visible: isAdmin || isGestor || isGestorAta || isFiscalAdm, // Gestor, Gestor de Ata e Fiscal Adm
     },
     {
       name: 'IMR & Penalidades',

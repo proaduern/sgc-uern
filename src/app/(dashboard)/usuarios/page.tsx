@@ -15,7 +15,8 @@ import {
   Edit3,
   Trash2,
   X,
-  RotateCcw
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 
 export default function UsuariosPage() {
@@ -165,6 +166,39 @@ export default function UsuariosPage() {
     }
   };
 
+  const handleAtuarComo = async (u: any) => {
+    if (u.ativo === false) {
+      alert('Apenas usuários com status ATIVO podem ser operados no modo Atuar Como.');
+      return;
+    }
+    if (
+      !confirm(
+        `Deseja atuar no SGC exatamente como "${u.nome}" (${u.role})?\n\nVocê visualizará o painel, contratos e permissões sob a ótica deste usuário. Você pode retornar ao Administrador a qualquer momento na barra superior.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/atuar-como', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'USUARIO_REAL',
+          usuarioId: u.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(data.error || 'Erro ao alternar para o usuário.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão.');
+    }
+  };
+
   if (currentUser && !currentUser.isAdmin) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-2xl mx-auto my-12 shadow-sm space-y-4">
@@ -302,6 +336,17 @@ export default function UsuariosPage() {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center space-x-1.5">
+                        {currentUser?.id !== u.id && u.ativo !== false && (
+                          <button
+                            onClick={() => handleAtuarComo(u)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg transition-colors cursor-pointer border border-amber-300 shadow-sm"
+                            title={`Atuar no SGC como ${u.nome}`}
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Atuar Como</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleOpenEdit(u)}
                           className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-blue-200"

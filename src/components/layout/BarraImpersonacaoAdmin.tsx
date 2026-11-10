@@ -58,6 +58,8 @@ export default function BarraImpersonacaoAdmin({
       sessaoAtual.role !== sessaoReal.role ||
       sessaoAtual.id.startsWith('sim_'));
 
+  const isUsuarioReal = sessaoAtual && !sessaoAtual.id.startsWith('sim_') && sessaoAtual.id !== sessaoReal?.id;
+
   const handleTrocarPerfil = async (opcoes: {
     tipo?: 'ARQUETIPO' | 'FORNECEDOR';
     role?: string;
@@ -144,7 +146,7 @@ export default function BarraImpersonacaoAdmin({
               <div className="leading-tight">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="bg-black text-amber-300 font-extrabold uppercase px-1.5 py-0.5 rounded text-[10px] tracking-wider">
-                    Modo Simulação PROAD
+                    {isUsuarioReal ? '🎭 Atuando como Usuário Real' : 'Modo Simulação PROAD'}
                   </span>
                   <span>Atuando como:</span>
                   <strong className="text-black bg-white/70 px-2 py-0.5 rounded font-bold shadow-sm">

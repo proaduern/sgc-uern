@@ -245,6 +245,35 @@ export default function FiscaisPage() {
     carregarDados();
   }, []);
 
+  const handleAtuarComo = async (u: any) => {
+    if (
+      !confirm(
+        `Deseja atuar no SGC exatamente como o fiscal/gestor "${u.nome}"?\n\nVocê visualizará o painel, contratos e atribuições sob a ótica dele. Para retornar ao seu Administrador, basta clicar no botão no topo a qualquer momento.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/atuar-como', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'USUARIO_REAL',
+          usuarioId: u.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(data.error || 'Erro ao alternar para o fiscal.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro de conexão.');
+    }
+  };
+
   const handleContratoChange = (contratoId: string) => {
     const contratoSel = contratos.find((c) => c.id === contratoId);
     // Busca ato coletivo prévio no contrato para auto-preencher o ID SEI da comissão
@@ -664,6 +693,16 @@ export default function FiscaisPage() {
                           >
                             <FileText className="w-3 h-3 text-indigo-600" />
                             <span>Ato SEI</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleAtuarComo(d.user)}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-bold rounded-lg transition-colors cursor-pointer shadow-sm"
+                            title={`Atuar no SGC como ${d.user.nome}`}
+                          >
+                            <Sparkles className="w-3 h-3 text-amber-600" />
+                            <span>Atuar Como</span>
                           </button>
 
                           <button

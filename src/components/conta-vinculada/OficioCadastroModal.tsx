@@ -3,19 +3,13 @@
 import React, { useState } from 'react';
 import {
   X,
-  Printer,
   FileText,
   Download,
-  Building,
-  CheckCircle2,
-  Send,
-  FileSpreadsheet
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 import { DADOS_DIRETORIA_DAS_PADRAO } from '@/lib/config/diretoria';
+import { BRASAO_UERN_BASE64, formatarNumeroOficioDas } from '@/lib/config/brasao-uern';
 
 interface OficioCadastroModalProps {
   contrato: any;
@@ -25,12 +19,6 @@ interface OficioCadastroModalProps {
 export default function OficioCadastroModal({ contrato, onClose }: OficioCadastroModalProps) {
   const [numeroOficio, setNumeroOficio] = useState(
     contrato?.contaVinculadaOficioAbertura || ''
-  );
-  const [bancoNome, setBancoNome] = useState(
-    contrato?.contaVinculadaBanco ? `${contrato.contaVinculadaBanco} - Escritório Setor Público RN` : 'Banco do Brasil S.A. - Escritório Setor Público RN'
-  );
-  const [agenciaRelacionamento, setAgenciaRelacionamento] = useState(
-    contrato?.contaVinculadaAgencia || ''
   );
   const [contaRelacionamento, setContaRelacionamento] = useState(
     contrato?.contaVinculadaNumeroConta || ''
@@ -43,81 +31,74 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
   const [emailContato, setEmailContato] = useState(DADOS_DIRETORIA_DAS_PADRAO.email);
   const [erro, setErro] = useState<string | null>(null);
 
+  const oficioFormatado = numeroOficio.trim() ? formatarNumeroOficioDas(numeroOficio) : '';
+
   const gerarPdfOficioCadastro = (abrirPreview = false) => {
     if (!numeroOficio.trim()) {
-      setErro('Informe o número do Ofício emitido antes de gerar o documento.');
+      setErro('Informe o número/ano do Ofício (Ex: 147/2026) antes de gerar o documento.');
       return;
     }
     setErro(null);
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    // Cabeçalho Oficial
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(0, 51, 102);
-    doc.text('UNIVERSIDADE DO ESTADO DO RIO GRANDE DO NORTE - UERN', 105, 18, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text('PRÓ-REITORIA DE ADMINISTRAÇÃO - PROAD / DIRETORIA DE ADMINISTRAÇÃO E SERVIÇOS - DAS', 105, 23, { align: 'center' });
-    doc.text('Rua Almino Afonso, 478 - Bairro Centro, Mossoró/RN, CEP 59610-210 - http://portal.uern.br', 105, 27, { align: 'center' });
+    // Brasão Oficial UERN colorido centralizado
+    try {
+      doc.addImage(BRASAO_UERN_BASE64, 'PNG', 95.5, 12, 19, 29);
+    } catch (e) {
+      console.warn('Falha ao desenhar brasão:', e);
+    }
 
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.6);
-    doc.line(14, 31, 196, 31);
-
-    // Número e Data
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('times', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text(numeroOficio, 14, 42);
-    doc.text(`Mossoró/RN, ${new Date().toLocaleDateString('pt-BR')}`, 196, 42, { align: 'right' });
+    doc.text('Rua Almino Afonso, 478 - Bairro Centro, Mossoró/RN, CEP 59610-210', 105, 45.5, { align: 'center' });
+    doc.text('Telefone: - http://portal.uern.br/', 105, 50, { align: 'center' });
 
-    // Destinatário
-    doc.setFont('helvetica', 'bold');
-    doc.text('Ao(À) Senhor(a) Gerente Geral', 14, 54);
-    doc.setFont('helvetica', 'normal');
-    doc.text(bancoNome, 14, 59);
+    // Número do Ofício
+    doc.setFont('times', 'normal');
+    doc.setFontSize(10.5);
+    doc.text(oficioFormatado, 15, 61);
+
+    // Destinatário Padrão
+    doc.text('Senhor(a) Gerente', 15, 69);
+    doc.text('Banco do Brasil S.A.', 15, 73.5);
+    doc.text('Agência 3795-8 - Escritório Setor Público RN', 15, 78);
 
     // Assunto
-    doc.setFont('helvetica', 'bold');
-    doc.text('Assunto: Cadastro de Convênio de Conta Garantia (Conta Vinculada)', 14, 69);
+    doc.setFont('times', 'bold');
+    doc.text('Assunto:', 15, 88);
+    doc.setFont('times', 'normal');
+    doc.text('Cadastro de Convênio de Conta Garantia (Conta Vinculada)', 30.5, 88);
 
-    // Corpo do Ofício
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
+    // Vocativo e Corpo
+    doc.text('Senhor(a) Gerente,', 35, 100);
     const textoCorpo = [
-      'Senhor(a) Gerente,',
+      `          Solicitamos a abertura de convênio e conta garantia bloqueada para movimentação em nome da FUNDAÇÃO UNIVERSIDADE DO ESTADO DO RIO GRANDE DO NORTE - FUERN, CNPJ nº 08.258.295/0001-02, a qual se destina à prestação de garantia de execução do Contrato Administrativo nº ${contrato?.numeroContrato || contrato?.numeroEmpenho || '035/2025'} - FUERN, firmado com a empresa ${contrato?.fornecedor?.razaoSocial || 'CONTRATADA'}, inscrita no CNPJ/MF sob o nº ${contrato?.fornecedor?.cnpj || '00.000.000/0001-00'}.`,
       '',
-      `Solicitamos a abertura de convênio e conta garantia bloqueada para movimentação em nome da FUNDAÇÃO UNIVERSIDADE DO ESTADO DO RIO GRANDE DO NORTE - FUERN, CNPJ nº 08.258.295/0001-02, a qual se destina à prestação de garantia de execução do Contrato nº ${contrato?.numeroContrato || contrato?.numeroEmpenho || '028/2025'}-FUERN, firmado com a empresa ${contrato?.fornecedor?.razaoSocial || 'CONTRATADA'}, inscrita no CNPJ/MF sob o nº ${contrato?.fornecedor?.cnpj || '00.000.000/0001-00'}.`,
+      `          O presente pedido atende às disposições da Lei Estadual nº 10.841/2021, do Decreto Estadual nº 33.782/2024 e da Instrução Normativa-SEI nº 2/2024 - SEAD/RN, para retenção das provisões de encargos trabalhistas de dedicação exclusiva de mão de obra.`,
       '',
-      `O presente pedido atende às disposições da Lei Estadual nº 10.841/2021, do Decreto Estadual nº 33.782/2024 e da Instrução Normativa nº 01/2026 - PROAD/UERN, para retenção das provisões de encargos trabalhistas de dedicação exclusiva de mão de obra (férias, 13º salário e multa rescisória do FGTS).`,
-      '',
-      'Encaminhamos em anexo a respectiva FICHA CADASTRAL devidamente preenchida e assinada.',
-      '',
-      'Atenciosamente,',
+      '          Encaminhamos em anexo a respectiva FICHA CADASTRAL devidamente preenchida e assinada.',
     ];
 
-    doc.text(textoCorpo, 14, 79, { maxWidth: 182, align: 'justify' });
+    doc.text(textoCorpo, 15, 110, { maxWidth: 180, lineHeightFactor: 1.35 });
 
-    // Assinatura
-    const finalY = 160;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(0, 0, 0);
-    doc.text(responsavelNome, 105, finalY, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.text(`Matrícula nº ${responsavelMatricula}`, 105, finalY + 4, { align: 'center' });
-    doc.text(`${cargoDiretor} – ${portariaDiretor}`, 105, finalY + 8, { align: 'center' });
-    doc.text('Diretoria de Administração e Serviços / PROAD / UERN', 105, finalY + 12, { align: 'center' });
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Documento emitido pelo Sistema SGC-UERN e assinado eletronicamente conforme Decreto Estadual nº 27.685/2018.', 105, finalY + 18, { align: 'center' });
+    // Fecho e Assinatura alinhada à direita
+    doc.text('Atenciosamente,', 35, 166);
+    doc.text('Mossoró, data da assinatura eletrônica.', 195, 182, { align: 'right' });
+
+    const finalY = 196;
+    doc.setFont('times', 'bold');
+    doc.text((responsavelNome || '').toUpperCase(), 195, finalY, { align: 'right' });
+    doc.setFont('times', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Matrícula nº ${responsavelMatricula}`, 195, finalY + 4.5, { align: 'right' });
+    doc.text(portariaDiretor, 195, finalY + 9, { align: 'right' });
+    doc.text('Diretoria de Administração e Serviços – DAS/PROAD', 195, finalY + 13.5, { align: 'right' });
 
     // Página 2: FICHA CADASTRAL
     doc.addPage();
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('times', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(0, 51, 102);
     doc.text('FICHA CADASTRAL - CONTA VINCULADA', 105, 18, { align: 'center' });
@@ -136,7 +117,8 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
         ['CNPJ do Convenente', '08.258.295/0001-02'],
         ['Responsável / Contato', `${responsavelNome} - Tel: ${telefoneContato} - E-mail: ${emailContato}`],
         ['Endereço da Sede', 'Rua Almino Afonso, 478 - Bairro Centro, Mossoró/RN, CEP: 59610-210'],
-        ['Agência Relacionamento', `${agenciaRelacionamento} (Conta: ${contaRelacionamento})`],
+        ['Banco / Destinatário', 'Banco do Brasil S.A. - Agência 3795-8 - Escritório Setor Público RN'],
+        ...(contaRelacionamento ? [['Conta Vinculada', contaRelacionamento]] : []),
         ['Serviço Solicitado', '[X] Contratação  [X] Cadastrar Garantidor  [X] Cadastrar Evento'],
         ['Empresa Garantidora', contrato?.fornecedor?.razaoSocial || '-'],
         ['CNPJ Garantidora', contrato?.fornecedor?.cnpj || '-'],
@@ -149,8 +131,6 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
 
     const contratoSanitizado = (contrato?.numeroContrato || 'Contrato').replace(/[\/\\?%*:|"<>]/g, '_');
     const nomeArquivo = `Oficio_Abertura_CV_${contratoSanitizado}.pdf`;
-
-    estamparAutenticacaoNoJsPdf(doc, nomeArquivo, 'OFICIO_ABERTURA_CV');
 
     if (abrirPreview) {
       const blobUrl = doc.output('bloburl');
@@ -195,7 +175,7 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
 
           <div>
             <label className="text-[11px] font-bold text-slate-700 block mb-1">
-              Número do Ofício de Abertura *
+              Nº e Ano do Ofício de Abertura * <span className="font-normal text-slate-500">(apenas xx/ano)</span>
             </label>
             <input
               type="text"
@@ -204,34 +184,27 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
                 setNumeroOficio(e.target.value);
                 if (erro) setErro(null);
               }}
-              placeholder="Ex: Ofício nº .../2026 - DAS/PROAD/UERN"
+              placeholder="Ex: 147/2026"
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none focus:border-blue-600"
             />
+            {oficioFormatado && (
+              <span className="text-[10px] font-bold text-blue-800 mt-1 block">
+                Gerado: {oficioFormatado}
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                Agência de Relacionamento
-              </label>
-              <input
-                type="text"
-                value={agenciaRelacionamento}
-                onChange={(e) => setAgenciaRelacionamento(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                Conta do Convenente (FUERN)
-              </label>
-              <input
-                type="text"
-                value={contaRelacionamento}
-                onChange={(e) => setContaRelacionamento(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none"
-              />
-            </div>
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 block mb-1">
+              Número da Conta Vinculada (caso já informada pelo Banco)
+            </label>
+            <input
+              type="text"
+              value={contaRelacionamento}
+              onChange={(e) => setContaRelacionamento(e.target.value)}
+              placeholder="Deixe em branco caso a conta ainda vá ser aberta"
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none"
+            />
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
@@ -269,7 +242,7 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 font-bold block">Portaria de Nomeação (Editável):</label>
+                <label className="text-[10px] text-slate-500 font-bold block">Portaria de Nomeação:</label>
                 <input
                   type="text"
                   value={portariaDiretor}
@@ -295,7 +268,6 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
               type="button"
               onClick={() => gerarPdfOficioCadastro(true)}
               className="inline-flex items-center space-x-1.5 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
-              title="Abrir prévia do ofício em uma nova aba do navegador"
             >
               <FileText className="w-4 h-4 text-slate-700" />
               <span>Visualizar / Imprimir (Nova Aba)</span>

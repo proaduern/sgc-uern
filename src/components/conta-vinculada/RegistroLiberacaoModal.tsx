@@ -1,20 +1,14 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   PlusCircle,
   Save,
   AlertCircle,
-  Calculator,
-  User,
-  Calendar,
-  FileText,
-  DollarSign,
-  Building,
-  CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import { formatarNumeroOficioDas } from '@/lib/config/brasao-uern';
 
 interface RegistroLiberacaoModalProps {
   contrato: any;
@@ -32,14 +26,14 @@ export default function RegistroLiberacaoModal({
   onSucesso,
 }: RegistroLiberacaoModalProps) {
   const [trabalhadorId, setTrabalhadorId] = useState(trabalhadores[0]?.id || '');
-  const [rubrica, setRubrica] = useState('FERIAS_8_33');
+  const [rubrica, setRubrica] = useState('DECIMO_TERCEIRO_8_33');
   const [valor, setValor] = useState('');
   const [numeroOficio, setNumeroOficio] = useState('');
   const [processoSei, setProcessoSei] = useState(contrato?.processoSeiMae || '');
   const [competencia, setCompetencia] = useState(
     `${new Date().getMonth() + 1 < 10 ? '0' : ''}${new Date().getMonth() + 1}/${new Date().getFullYear()}`
   );
-  const [motivoLiberacao, setMotivoLiberacao] = useState('Gozo de férias regulamentares com comprovação de pagamento');
+  const [motivoLiberacao, setMotivoLiberacao] = useState('Comprovação de pagamento de provisão trabalhista');
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -53,11 +47,37 @@ export default function RegistroLiberacaoModal({
   }, [saldosPorTrabalhador, trabalhadorId]);
 
   const saldoRubricaDisponivel = useMemo(() => {
-    return saldoTrabalhador.porRubrica?.[rubrica] || 0;
+    return Number((saldoTrabalhador.porRubrica?.[rubrica] || 0).toFixed(2));
   }, [saldoTrabalhador, rubrica]);
+
+  // Adequa automaticamente o valor ao saldo ou provisão da rubrica escolhida quando o trabalhador ou a rubrica mudam
+  useEffect(() => {
+    if (saldoRubricaDisponivel > 0) {
+      setValor(saldoRubricaDisponivel.toFixed(2));
+      return;
+    }
+    const salario = trabalhadorSelecionado?.salarioBaseCct || 0;
+    if (salario > 0) {
+      const pFerias = Number(contrato?.percentualFerias ?? 8.33);
+      const pTerco = Number(contrato?.percentualTercoConstitucional ?? 2.78);
+      const pDecimo = Number(contrato?.percentualDecimoTerceiro ?? 8.33);
+      const pMulta = Number(contrato?.percentualMultaFgts ?? 4.0);
+      const pEncargos = Number(contrato?.percentualEncargosSubmodulo ?? 8.1);
+
+      let aliq = pDecimo;
+      if (rubrica === 'FERIAS_8_33') aliq = pFerias;
+      else if (rubrica === 'TERCO_FERIAS_2_78') aliq = pTerco;
+      else if (rubrica === 'MULTA_RESCISORIA_FGTS') aliq = pMulta;
+      else if (rubrica === 'FGTS_SOBRE_PROVISOES') aliq = pEncargos;
+
+      const estimado12Meses = Number((salario * (aliq / 100) * 12).toFixed(2));
+      setValor(estimado12Meses.toFixed(2));
+    }
+  }, [trabalhadorId, rubrica, saldoRubricaDisponivel, trabalhadorSelecionado, contrato]);
 
   const valorFloat = parseFloat(valor) || 0;
   const isValorMaiorQueSaldo = valorFloat > saldoTrabalhador.saldo && saldoTrabalhador.saldo > 0;
+  const oficioFormatado = numeroOficio.trim() ? formatarNumeroOficioDas(numeroOficio) : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,8 +104,8 @@ export default function RegistroLiberacaoModal({
           trabalhadorId,
           rubrica,
           valor: valorFloat,
-          numeroOficio,
-          motivoLiberacao: `${motivoLiberacao} (${processoSei})`,
+          numeroOficio: oficioFormatado || numeroOficio,
+          motivoLiberacao: processoSei ? `${motivoLiberacao} (${processoSei})` : motivoLiberacao,
           competenciaMesAno: competencia,
         }),
       });
@@ -118,7 +138,7 @@ export default function RegistroLiberacaoModal({
                 Registrar Liberação / Saída de Conta Vinculada
               </h3>
               <p className="text-[11px] text-emerald-200 mt-0.5">
-                Débito nominal na cota do trabalhador • Contrato nº {contrato?.numeroContrato || 'SGC'}
+                Débito nominal por rubrica • Contrato nº {contrato?.numeroContrato || 'SGC'}
               </p>
             </div>
           </div>
@@ -163,9 +183,9 @@ export default function RegistroLiberacaoModal({
           {trabalhadorSelecionado && (
             <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
-                <span>Saldo Bloqueado em Conta:</span>
+                <span>Saldo Disponível na Rubrica Selecionada:</span>
                 <span className="font-mono text-sm text-emerald-800">
-                  {saldoTrabalhador.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {saldoRubricaDisponivel.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-[10px] text-emerald-900 border-t border-emerald-200/60 pt-2">
@@ -178,9 +198,9 @@ export default function RegistroLiberacaoModal({
                   <strong className="font-mono text-rose-700">{saldoTrabalhador.liberado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
                 </div>
                 <div>
-                  <span className="text-emerald-700 block">Status:</span>
-                  <strong className={trabalhadorSelecionado.status === 'DEMITIDO' ? 'text-amber-800' : 'text-emerald-800'}>
-                    {trabalhadorSelecionado.status === 'DEMITIDO' ? 'Demitido' : 'Ativo'}
+                  <span className="text-emerald-700 block">Saldo Global:</span>
+                  <strong className="font-mono text-emerald-900">
+                    {saldoTrabalhador.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </strong>
                 </div>
               </div>
@@ -198,17 +218,17 @@ export default function RegistroLiberacaoModal({
                 className="w-full text-xs font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all cursor-pointer"
                 required
               >
+                <option value="DECIMO_TERCEIRO_8_33">13º Salário (8,33%)</option>
                 <option value="FERIAS_8_33">Férias Gozadas (8,33%)</option>
                 <option value="TERCO_FERIAS_2_78">1/3 Constitucional de Férias (2,78%)</option>
-                <option value="DECIMO_TERCEIRO_8_33">13º Salário (8,33%)</option>
-                <option value="MULTA_RESCISORIA_FGTS">Multa Rescisória do FGTS (Rescisão)</option>
-                <option value="FGTS_SOBRE_PROVISOES">Encargos Submódulo 4.1</option>
+                <option value="MULTA_RESCISORIA_FGTS">Multa Rescisória do FGTS (4,00%)</option>
+                <option value="FGTS_SOBRE_PROVISOES">Encargos Submódulo 4.1 (8,10%)</option>
               </select>
             </div>
 
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Valor a Liberar (R$)
+                Valor da Rubrica (R$)
               </label>
               <input
                 type="number"
@@ -234,21 +254,26 @@ export default function RegistroLiberacaoModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Número do Ofício Bancário
+                Nº / Ano do Ofício Bancário
               </label>
               <input
                 type="text"
                 value={numeroOficio}
                 onChange={(e) => setNumeroOficio(e.target.value)}
-                placeholder="Ex: Ofício nº 180/2026/UERN - PROAD"
+                placeholder="Ex: 147/2026"
                 className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
                 required
               />
+              {oficioFormatado && (
+                <span className="block text-[10px] text-emerald-800 font-semibold mt-1">
+                  {oficioFormatado}
+                </span>
+              )}
             </div>
 
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Processo SEI da Solicitação
+                Processo SEI (Opcional)
               </label>
               <input
                 type="text"
@@ -256,7 +281,6 @@ export default function RegistroLiberacaoModal({
                 onChange={(e) => setProcessoSei(e.target.value)}
                 placeholder="Ex: 04410035.002150/2026-11"
                 className="w-full text-xs font-mono px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
-                required
               />
             </div>
           </div>
@@ -269,7 +293,7 @@ export default function RegistroLiberacaoModal({
               type="text"
               value={motivoLiberacao}
               onChange={(e) => setMotivoLiberacao(e.target.value)}
-              placeholder="Ex: Gozo de férias referente ao período aquisitivo 2025/2026 com folha comprovada"
+              placeholder="Ex: Pagamento de 13º salário / férias com folha comprovada"
               className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
               required
             />

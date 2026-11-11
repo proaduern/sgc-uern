@@ -4,14 +4,11 @@ import React, { useState } from 'react';
 import {
   X,
   Landmark,
-  Building,
   Save,
-  CheckCircle2,
-  Calendar,
-  FileText,
   AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
+import { formatarNumeroOficioDas } from '@/lib/config/brasao-uern';
 
 interface DadosContaVinculadaModalProps {
   contrato: any;
@@ -24,9 +21,8 @@ export default function DadosContaVinculadaModal({
   onClose,
   onSucesso,
 }: DadosContaVinculadaModalProps) {
-  // 1. Dados da Conta Vinculada (Origem das Retenções)
+  // 1. Dados da Conta Vinculada (Origem das Retenções — sem agência, apenas número da conta)
   const [banco, setBanco] = useState(contrato?.contaVinculadaBanco || 'Banco do Brasil S.A.');
-  const [agencia, setAgencia] = useState(contrato?.contaVinculadaAgencia || '');
   const [numeroConta, setNumeroConta] = useState(contrato?.contaVinculadaNumeroConta || '');
   const [dataAbertura, setDataAbertura] = useState(() => {
     if (contrato?.contaVinculadaDataAbertura) {
@@ -55,6 +51,8 @@ export default function DadosContaVinculadaModal({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  const oficioFormatado = oficioAbertura.trim() ? formatarNumeroOficioDas(oficioAbertura) : '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
@@ -67,11 +65,11 @@ export default function DadosContaVinculadaModal({
         body: JSON.stringify({
           action: 'UPDATE_DADOS_BANCARIOS',
           contratoId: contrato.id,
-          contaVinculadaBanco: banco.trim() || null,
-          contaVinculadaAgencia: agencia.trim() || null,
+          contaVinculadaBanco: banco.trim() || 'Banco do Brasil S.A.',
+          contaVinculadaAgencia: null,
           contaVinculadaNumeroConta: numeroConta.trim() || null,
           contaVinculadaDataAbertura: dataAbertura || null,
-          contaVinculadaOficioAbertura: oficioAbertura.trim() || null,
+          contaVinculadaOficioAbertura: oficioFormatado || null,
           contaVinculadaProcessoSei: processoSei.trim() || null,
           contaVinculadaStatusConta: numeroConta.trim() ? statusConta : 'AGUARDANDO_ABERTURA',
           contaVinculadaObservacoes: observacoes.trim() || null,
@@ -139,35 +137,7 @@ export default function DadosContaVinculadaModal({
               <ShieldCheck className="w-4 h-4 text-blue-700" />
               <span>1. Conta Vinculada Bloqueada (Origem das Retenções)</span>
             </span>
-            Cadastre os dados da conta garantia fornecidos pelo banco após abertura do convênio. Se o contrato for novo e ainda não tiver conta, deixe em branco para emitir o <strong>Ofício de Abertura</strong>.
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Instituição Bancária (Convenente)
-              </label>
-              <input
-                type="text"
-                value={banco}
-                onChange={(e) => setBanco(e.target.value)}
-                placeholder="Ex: Banco do Brasil S.A."
-                className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                Agência da Conta Vinculada
-              </label>
-              <input
-                type="text"
-                value={agencia}
-                onChange={(e) => setAgencia(e.target.value)}
-                placeholder="Ex: 3795-8"
-                className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-              />
-            </div>
+            Cadastre apenas o <strong>número da Conta Vinculada</strong> fornecido pelo Banco do Brasil após a abertura do convênio (a Conta Vinculada não possui agência).
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -179,7 +149,7 @@ export default function DadosContaVinculadaModal({
                 type="text"
                 value={numeroConta}
                 onChange={(e) => setNumeroConta(e.target.value)}
-                placeholder="Número oficial da conta garantia"
+                placeholder="Ex: 1300103317226"
                 className="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
               />
             </div>
@@ -230,15 +200,20 @@ export default function DadosContaVinculadaModal({
 
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-              Ofício de Abertura Formalizado
+              Nº / Ano do Ofício de Abertura
             </label>
             <input
               type="text"
               value={oficioAbertura}
               onChange={(e) => setOficioAbertura(e.target.value)}
-              placeholder="Ex: Ofício nº .../2026 - DAS/PROAD/UERN"
+              placeholder="Digite apenas nº/ano (Ex: 147/2026)"
               className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
             />
+            {oficioFormatado && (
+              <span className="text-[10px] text-blue-700 font-semibold mt-1 block">
+                Padrão gerado: {oficioFormatado}
+              </span>
+            )}
           </div>
 
           {/* Seção 2: Conta da Empresa Contratada para Crédito */}
@@ -247,7 +222,7 @@ export default function DadosContaVinculadaModal({
               <Landmark className="w-4 h-4 text-emerald-700" />
               <span>2. Conta Bancária da Contratada (Destino das Liberações)</span>
             </span>
-            Informe a conta corrente operacional da empresa <strong>{contrato?.fornecedor?.razaoSocial || 'Contratada'}</strong>. Ao emitir o <strong>Ofício de Liberação</strong>, estes dados serão preenchidos automaticamente na ordem de transferência.
+            Informe a conta corrente operacional da empresa <strong>{contrato?.fornecedor?.razaoSocial || 'Contratada'}</strong>. Ao emitir o <strong>Ofício de Liberação</strong>, estes dados serão preenchidos automaticamente no quadro <strong>CREDITAR</strong>.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -259,7 +234,7 @@ export default function DadosContaVinculadaModal({
                 type="text"
                 value={empresaBanco}
                 onChange={(e) => setEmpresaBanco(e.target.value)}
-                placeholder="Ex: Caixa Econômica, Bradesco..."
+                placeholder="Ex: Banco do Brasil, CEF..."
                 className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
               />
             </div>
@@ -272,7 +247,7 @@ export default function DadosContaVinculadaModal({
                 type="text"
                 value={empresaAgencia}
                 onChange={(e) => setEmpresaAgencia(e.target.value)}
-                placeholder="Ex: 2183"
+                placeholder="Ex: 4687-6"
                 className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
               />
             </div>
@@ -285,7 +260,7 @@ export default function DadosContaVinculadaModal({
                 type="text"
                 value={empresaConta}
                 onChange={(e) => setEmpresaConta(e.target.value)}
-                placeholder="Ex: 6702-0"
+                placeholder="Ex: 8980-X"
                 className="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
               />
             </div>

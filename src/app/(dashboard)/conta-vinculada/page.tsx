@@ -230,7 +230,7 @@ function ContaVinculadaContent() {
       33
     );
     doc.text(
-      `Processo-Mãe: ${contratoConfig?.processoSeiMae || '-'} • Conta Vinculada: ${contratoConfig?.contaVinculadaBanco || 'Banco do Brasil'} Ag: ${contratoConfig?.contaVinculadaAgencia || '-'} C/C: ${contratoConfig?.contaVinculadaNumeroConta || '-'}`,
+      `Processo-Mãe: ${contratoConfig?.processoSeiMae || '-'} • Conta Vinculada (${contratoConfig?.contaVinculadaBanco || 'Banco do Brasil'}) nº: ${contratoConfig?.contaVinculadaNumeroConta || '-'}`,
       14,
       38
     );
@@ -611,14 +611,16 @@ function ContaVinculadaContent() {
             <h2 className="text-lg sm:text-xl font-black text-white flex items-center space-x-2">
               <Landmark className="w-5 h-5 text-amber-300 shrink-0" />
               <span>
-                {contratoConfig?.contaVinculadaBanco || 'Banco não informado'}
-                {contratoConfig?.contaVinculadaAgencia ? ` • Agência ${contratoConfig.contaVinculadaAgencia}` : ''}
+                {contratoConfig?.contaVinculadaBanco || 'Banco do Brasil S.A.'} • Conta Vinculada nº{' '}
+                <span className="font-mono text-amber-300">
+                  {contratoConfig?.contaVinculadaNumeroConta || 'Aguardando cadastro'}
+                </span>
               </span>
             </h2>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-blue-100">
               <div>
-                <strong>Conta Corrente Vinculada:</strong>{' '}
+                <strong>Nº da Conta Vinculada:</strong>{' '}
                 <span className="font-mono font-bold text-amber-300">
                   {contratoConfig?.contaVinculadaNumeroConta || 'Aguardando cadastro da conta vinculada'}
                 </span>

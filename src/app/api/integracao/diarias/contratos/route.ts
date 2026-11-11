@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+import { isAdminRole } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,8 +10,42 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const serviceKey = process.env.PROAD_SERVICE_KEY || 'proad_interop_internal_service_key_2026_uern';
 
-    if (authHeader && authHeader !== `Bearer ${serviceKey}`) {
-      return NextResponse.json({ error: 'Chave de integração PROAD inválida.' }, { status: 401 });
+    // Se a chamada for entre sistemas via Service Key, libera
+    const isServiceCall = authHeader && authHeader === `Bearer ${serviceKey}`;
+
+    if (!isServiceCall) {
+      // Se for chamada pela interface do usuário, verifica a sessão e permissão
+      const session = await getSession();
+      if (!session) {
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      }
+
+      if (!isAdminRole(session.role)) {
+        // Verifica se é gestor ou fiscal de contrato de viagens/passagens/hospedagem
+        const designacoesViagens = await prisma.contratoResponsavel.findMany({
+          where: {
+            userId: session.id,
+            ativo: true,
+            contrato: {
+              status: 'ATIVO',
+              OR: [
+                { objeto: { contains: 'viagen', mode: 'insensitive' } },
+                { objeto: { contains: 'passagen', mode: 'insensitive' } },
+                { objeto: { contains: 'hospedagem', mode: 'insensitive' } },
+                { objeto: { contains: 'transporte', mode: 'insensitive' } },
+                { numeroContrato: { contains: '06/2025' } },
+              ],
+            },
+          },
+        });
+
+        if (designacoesViagens.length === 0) {
+          return NextResponse.json(
+            { error: 'Acesso restrito a gestores e fiscais designados para contratos de viagens e passagens.' },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // Busca contratos ativos de viagens, passagens, hospedagem e transporte

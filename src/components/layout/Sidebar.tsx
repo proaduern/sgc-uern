@@ -24,9 +24,10 @@ import {
 interface SidebarProps {
   role: string;
   contractRoles?: string[];
+  temContratoViagens?: boolean;
 }
 
-export default function Sidebar({ role, contractRoles = [] }: SidebarProps) {
+export default function Sidebar({ role, contractRoles = [], temContratoViagens = false }: SidebarProps) {
   const pathname = usePathname();
 
   const isAdmin = role === 'ADMIN_PROAD' || role === 'ADMIN_PARCIAL';
@@ -104,7 +105,7 @@ export default function Sidebar({ role, contractRoles = [] }: SidebarProps) {
       name: 'Viagens & Diárias',
       href: '/diarias-integracao',
       icon: Plane,
-      visible: isAdmin || isGestor || isFiscalAdm,
+      visible: isAdmin || temContratoViagens, // Apenas PROAD ou gestores/fiscais específicos de contratos de viagens
     },
     {
       name: 'Planejamento (PCA)',

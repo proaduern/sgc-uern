@@ -37,19 +37,25 @@ export default function DiariasIntegracaoPage() {
   const [contratos, setContratos] = useState<ContratoViagem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const diariasUrl = process.env.NEXT_PUBLIC_DIARIAS_URL || 'https://diarias-proaduern.vercel.app';
 
   const carregarDados = async () => {
     try {
       setRefreshing(true);
+      setError(null);
       const res = await fetch('/api/integracao/diarias/contratos');
       if (res.ok) {
         const data = await res.json();
         setContratos(data.contratos || []);
+      } else {
+        const errData = await res.json();
+        setError(errData.error || 'Acesso restrito ao módulo de Viagens e Diárias.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao carregar contratos de viagens:', err);
+      setError('Erro de conexão ao carregar contratos de viagens.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -59,6 +65,18 @@ export default function DiariasIntegracaoPage() {
   useEffect(() => {
     carregarDados();
   }, []);
+
+  if (error && !loading) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 bg-white rounded-3xl border border-slate-200 shadow-sm text-center space-y-4">
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <Plane className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-bold text-slate-800">Acesso Restrito</h2>
+        <p className="text-xs text-slate-500 leading-relaxed">{error}</p>
+      </div>
+    );
+  }
 
   const totalValor = contratos.reduce((acc, c) => acc + c.valorAtualizado, 0);
   const totalSaldo = contratos.reduce((acc, c) => acc + c.saldoDisponivel, 0);

@@ -527,15 +527,26 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || !isAdminRole(session.role)) {
-      return NextResponse.json(
-        { error: 'Apenas administradores e fiscais designados podem editar movimentações da conta vinculada.' },
-        { status: 403 }
-      );
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const body = await request.json();
     const { action } = body;
+
+    // Helper para verificar permissão do usuário no contrato específico
+    const verificarPermissaoContrato = async (cId: string) => {
+      if (isAdminRole(session.role)) return true;
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId: cId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+      return !!resp;
+    };
 
     // 1. Atualizar Dados Bancários Oficiais da Conta Vinculada do Contrato
     if (action === 'UPDATE_DADOS_BANCARIOS') {
@@ -558,6 +569,14 @@ export async function PUT(request: NextRequest) {
 
       if (!contratoId) {
         return NextResponse.json({ error: 'Contrato ID é obrigatório.' }, { status: 400 });
+      }
+
+      const autorizado = await verificarPermissaoContrato(contratoId);
+      if (!autorizado) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
       }
 
       const updated = await prisma.contrato.update({
@@ -604,6 +623,14 @@ export async function PUT(request: NextRequest) {
 
       if (!contratoId || !competenciaMesAno) {
         return NextResponse.json({ error: 'Contrato e Competência são obrigatórios.' }, { status: 400 });
+      }
+
+      const autorizado = await verificarPermissaoContrato(contratoId);
+      if (!autorizado) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
       }
 
       // Remover movimentações de retenção existentes dessa competência para esse trabalhador
@@ -667,6 +694,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID da movimentação é obrigatório.' }, { status: 400 });
     }
 
+    const movExistente = await prisma.contaVinculadaMovimentacao.findUnique({
+      where: { id },
+      select: { contratoId: true },
+    });
+    if (!movExistente) {
+      return NextResponse.json({ error: 'Movimentação não encontrada.' }, { status: 404 });
+    }
+
+    const autorizado = await verificarPermissaoContrato(movExistente.contratoId);
+    if (!autorizado) {
+      return NextResponse.json(
+        { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+        { status: 403 }
+      );
+    }
+
     const updated = await prisma.contaVinculadaMovimentacao.update({
       where: { id },
       data: {
@@ -690,11 +733,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || !isAdminRole(session.role)) {
-      return NextResponse.json(
-        { error: 'Apenas administradores e fiscais podem excluir movimentações.' },
-        { status: 403 }
-      );
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -702,6 +742,31 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'ID da movimentação é obrigatório.' }, { status: 400 });
+    }
+
+    const movExistente = await prisma.contaVinculadaMovimentacao.findUnique({
+      where: { id },
+      select: { contratoId: true },
+    });
+    if (!movExistente) {
+      return NextResponse.json({ error: 'Movimentação não encontrada.' }, { status: 404 });
+    }
+
+    if (!isAdminRole(session.role)) {
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId: movExistente.contratoId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+      if (!resp) {
+        return NextResponse.json(
+          { error: 'Apenas administradores, gestores e fiscais administrativos deste contrato podem excluir movimentações.' },
+          { status: 403 }
+        );
+      }
     }
 
     await prisma.contaVinculadaMovimentacao.delete({

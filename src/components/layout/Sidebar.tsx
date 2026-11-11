@@ -23,17 +23,18 @@ import {
 
 interface SidebarProps {
   role: string;
+  contractRoles?: string[];
 }
 
-export default function Sidebar({ role }: SidebarProps) {
+export default function Sidebar({ role, contractRoles = [] }: SidebarProps) {
   const pathname = usePathname();
 
   const isAdmin = role === 'ADMIN_PROAD' || role === 'ADMIN_PARCIAL';
   const isGestorAta = role === 'GESTOR_ATA';
-  const isGestor = role === 'GESTOR' || role === 'SUPLENTE';
-  const isFiscalAdm = role === 'FISCAL_ADMINISTRATIVO';
-  const isFiscalTecnico = role === 'FISCAL_TECNICO';
-  const isFiscalSetorial = role === 'FISCAL_SETORIAL';
+  const isGestor = role === 'GESTOR' || role === 'SUPLENTE' || contractRoles.includes('GESTOR') || contractRoles.includes('SUPLENTE');
+  const isFiscalAdm = role === 'FISCAL_ADMINISTRATIVO' || contractRoles.includes('FISCAL_ADMINISTRATIVO');
+  const isFiscalTecnico = role === 'FISCAL_TECNICO' || contractRoles.includes('FISCAL_TECNICO');
+  const isFiscalSetorial = role === 'FISCAL_SETORIAL' || contractRoles.includes('FISCAL_SETORIAL');
 
   // Lista base de navegação com controle de permissões por perfil
   const allNavigation = [
@@ -57,13 +58,13 @@ export default function Sidebar({ role }: SidebarProps) {
       visible: isAdmin, // Exclusivo PROAD / Admin
     },
     {
-      name: isFiscalSetorial ? 'Execução (Meu Campus)' : 'Execução & Medições',
+      name: isFiscalSetorial && !isGestor && !isFiscalAdm && !isFiscalTecnico && !isAdmin ? 'Execução (Meu Campus)' : 'Execução & Medições',
       href: '/execucao',
       icon: FileSpreadsheet,
       visible: true,
     },
     {
-      name: 'Módulo de Terceirização',
+      name: 'Gestão de Trabalhadores',
       href: '/terceirizacao',
       icon: Users,
       visible: isAdmin || isGestor || isGestorAta || isFiscalAdm, // Gestor, Gestor de Ata e Fiscal Adm

@@ -328,10 +328,23 @@ export default function DetalhesContratoPage() {
       })()}
 
       {/* Esteira Pós-Homologação no SGC (Empenho -> Gabinete PROAD -> UCI -> Contrato / Execução Direta) */}
-      <EsteiraPosHomologacaoSection
-        contrato={contrato}
-        onUpdated={(contratoAtualizado) => setContrato(contratoAtualizado)}
-      />
+      {/* Exibida SOMENTE durante as etapas iniciais de pré-ativação para o Gestor do Contrato ou Administrador PROAD. */}
+      {/* Quando o contrato já estiver ATIVO e formalizado/vigente, a esteira não deve aparecer para ninguém. */}
+      {contrato.status !== 'ATIVO' &&
+        contrato.etapaFluxoPosHomologacao !== 'VIGENTE' &&
+        contrato.etapaFluxoPosHomologacao !== 'EXECUCAO_DIRETA_EMPENHO' &&
+        (currentUser?.isAdmin ||
+          contrato.responsaveis?.some(
+            (r: any) =>
+              r.userId === currentUser?.id &&
+              r.ativo !== false &&
+              (r.tipoAtuacao === 'GESTOR' || r.tipoAtuacao === 'SUPLENTE')
+          )) && (
+          <EsteiraPosHomologacaoSection
+            contrato={contrato}
+            onUpdated={(contratoAtualizado) => setContrato(contratoAtualizado)}
+          />
+        )}
 
       {/* Banner de Ativação do Módulo de Terceirização & Mão de Obra */}
       {contrato.tipoContrato === 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO' && (
@@ -351,18 +364,26 @@ export default function DetalhesContratoPage() {
                 Cockpit de Gestão de Mão de Obra & Terceirização
               </h3>
               <p className="text-xs text-blue-100/90 mt-1 max-w-xl leading-relaxed">
-                Acesse o ambiente especializado para gerenciar o quadro de trabalhadores, documentos admissionais (ASO/CTPS), apuração de ponto/frequência (glosas), conta vinculada e CCT deste contrato.
+                Acesse o ambiente especializado para gerenciar o quadro de colaboradores, documentos admissionais (ASO/CTPS), apuração de ponto/frequência (glosas), conta vinculada e CCT deste contrato.
               </p>
             </div>
           </div>
-          <Link
-            href={`/terceirizacao?contratoId=${contrato.id}`}
-            className="inline-flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all self-start sm:self-center shrink-0 cursor-pointer"
-          >
-            <Users className="w-4 h-4" />
-            <span>Gerenciar Mão de Obra</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+            <Link
+              href={`/terceirizacao?contratoId=${contrato.id}`}
+              className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              <Users className="w-4 h-4" />
+              <span>Gestão de Trabalhadores</span>
+            </Link>
+            <Link
+              href={`/conta-vinculada?contratoId=${contrato.id}`}
+              className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              <Landmark className="w-4 h-4 text-emerald-200" />
+              <span>Conta Vinculada</span>
+            </Link>
+          </div>
         </div>
       )}
 

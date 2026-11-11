@@ -89,14 +89,21 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (!isAdminRole(session.role) && !canManageTerceirizacao(session.role)) {
-      return NextResponse.json(
-        { error: 'Seu perfil não possui permissão para gerenciar trabalhadores terceirizados.' },
-        { status: 403 }
-      );
-    }
-
     const contentType = request.headers.get('content-type') || '';
+
+    // Helper para verificar se usuário pode gerenciar este contrato
+    const verificarPermissaoContrato = async (cId: string) => {
+      if (isAdminRole(session.role)) return true;
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId: cId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+      return !!resp;
+    };
 
     // Se for upload de planilha (.xlsx / .csv)
     if (contentType.includes('multipart/form-data')) {
@@ -108,11 +115,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Arquivo de planilha e Contrato ID são obrigatórios.' }, { status: 400 });
       }
 
-      if (!isAdminRole(session.role)) {
-        const { contractIds } = await getUserDesignatedContext(session.id);
-        if (!contractIds.includes(contratoId)) {
-          return NextResponse.json({ error: 'Não autorizado para este contrato.' }, { status: 403 });
-        }
+      const autorizado = await verificarPermissaoContrato(contratoId);
+      if (!autorizado) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -176,6 +184,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const autorizadoManual = await verificarPermissaoContrato(contratoId);
+    if (!autorizadoManual) {
+      return NextResponse.json(
+        { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+        { status: 403 }
+      );
+    }
+
     const cleanCpf = cpf.replace(/\D/g, '');
 
     const trabalhador = await prisma.trabalhadorTerceirizado.create({
@@ -208,8 +224,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (!isAdminRole(session.role) && !canManageTerceirizacao(session.role))) {
-      return NextResponse.json({ error: 'Permissão insuficiente para editar trabalhadores.' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -235,6 +251,31 @@ export async function PUT(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'ID do trabalhador é obrigatório.' }, { status: 400 });
+    }
+
+    const trabExistente = await prisma.trabalhadorTerceirizado.findUnique({
+      where: { id },
+      select: { contratoId: true },
+    });
+    if (!trabExistente) {
+      return NextResponse.json({ error: 'Trabalhador não encontrado.' }, { status: 404 });
+    }
+
+    if (!isAdminRole(session.role)) {
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId: trabExistente.contratoId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+      if (!resp) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
+      }
     }
 
     const cleanCpf = cpf ? cpf.replace(/\D/g, '') : undefined;
@@ -271,8 +312,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (!isAdminRole(session.role) && !canManageTerceirizacao(session.role))) {
-      return NextResponse.json({ error: 'Permissão insuficiente para remover trabalhador.' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -280,6 +321,31 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'ID do trabalhador é obrigatório.' }, { status: 400 });
+    }
+
+    const trabExistente = await prisma.trabalhadorTerceirizado.findUnique({
+      where: { id },
+      select: { contratoId: true },
+    });
+    if (!trabExistente) {
+      return NextResponse.json({ error: 'Trabalhador não encontrado.' }, { status: 404 });
+    }
+
+    if (!isAdminRole(session.role)) {
+      const resp = await prisma.contratoResponsavel.findFirst({
+        where: {
+          contratoId: trabExistente.contratoId,
+          userId: session.id,
+          ativo: true,
+          tipoAtuacao: { in: ['GESTOR', 'SUPLENTE', 'FISCAL_ADMINISTRATIVO'] },
+        },
+      });
+      if (!resp) {
+        return NextResponse.json(
+          { error: 'Acesso restrito ao Gestor, Suplente e Fiscal Administrativo deste contrato.' },
+          { status: 403 }
+        );
+      }
     }
 
     await prisma.trabalhadorTerceirizado.delete({ where: { id } });

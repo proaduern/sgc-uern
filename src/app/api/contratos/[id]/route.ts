@@ -133,13 +133,6 @@ export async function PUT(
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (!isAdminRole(session.role)) {
-      return NextResponse.json(
-        { error: 'Você não possui permissão para editar contratos. Apenas Administradores PROAD podem realizar alterações administrativas.' },
-        { status: 403 }
-      );
-    }
-
     const { id } = await params;
 
     const contratoExistente = await prisma.contrato.findUnique({
@@ -149,6 +142,21 @@ export async function PUT(
 
     if (!contratoExistente) {
       return NextResponse.json({ error: 'Contrato não encontrado' }, { status: 404 });
+    }
+
+    // Se não for Admin PROAD, verificar se é Gestor, Suplente ou Fiscal Administrativo deste contrato
+    const isGestorOuFiscalAdm = contratoExistente.responsaveis.some(
+      (r) =>
+        r.userId === session.id &&
+        r.ativo &&
+        (r.tipoAtuacao === 'GESTOR' || r.tipoAtuacao === 'SUPLENTE' || r.tipoAtuacao === 'FISCAL_ADMINISTRATIVO')
+    );
+
+    if (!isAdminRole(session.role) && !isGestorOuFiscalAdm) {
+      return NextResponse.json(
+        { error: 'Você não possui permissão para editar este contrato. Acesso restrito a Administradores PROAD, Gestores e Fiscal Administrativo do contrato.' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

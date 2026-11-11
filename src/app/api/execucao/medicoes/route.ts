@@ -97,7 +97,26 @@ export async function POST(request: NextRequest) {
     }
 
     const valorNfFloat = parseFloat(valorNotaFiscal);
-    const valorGlosaFloat = valorGlosa ? parseFloat(valorGlosa) : 0.0;
+    let valorGlosaFloat = valorGlosa ? parseFloat(valorGlosa) : 0.0;
+    let motivoGlosaFinal = motivoGlosa || null;
+
+    // Se não foi informada glosa manual, verifica se há IMR concluído para esta competência
+    if (valorGlosaFloat === 0 && contratoId && referenciaMesAno) {
+      const imrDaCompetencia = await prisma.imrAvaliacao.findFirst({
+        where: {
+          contratoId,
+          mesCompetencia: referenciaMesAno,
+          percentualGlosa: { gt: 0 }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (imrDaCompetencia) {
+        valorGlosaFloat = Number(((valorNfFloat * imrDaCompetencia.percentualGlosa) / 100).toFixed(2));
+        motivoGlosaFinal = `Glosa automática apurada pelo IMR (${imrDaCompetencia.percentualGlosa}% da fatura - ${imrDaCompetencia.totalPontos} pontos)`;
+      }
+    }
+
     const valorAtestadoFinal = Math.max(0, valorNfFloat - valorGlosaFloat);
 
     const medicao = await prisma.medicaoDespesa.create({
@@ -110,7 +129,7 @@ export async function POST(request: NextRequest) {
         dataEmissaoNf: dataEmissaoNf ? new Date(dataEmissaoNf) : null,
         valorNotaFiscal: valorNfFloat,
         valorGlosa: valorGlosaFloat,
-        motivoGlosa: motivoGlosa || null,
+        motivoGlosa: motivoGlosaFinal,
         valorAtestadoFinal,
         status: 'EM_CONFERENCIA_ADM',
       },

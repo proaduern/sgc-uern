@@ -1,0 +1,582 @@
+[
+  {
+    "id": 1,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Deixar de limpar áreas cobertas pelo objeto da contratação, de acordo com a escala e periodicidade estabelecida pela Administração.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 2,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Resultado ineficiente da limpeza, tais como: manchas nos pisos ou vidros, sujeira no chão, móveis ou equipamentos, lixo não recolhido, etc.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 3,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Utilização inadequada dos produtos de limpeza, prejudicando o resultado dos serviços",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 4,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Materiais deixados em corredores",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 5,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Falta de abastecimento dos banheiros e lavabos com material de higiene, como sabão, sabonete líquido, alcóol gel, papel toalha, papel higiênico, por culpa da Contratada",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 6,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "LIMPEZA E CONSERVAÇÃO",
+    "descricao": "Não reportar à equipe de manutenção problemas hidráulicos constatados em banheiro (torneira pingando, vazamento, registro quebrado, pia quebrada, caixa de descarga vazando, entre outros)",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 7,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "COPEIRAGEM",
+    "descricao": "Falta de café no ambiente",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 8,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "COPEIRAGEM",
+    "descricao": "Falta de higiene na preparação e no serviço de café e demais bebidas",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 9,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "COPEIRAGEM",
+    "descricao": "Não manter a copa limpa e organizada diariamente, incluindo a limpeza de pisos, balcões e equipamentos.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 10,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "COPEIRAGEM",
+    "descricao": "Descumprimento da rotina de lavagem de louças e utensílios, deixando resíduos acumulados na copa.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 11,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "COPEIRAGEM",
+    "descricao": "Utilização inadequada ou desperdício de insumos, como café, chá, açúcar e descartáveis.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 12,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "JARDINAGEM",
+    "descricao": "Não realizar a poda, adubação, conservação das áreas verdes ou serviços de capina e remoção de ervas daninhas conforme cronograma, resultando em vegetação desordenada ou malcuidada.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 13,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "JARDINAGEM",
+    "descricao": "Deixar de varrer e recolher folhas, detritos e resíduos das áreas externas, comprometendo a limpeza dos espaços.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 14,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "JARDINAGEM",
+    "descricao": "Desperdício de insumos e materiais, como fertilizantes e sementes, sem necessidade justificada.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 15,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "JARDINAGEM",
+    "descricao": "Falha na irrigação das plantas e gramados, resultando em danos ou ressecamento das áreas verdes.",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 16,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "JARDINAGEM",
+    "descricao": "Não seguir normas de segurança ao operar equipamentos como motosserras e moto-podas, colocando em risco a própria integridade e a de terceiros.",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 17,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "RECEPÇÃO",
+    "descricao": "Atendimento inadequado a visitantes, servidores e fornecedores",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 18,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "RECEPÇÃO",
+    "descricao": "Não realizar o controle de acesso corretamente, permitindo a entrada de pessoas sem registro ou identificação adequada",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 19,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "RECEPÇÃO",
+    "descricao": "Falha na comunicação de informações internas, impactando o funcionamento dos setores e compromissos institucionais",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 20,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "RECEPÇÃO",
+    "descricao": "Falta de organização e controle na recepção e entrega de correspondências e documentos, podendo resultar em extravios ou atrasos",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 21,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "RECEPÇÃO",
+    "descricao": "Deixar de notificar a segurança sobre movimentações suspeitas ou presença de pessoas não autorizadas, comprometendo a segurança da instituição",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 22,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Falha na conferência de materiais recebidos",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 23,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Armazenamento inadequado de materiais, comprometendo a integridade e conservação dos produtos",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 24,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Não registrar corretamente as entradas e saídas de materiais no sistema",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 25,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Falta de organização no almoxarifado",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 26,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Atraso na separação e entrega de materiais solicitados pelos setores",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 27,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Descumprimento das normas de segurança ao manusear materiais, colocando em risco a própria integridade e a de terceiros.",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 28,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "APOIO AO ALMOXARIFADO",
+    "descricao": "Não comunicar necessidade de reposição de materiais essenciais",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 29,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "SUPERVISÃO",
+    "descricao": "Falta de supervisão e coordenação dos serviços, resultando em falhas operacionais e baixa qualidade na execução",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 30,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "SUPERVISÃO",
+    "descricao": "Não distribuir corretamente os funcionários nos setores, causando desorganização ou sobrecarga de trabalho",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 31,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "SUPERVISÃO",
+    "descricao": "Descontrole na assiduidade dos funcionários, não garantindo a substituição de ausências e afastamentos",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 32,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "GERAL",
+    "descricao": "Não atendimento às solicitações efetuadas pela gestão e fiscalização do contrato",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 33,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "GERAL",
+    "descricao": "Satisfação do usuário (caso haja instrumento)",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 34,
+    "indicador": "Indicador nº 01 - Execução dos serviços",
+    "servico": "GERAL",
+    "descricao": "Suspensão geral do serviço em um ou mais campus",
+    "pontuacaoPrevista": 10,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 35,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Falta de funcionário no posto, sem substituição",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 36,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Funcionário ocioso no posto",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 37,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Funcionário se negando a realizar tarefas previstas nos documentos da contratação (Estudo Técnico Preliminar, Termo de Referência, Edital e Contrato) e/ou correlatas as suas atribuições",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 38,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Falta de polidez e presteza no atendimento",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 39,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Destruir ou danificar documentos e/ou equipamentos pertencentes à contratante por culpa ou dolo do funcionário da Contratada.",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 40,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Adotar conduta incompatível com as atribuições do posto, favorecendo o surgimento de conflitos e desavenças.",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 41,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Não respeitar os horários dos intervalos para repouso e alimentação, fixados pela administração",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 42,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Deixar de substituir funcionário com rendimento insatisfatório ou que tenha conduta incompatível com suas atribuições no prazo previsto.",
+    "pontuacaoPrevista": 1,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 43,
+    "indicador": "Indicador nº 02 - Funcionários",
+    "servico": "GERAL",
+    "descricao": "Acidente de trabalho, por culpa da Contratada",
+    "pontuacaoPrevista": 15,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 44,
+    "indicador": "Indicador nº 03 - Uniformes e EPI's",
+    "servico": "GERAL",
+    "descricao": "Deixar de fornecer conjunto completo de uniforme aos seus funcionários, nos prazos e condições previstas no TR.",
+    "pontuacaoPrevista": 2.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 45,
+    "indicador": "Indicador nº 03 - Uniformes e EPI's",
+    "servico": "GERAL",
+    "descricao": "Deixar de substituir peça de uniforme inadequada ao tamanho do colaborador ou excessivamente danificada ou cuja qualidade tenha sido recusada",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 46,
+    "indicador": "Indicador nº 03 - Uniformes e EPI's",
+    "servico": "GERAL",
+    "descricao": "Não utilização do uniforme; uso de uniforme incompleto ou inadequado, sem a devida justificativa",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 47,
+    "indicador": "Indicador nº 03 - Uniformes e EPI's",
+    "servico": "GERAL",
+    "descricao": "Falta de fornecimento completo de equipamentos de proteção individual - EPI aos seus funcionários, nos prazos e condições previstas no TR",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 48,
+    "indicador": "Indicador nº 03 - Uniformes e EPI's",
+    "servico": "GERAL",
+    "descricao": "Ausência de itens do equipamento de proteção individual - EPI de colaborador",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 49,
+    "indicador": "Indicador nº 04 - Ferramentas e equipamentos",
+    "servico": "GERAL",
+    "descricao": "Atraso no fornecimento das ferramentas e equipamentos, conforme condições previstas em Edital, necessários à execução dos serviços",
+    "pontuacaoPrevista": 2.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 50,
+    "indicador": "Indicador nº 04 - Ferramentas e equipamentos",
+    "servico": "GERAL",
+    "descricao": "Atraso na substituição dos equipamentos que tenham sido danificados durante seu uso",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 51,
+    "indicador": "Indicador nº 04 - Ferramentas e equipamentos",
+    "servico": "GERAL",
+    "descricao": "Entrega de material em quantidade inferior ao estipulado no Termo de Referência",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 52,
+    "indicador": "Indicador nº 04 - Ferramentas e equipamentos",
+    "servico": "GERAL",
+    "descricao": "Não substituição de materiais em desconformidade com a qualidade especificada no Termo de Referência",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 53,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Atraso na entrega da documentação mensal",
+    "pontuacaoPrevista": 0.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 54,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Certidões fiscais vencidas",
+    "pontuacaoPrevista": 2,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 55,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Ameaças públicas ou reservadas do sindicato sobre possível paralisação do serviço motivada por descumprimentos trabalhistas da empresa",
+    "pontuacaoPrevista": 2.5,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 56,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Atraso no pagamento de benefícios previstos em convenção coletiva para os trabalhadores",
+    "pontuacaoPrevista": 10,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 57,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Atraso no recolhimento de FGTS e/ou INSS dos trabalhadores",
+    "pontuacaoPrevista": 10,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  },
+  {
+    "id": 58,
+    "indicador": "Indicador nº 05 - Descumprimento de obrigações fiscais e trabalhistas",
+    "servico": "GERAL",
+    "descricao": "Atraso salarial dos trabalhadores",
+    "pontuacaoPrevista": 20,
+    "ocorreu": false,
+    "pontuacaoAplicada": 0,
+    "documentoSei": ""
+  }
+]

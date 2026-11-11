@@ -7,6 +7,61 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const contratoId = searchParams.get('contratoId');
     const mesCompetencia = searchParams.get('mesCompetencia');
+    const action = searchParams.get('action');
+
+    // Retorna o template oficial de itens do IMR com pré-carga de faltas e ocorrências objetivas
+    if (action === 'TEMPLATE_COM_FATOS') {
+      const templateZelo = require('@/lib/imr-zelo-template.json');
+      const campus = searchParams.get('campus') || '';
+
+      let itensPreenchidos = JSON.parse(JSON.stringify(templateZelo));
+
+      // Se houver contratoId e mesCompetencia, busca fatos objetivos de frequência de terceirizados
+      if (contratoId && mesCompetencia) {
+        const whereFreq: any = {
+          contratoId,
+          competenciaMesAno: mesCompetencia,
+          faltasInjustificadas: { gt: 0 }
+        };
+
+        if (campus && campus !== 'TODOS') {
+          whereFreq.trabalhador = {
+            campus: { contains: campus, mode: 'insensitive' }
+          };
+        }
+
+        const faltas = await prisma.frequenciaTrabalhador.findMany({
+          where: whereFreq,
+          include: {
+            trabalhador: {
+              select: { nomeCompleto: true, campus: true, funcao: true }
+            }
+          }
+        });
+
+        if (faltas.length > 0) {
+          const totalDiasFalta = faltas.reduce((acc, f) => acc + (f.faltasInjustificadas || 0), 0);
+          const nomesTrabalhadores = faltas.map(f => `${f.trabalhador.nomeCompleto} (${f.faltasInjustificadas} falta(s))`).slice(0, 5).join(', ');
+          const detalhe = `Apuração automática de folha de ponto: ${totalDiasFalta} falta(s) injustificada(s) registrada(s) no mês [${nomesTrabalhadores}]`;
+
+          // Localiza o item de "Falta de funcionário no posto, sem substituição" (Indicador nº 02)
+          const itemFalta = itensPreenchidos.find((it: any) =>
+            it.descricao.toLowerCase().includes('falta de funcionário no posto')
+          );
+
+          if (itemFalta) {
+            itemFalta.ocorreu = true;
+            itemFalta.pontuacaoAplicada = itemFalta.pontuacaoPrevista || 2.0;
+            itemFalta.documentoSei = detalhe;
+          }
+        }
+      }
+
+      return NextResponse.json({
+        template: itensPreenchidos,
+        totalItens: itensPreenchidos.length
+      });
+    }
 
     const where: any = {};
     if (contratoId) where.contratoId = contratoId;

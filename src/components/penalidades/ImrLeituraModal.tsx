@@ -217,6 +217,47 @@ export default function ImrLeituraModal({
               <p className="text-slate-500 text-xs max-w-md mx-auto">
                 Suporta planilhas padrão UERN em <strong>.xlsx</strong> e <strong>.ods</strong> (Ex: IMR.ods, ANEXO_E_IMR.ods). O sistema detecta automaticamente os indicadores, ocorrências marcadas com SIM, notas e IDs SEI.
               </p>
+
+              <div className="mt-5 pt-4 border-t border-slate-200/80 flex flex-col items-center">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Ou preencha diretamente com integração automática de fatos:
+                </span>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setLoading(true);
+                    try {
+                      const res = await fetch('/api/imr?action=TEMPLATE_COM_FATOS');
+                      const data = await res.json();
+                      if (data.template) {
+                        setDadosImr({
+                          contratoNumero: '24/2026',
+                          objetoContratual: 'Limpeza, conservação, copeiragem, jardinagem, recepção e apoio ao almoxarifado',
+                          contratada: 'ZELO RECURSOS HUMANOS LTDA',
+                          mesCompetencia: new Date().toISOString().slice(0, 7),
+                          localCampus: 'Todos os Campi',
+                          totalPontos: 0,
+                          percentualGlosa: 0,
+                          grauAceitacao: 'Totalmente Aceitável (Sem glosa)',
+                          requerProcessoSancionatorio: false,
+                          itens: data.template
+                        });
+                        const zeloContrato = contratos.find((c) => (c.numeroContrato || '').includes('24/2026'));
+                        if (zeloContrato) setContratoSelecionadoId(zeloContrato.id);
+                      }
+                    } catch (err: any) {
+                      alert('Erro ao carregar modelo de IMR');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span>Carregar Matriz Oficial de IMR da UERN (58 Critérios)</span>
+                </button>
+              </div>
             </div>
           )}
 

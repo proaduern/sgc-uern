@@ -667,20 +667,18 @@ function ContaVinculadaContent() {
               <span>Dados da Conta Bancária</span>
             </button>
 
-            {/* SE NÃO TEM CONTA VINCULADA: Exibe apenas Ofício de Abertura */}
-            {!contratoConfig?.contaVinculadaNumeroConta && (
-              <button
-                type="button"
-                onClick={() => setShowOficioCadastroModal(true)}
-                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-blue-600/90 hover:bg-blue-600 text-white border border-blue-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
-                title="Gerar Ofício Bancário para solicitação de abertura de conta vinculada"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-200" />
-                <span>Ofício de Abertura</span>
-              </button>
-            )}
+            {/* Botão Ofício de Abertura e Ficha Cadastral */}
+            <button
+              type="button"
+              onClick={() => setShowOficioCadastroModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-blue-600/90 hover:bg-blue-600 text-white border border-blue-400/40 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+              title="Gerar Ofício Bancário e Ficha Cadastral de abertura da Conta Vinculada"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-200" />
+              <span>Ofício de Abertura & Ficha</span>
+            </button>
 
-            {/* SE JÁ TEM CONTA VINCULADA CADASTRADA: Some abertura e aparece apenas Liberação */}
+            {/* SE JÁ TEM CONTA VINCULADA CADASTRADA: Exibe Ofício de Liberação */}
             {Boolean(contratoConfig?.contaVinculadaNumeroConta) && (
               <button
                 type="button"

@@ -1628,6 +1628,39 @@ export default function ExecucaoPage() {
                 </button>
               )}
             </div>
+
+            {/* Atalhos Rápidos de Filtro por Campus (Inclusivo para Contratos Regionais) */}
+            <div className="w-full flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-slate-100">
+              <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-blue-700" />
+                <span>Filtrar por Campus:</span>
+              </span>
+              {[
+                { label: 'Todos os Campi', val: 'TODAS' },
+                { label: 'Mossoró', val: 'Mossoró' },
+                { label: 'Assú', val: 'Assú' },
+                { label: 'Caicó', val: 'Caicó' },
+                { label: 'Natal', val: 'Natal' },
+                { label: 'Patu', val: 'Patu' },
+                { label: 'Pau dos Ferros', val: 'Pau dos Ferros' },
+              ].map((c) => (
+                <button
+                  key={c.val}
+                  type="button"
+                  onClick={() => {
+                    setFiltroCidadeSaldos(c.val);
+                    carregarSaldos(c.val);
+                  }}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                    filtroCidadeSaldos === c.val
+                      ? 'bg-[#003366] text-white shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* TABELA DE SALDOS & DESPESAS ABERTAS */}
@@ -1711,12 +1744,12 @@ export default function ExecucaoPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          {d.status === 'ATESTADA' ? (
+                          {d.status === 'ATESTADA' || d.status === 'PAGA' ? (
                             <div className="inline-flex flex-col items-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Atestada (Efetiva)
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                {d.status === 'PAGA' ? 'Liquidada & Paga' : 'Atestada (Efetiva)'}
                               </span>
-                              <span className="text-[10px] text-emerald-600 font-mono font-medium mt-0.5">
+                              <span className="text-[10px] text-emerald-700 font-mono font-medium mt-0.5">
                                 Debita {d.valorAtestado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             </div>

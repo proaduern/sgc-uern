@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { parseImrSpreadsheet, calcularGlosaImr } from '@/lib/imr-parser';
+import { getSession } from '@/lib/auth';
+import { isAdminRole, getUserDesignatedContext } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
     const { searchParams } = new URL(req.url);
     const contratoId = searchParams.get('contratoId');
     const mesCompetencia = searchParams.get('mesCompetencia');
     const action = searchParams.get('action');
 
+    const isUserAdmin = isAdminRole(session.role);
+    let userContractIds: string[] = [];
+
+    if (!isUserAdmin) {
+      const userContext = await getUserDesignatedContext(session.id);
+      userContractIds = userContext.contractIds;
+    }
+
     // Retorna o template oficial de itens do IMR com pré-carga de faltas e ocorrências objetivas
     if (action === 'TEMPLATE_COM_FATOS') {
+      if (!isUserAdmin && contratoId && !userContractIds.includes(contratoId)) {
+        return NextResponse.json({ error: 'Acesso negado para este contrato' }, { status: 403 });
+      }
+
       const templateZelo = require('@/lib/imr-zelo-template.json');
       const campus = searchParams.get('campus') || '';
 
@@ -64,7 +81,19 @@ export async function GET(req: NextRequest) {
     }
 
     const where: any = {};
-    if (contratoId) where.contratoId = contratoId;
+    if (!isUserAdmin) {
+      if (contratoId) {
+        if (!userContractIds.includes(contratoId)) {
+          return NextResponse.json({ avaliacoes: [] });
+        }
+        where.contratoId = contratoId;
+      } else {
+        where.contratoId = { in: userContractIds };
+      }
+    } else {
+      if (contratoId) where.contratoId = contratoId;
+    }
+
     if (mesCompetencia) where.mesCompetencia = mesCompetencia;
 
     const avaliacoes = await prisma.imrAvaliacao.findMany({
@@ -88,6 +117,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    const isUserAdmin = isAdminRole(session.role);
+    let userContractIds: string[] = [];
+    if (!isUserAdmin) {
+      const userContext = await getUserDesignatedContext(session.id);
+      userContractIds = userContext.contractIds;
+    }
+
     const contentType = req.headers.get('content-type') || '';
 
     // 1. Upload e Análise Inteligente de Planilha (.xlsx ou .ods)
@@ -126,6 +165,16 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Validação RBAC: Se não for admin, só pode acessar contratos aos quais está designado
+      if (!isUserAdmin && contratoEncontrado) {
+        if (!userContractIds.includes(contratoEncontrado.id)) {
+          return NextResponse.json(
+            { error: 'Você não tem designação formal para avaliar IMR deste contrato.' },
+            { status: 403 }
+          );
+        }
+      }
+
       // Se solicitado persistência direta:
       const salvarDireto = formData.get('salvar') === 'true';
       if (salvarDireto && contratoEncontrado) {
@@ -142,7 +191,7 @@ export async function POST(req: NextRequest) {
             percentualGlosa: parsedData.percentualGlosa,
             valorGlosa,
             observacoes: parsedData.observacoes || `Grau de Aceitação: ${parsedData.grauAceitacao}`,
-            fiscalNome: parsedData.fiscalNome || 'Fiscal Administrativo',
+            fiscalNome: parsedData.fiscalNome || session.nome || 'Fiscal Administrativo',
             status: parsedData.requerProcessoSancionatorio ? 'REQUER_NOTIFICACAO' : 'CONCLUIDO',
             itens: parsedData.itens as any,
           },
@@ -183,6 +232,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contrato e Mês de Competência são obrigatórios.' }, { status: 400 });
     }
 
+    // Validação RBAC
+    if (!isUserAdmin && !userContractIds.includes(contratoId)) {
+      return NextResponse.json(
+        { error: 'Você não tem designação formal para avaliar IMR deste contrato.' },
+        { status: 403 }
+      );
+    }
+
     const glosaInfo = calcularGlosaImr(totalPontos || 0);
 
     const avaliacao = await prisma.imrAvaliacao.create({
@@ -194,7 +251,7 @@ export async function POST(req: NextRequest) {
         percentualGlosa: percentualGlosa !== undefined ? percentualGlosa : glosaInfo.percentual,
         valorGlosa: valorGlosa || 0,
         observacoes: observacoes || glosaInfo.grau,
-        fiscalNome,
+        fiscalNome: fiscalNome || session.nome || 'Fiscal Administrativo',
         fiscalMatricula,
         status: status || (glosaInfo.sancionatorio ? 'REQUER_NOTIFICACAO' : 'CONCLUIDO'),
         itens: itens || [],

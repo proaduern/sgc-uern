@@ -144,8 +144,10 @@ export async function GET(request: NextRequest) {
     // Calcular Totais Oficiais:
     // 1. Processos ABERTA: provisionados (debitam provisoriamente do saldo)
     const despesasAbertas = despesas.filter((d) => d.status === 'ABERTA');
-    // 2. Processos ATESTADA: executados em definitivo (a provisão cessa e o valor real atestado é debitado)
-    const despesasAtestadas = despesas.filter((d) => d.status === 'ATESTADA');
+    // 2. Processos ATESTADA ou PENDENTE_ATESTO: valores executados/vinculados a notas fiscais
+    const despesasAtestadas = despesas.filter(
+      (d) => d.status === 'ATESTADA' || d.status === 'PENDENTE_ATESTO' || d.status === 'PAGA'
+    );
 
     const valorProvisionado = despesasAbertas.reduce((acc, d) => acc + (d.valorEstimado || 0), 0);
     const valorAtestado = despesasAtestadas.reduce((acc, d) => acc + (d.valorAtestado || 0), 0);
@@ -310,13 +312,6 @@ export async function PUT(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (!isAdminRole(session.role)) {
-      return NextResponse.json(
-        { error: 'Apenas administradores da PROAD podem editar lançamentos de despesas e saldos.' },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const {
       id,
@@ -345,9 +340,46 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Lançamento de despesa não encontrado.' }, { status: 404 });
     }
 
+    // Permissão: Administrador PROAD ou Fiscal/Gestor designado neste contrato
+    const isUserAdmin = isAdminRole(session.role);
+    let canEdit = isUserAdmin;
+
+    if (!canEdit) {
+      const userContext = await getUserDesignatedContext(session.id);
+      if (existing.contratoId && userContext.contractIds.includes(existing.contratoId)) {
+        canEdit = true;
+      }
+    }
+
+    if (!canEdit) {
+      return NextResponse.json(
+        {
+          error:
+            'Acesso negado: apenas administradores da PROAD ou fiscais e gestores designados neste contrato podem editar este lançamento.',
+        },
+        { status: 403 }
+      );
+    }
+
     const vEst = valorEstimado !== undefined ? parseFloat(valorEstimado) : existing.valorEstimado;
     const vAt = valorAtestado !== undefined ? parseFloat(valorAtestado) : existing.valorAtestado;
-    const computedStatus = status || ((vAt > 0 || dataAtesto) ? 'ATESTADA' : 'ABERTA');
+
+    // Regra Institucional de Status (Lei 14.133/2021 e IN 01/2026 UERN):
+    // 1. Se informada a dataAtesto (ou já existia e não foi removida) -> ATESTADA
+    // 2. Se há NF ou valor executado mas sem dataAtesto -> PENDENTE_ATESTO
+    // 3. Caso contrário -> ABERTA (Provisionada)
+    const effectiveDataAtesto = dataAtesto !== undefined ? dataAtesto : existing.dataAtesto;
+    let computedStatus = status;
+
+    if (!status || status === 'PAGA' || status === 'ATESTADA' || status === 'PENDENTE_ATESTO') {
+      if (effectiveDataAtesto) {
+        computedStatus = 'ATESTADA';
+      } else if (vAt > 0 || numeroNotaFiscal || existing.numeroNotaFiscal) {
+        computedStatus = 'PENDENTE_ATESTO';
+      } else {
+        computedStatus = status || 'ABERTA';
+      }
+    }
 
     const updated = await prisma.despesaExecucao.update({
       where: { id },

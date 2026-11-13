@@ -1744,21 +1744,32 @@ export default function ExecucaoPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          {d.status === 'ATESTADA' || d.status === 'PAGA' ? (
+                          {d.dataAtesto ? (
                             <div className="inline-flex flex-col items-center">
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                {d.status === 'PAGA' ? 'Liquidada & Paga' : 'Atestada (Efetiva)'}
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                Despesa Atestada
                               </span>
                               <span className="text-[10px] text-emerald-700 font-mono font-medium mt-0.5">
                                 Debita {d.valorAtestado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             </div>
+                          ) : d.status === 'PENDENTE_ATESTO' || d.valorAtestado > 0 || d.numeroNotaFiscal ? (
+                            <div className="inline-flex flex-col items-center">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                Pendente de Atesto
+                              </span>
+                              <span className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                Data não informada
+                              </span>
+                            </div>
                           ) : (
                             <div className="inline-flex flex-col items-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                                 Aberta (Provisionada)
                               </span>
-                              <span className="text-[10px] text-amber-600 font-mono font-medium mt-0.5">
+                              <span className="text-[10px] text-slate-500 font-mono font-medium mt-0.5">
                                 Provisão {d.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             </div>
@@ -1788,30 +1799,56 @@ export default function ExecucaoPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          {currentUser?.isAdmin ? (
-                            <div className="flex items-center justify-center space-x-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditDespesa(d)}
-                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                                title="Editar Registro de Saldo"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                                <span>Editar</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDespesa(d)}
-                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                                title="Excluir Lançamento de Despesa"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Excluir</span>
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 italic">Homologado</span>
-                          )}
+                          {(() => {
+                            const canEditThis =
+                              Boolean(currentUser?.isAdmin) ||
+                              Boolean(d.contratoId && currentUser?.designatedContractIds?.includes(d.contratoId)) ||
+                              Boolean(currentUser?.isGestor || currentUser?.isFiscalAdm);
+
+                            if (!canEditThis) {
+                              return <span className="text-[11px] text-slate-400 italic">Homologado</span>;
+                            }
+
+                            const isPendenteAtesto = !d.dataAtesto;
+
+                            return (
+                              <div className="flex items-center justify-center space-x-1.5">
+                                {isPendenteAtesto ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditDespesa(d)}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                                    title="Informar Data de Atesto e Detalhes da Nota Fiscal"
+                                  >
+                                    <Calendar className="w-3 h-3" />
+                                    <span>Informar Atesto</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditDespesa(d)}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                                    title="Editar Registro de Saldo"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Editar</span>
+                                  </button>
+                                )}
+
+                                {currentUser?.isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDespesa(d)}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                                    title="Excluir Lançamento de Despesa"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Excluir</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -2068,7 +2105,7 @@ export default function ExecucaoPage() {
                   <option value="EM_CONFERENCIA_ADM">Em Conferência Administrativa</option>
                   <option value="ATESTE_PROVISORIO">Ateste Provisório (Técnico)</option>
                   <option value="ATESTE_DEFINITIVO">Ateste Definitivo (Gestor)</option>
-                  <option value="PAGA">Paga / Liquidada</option>
+                  <option value="PAGA">Despesa Atestada (Definitiva)</option>
                 </select>
               </div>
 
@@ -2175,7 +2212,14 @@ export default function ExecucaoPage() {
                   <input
                     type="date"
                     value={editDespesaForm.dataAtesto}
-                    onChange={(e) => setEditDespesaForm({ ...editDespesaForm, dataAtesto: e.target.value })}
+                    onChange={(e) => {
+                      const novaData = e.target.value;
+                      setEditDespesaForm({
+                        ...editDespesaForm,
+                        dataAtesto: novaData,
+                        status: novaData ? 'ATESTADA' : (editDespesaForm.status === 'ATESTADA' ? 'PENDENTE_ATESTO' : editDespesaForm.status),
+                      });
+                    }}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
                   />
                 </div>
@@ -2251,10 +2295,11 @@ export default function ExecucaoPage() {
                   <select
                     value={editDespesaForm.status}
                     onChange={(e) => setEditDespesaForm({ ...editDespesaForm, status: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600"
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-600 font-medium"
                   >
-                    <option value="ABERTA">Aberta / A Atestar</option>
-                    <option value="ATESTADA">Atestada</option>
+                    <option value="ABERTA">Aberta (Provisionada)</option>
+                    <option value="PENDENTE_ATESTO">Pendente de Atesto</option>
+                    <option value="ATESTADA">Despesa Atestada</option>
                   </select>
                 </div>
                 <div>

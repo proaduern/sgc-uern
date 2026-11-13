@@ -8,6 +8,7 @@ import {
   ItemComparativoRepactuacao,
   MesProRataRepactuacao,
 } from '@/lib/documentos-modelos-generator';
+import { obterProximoSequencial } from '@/lib/sequencial-documento';
 
 export async function POST(
   request: NextRequest,
@@ -53,8 +54,14 @@ export async function POST(
       const novaFim = new Date(vFimAtual);
       novaFim.setMonth(novaFim.getMonth() + meses);
 
+      let numOficio = parametros?.numeroOficio;
+      if (!numOficio) {
+        const seq = await obterProximoSequencial('OFICIO', anoAtual);
+        numOficio = seq.numeroFormatado;
+      }
+
       htmlGerado = gerarHtmlOficioProrrogacao({
-        numeroOficio: parametros?.numeroOficio || '77',
+        numeroOficio: numOficio,
         ano: parametros?.ano || anoAtual,
         fornecedor: contrato.fornecedor.razaoSocial,
         cnpj: contrato.fornecedor.cnpj,
@@ -76,8 +83,14 @@ export async function POST(
       const novaFim = new Date(vFimAtual);
       novaFim.setMonth(novaFim.getMonth() + meses);
 
+      let numMemo = parametros?.numeroSolicitacao;
+      if (!numMemo) {
+        const seq = await obterProximoSequencial('MEMORANDO', anoAtual);
+        numMemo = seq.numeroFormatado;
+      }
+
       htmlGerado = gerarHtmlSolicitacaoProrrogacao({
-        numeroSolicitacao: parametros?.numeroSolicitacao || '188',
+        numeroSolicitacao: numMemo,
         ano: parametros?.ano || anoAtual,
         numeroContrato: contrato.numeroContrato || 'S/N',
         processoSei: contrato.processoSeiMae,

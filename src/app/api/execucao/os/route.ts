@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole, canIssueOrder, getUserDesignatedContext } from '@/lib/rbac';
+import { reservarProximoSequencial } from '@/lib/sequencial-documento';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
@@ -153,10 +154,23 @@ export async function POST(request: NextRequest) {
     }
 
     const prefixoDoc = tipoOrdem === 'ORDEM_COMPRA' ? 'UERN-OC' : 'UERN-OS';
+    const tipoDoc = tipoOrdem === 'ORDEM_COMPRA' ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO';
+    const anoDoc = ano ? parseInt(String(ano), 10) : new Date().getFullYear();
+
+    // Sincroniza e reserva o número sequencial no SGC se for número
+    let numFinal = (numeroOs || '').trim();
+    const matchNumero = numFinal.match(/^(\d+)$/);
+    if (matchNumero) {
+      const seq = await reservarProximoSequencial(tipoDoc, anoDoc, parseInt(matchNumero[1], 10));
+      numFinal = seq.numeroFormatado;
+    } else if (!numFinal) {
+      const seq = await reservarProximoSequencial(tipoDoc, anoDoc);
+      numFinal = seq.numeroFormatado;
+    }
 
     // Gerar Hash Criptográfico de Assinatura Eletrônica Institucional
     const timestamp = new Date().toISOString();
-    const hashData = `${contratoId}:${numeroOs}:${processoSeiDespesa}:${session.id}:${timestamp}`;
+    const hashData = `${contratoId}:${numFinal}:${processoSeiDespesa}:${session.id}:${timestamp}`;
     const hashAssinatura = crypto.createHash('sha256').update(hashData).digest('hex').slice(0, 32).toUpperCase();
 
     const codVerificador =
@@ -167,8 +181,8 @@ export async function POST(request: NextRequest) {
     const ordem = await prisma.ordemServico.create({
       data: {
         contratoId,
-        numeroOs,
-        ano: ano ? parseInt(ano) : new Date().getFullYear(),
+        numeroOs: numFinal,
+        ano: anoDoc,
         fiscalAdmId: session.id,
         processoSeiDespesa,
         descricaoServico,

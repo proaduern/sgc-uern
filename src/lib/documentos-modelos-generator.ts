@@ -96,7 +96,7 @@ export function gerarHtmlOficioProrrogacao(p: ParametrosOficioProrrogacao): stri
   </div>
 
   <p style="text-align: left; font-weight: bold; margin-bottom: 15px;">
-    Ofício nº ${p.numeroOficio}/${p.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA-UERN
+    Ofício nº ${String(p.numeroOficio).padStart(2, '0')}/${p.ano} - SGC UERN
   </p>
 
   <p style="margin-bottom: 15px;">
@@ -152,7 +152,7 @@ export function gerarHtmlSolicitacaoProrrogacao(p: ParametrosSolicitacaoProrroga
   return `
 <div style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; color: #000; max-width: 800px; margin: 0 auto; padding: 20px;">
   <p style="font-weight: bold; margin-bottom: 10px;">
-    Solicitação de Providências nº ${p.numeroSolicitacao}/${p.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA
+    Memorando nº ${String(p.numeroSolicitacao).padStart(2, '0')}/${p.ano} - SGC UERN
   </p>
 
   <p style="margin-bottom: 15px;">
@@ -230,7 +230,7 @@ export function gerarHtmlSolicitacaoRepactuacao(p: ParametrosSolicitacaoRepactua
   return `
 <div style="font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.4; color: #000; max-width: 950px; margin: 0 auto; padding: 20px;">
   <p style="font-weight: bold; margin-bottom: 10px;">
-    Solicitação de Providências nº ${p.numeroSolicitacao}/${p.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA
+    Memorando nº ${String(p.numeroSolicitacao).padStart(2, '0')}/${p.ano} - SGC UERN
   </p>
 
   <p style="margin-bottom: 15px;">

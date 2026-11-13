@@ -944,3 +944,14 @@ model ParametrosKpiContrato {
 
   @@map("parametros_kpi_contrato")
 }
+
+model SequencialDocumento {
+  id           String   @id @default(uuid())
+  tipo         String   // 'ORDEM_SERVICO', 'ORDEM_COMPRA', 'OFICIO', 'MEMORANDO'
+  ano          Int      // Ex: 2026, 2027
+  ultimoNumero Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tipo, ano])
+  @@map("sequenciais_documentos")
+}

@@ -17,8 +17,10 @@ import {
   LOGO_UERN_SEI_BASE64,
   QRCODE_SEI_BASE64,
 } from '@/lib/config/sei-assets';
+import { formatarTextoDocumentoSgc } from '@/lib/sequencial-documento';
 
 export interface OrdemServicoDados {
+  tipoOrdem?: 'ORDEM_SERVICO' | 'ORDEM_COMPRA';
   numeroOs: string;
   ano: number | string;
   tipoProcesso?: string; // Ex: 'Pagamento de fornecedor'
@@ -204,7 +206,11 @@ export function gerarOrdemServicoPdf(dadosEntrada: OrdemServicoDados): jsPDF {
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
 
-  const tituloDoc = `Ordem de Serviço nº ${dados.numeroOs}/${dados.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA`;
+  const tituloDoc = formatarTextoDocumentoSgc(
+    dados.tipoOrdem || 'ORDEM_SERVICO',
+    dados.numeroOs,
+    dados.ano
+  );
   doc.text(tituloDoc, pageWidth / 2, currentY, { align: 'center' });
 
   // 3. Parágrafo Introdutório
@@ -451,7 +457,11 @@ export async function gerarOrdemServicoDocx(dadosEntrada: OrdemServicoDados): Pr
             alignment: AlignmentType.CENTER,
             children: [
               new TextRun({
-                text: `Ordem de Serviço nº ${dados.numeroOs}/${dados.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA`,
+                text: formatarTextoDocumentoSgc(
+                  dados.tipoOrdem || 'ORDEM_SERVICO',
+                  dados.numeroOs,
+                  dados.ano
+                ),
                 font: 'Times New Roman',
                 size: 22, // 11pt
               }),

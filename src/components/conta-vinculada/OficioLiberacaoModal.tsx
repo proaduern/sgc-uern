@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Printer,
@@ -51,6 +51,20 @@ export default function OficioLiberacaoModal({
 
   // Dados do Ofício (Usuário digita apenas nº/ano, ex: 147/2026)
   const [numeroAnoOficio, setNumeroAnoOficio] = useState('');
+
+  useEffect(() => {
+    if (!numeroAnoOficio) {
+      const anoAtual = new Date().getFullYear();
+      fetch(`/api/documentos/sequencial?tipo=OFICIO&ano=${anoAtual}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.numeroFormatado) {
+            setNumeroAnoOficio(`${d.numeroFormatado}/${anoAtual}`);
+          }
+        })
+        .catch(console.error);
+    }
+  }, []);
   const [processoSei, setProcessoSei] = useState(
     contrato?.contaVinculadaProcessoSei || contrato?.processoSeiMae || ''
   );
@@ -706,6 +720,20 @@ export default function OficioLiberacaoModal({
 
       const data = await res.json();
       if (res.ok) {
+        // Reserva o sequencial do documento emitido
+        const numExtracted = numeroAnoOficio.split('/')[0]?.replace(/\D+/g, '');
+        if (numExtracted) {
+          fetch('/api/documentos/sequencial', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tipo: 'OFICIO',
+              ano: new Date().getFullYear(),
+              numeroEspecifico: parseInt(numExtracted, 10),
+            }),
+          }).catch(console.error);
+        }
+
         setMensagemSucesso(`✅ Ofício enviado ao banco! ${data.message || 'Débitos por funcionário efetivados com sucesso.'}`);
         setTimeout(() => {
           onSucesso();

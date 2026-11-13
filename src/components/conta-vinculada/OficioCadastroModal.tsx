@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   FileText,
@@ -43,6 +43,20 @@ export default function OficioCadastroModal({ contrato, onClose }: OficioCadastr
   const [numeroOficio, setNumeroOficio] = useState(
     contrato?.contaVinculadaOficioAbertura || ''
   );
+
+  useEffect(() => {
+    if (!numeroOficio.trim()) {
+      const anoAtual = new Date().getFullYear();
+      fetch(`/api/documentos/sequencial?tipo=OFICIO&ano=${anoAtual}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.numeroFormatado) {
+            setNumeroOficio(`${d.numeroFormatado}/${anoAtual}`);
+          }
+        })
+        .catch(console.error);
+    }
+  }, []);
   const [contaRelacionamento, setContaRelacionamento] = useState(
     contrato?.contaVinculadaNumeroConta || ''
   );

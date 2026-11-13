@@ -44,6 +44,10 @@ import {
   LOGO_UERN_SEI_BASE64,
   QRCODE_SEI_BASE64,
 } from '@/lib/config/sei-assets';
+import {
+  formatarTextoDocumentoSgc,
+  formatarNumeroAnoSgc,
+} from '@/lib/sequencial-documento';
 
 export default function ExecucaoPage() {
   const [activeTab, setActiveTab] = useState<'MEDICOES' | 'ORDENS_SERVICO' | 'SALDOS_DESPESAS'>('SALDOS_DESPESAS');
@@ -136,6 +140,7 @@ export default function ExecucaoPage() {
   const [showPreviaOsModal, setShowPreviaOsModal] = useState(false);
   const [dadosPreviaOs, setDadosPreviaOs] = useState<OrdemServicoDados | null>(null);
   const [gerandoDocx, setGerandoDocx] = useState(false);
+  const [editarNumeroManual, setEditarNumeroManual] = useState(false);
 
   // Form Medição
   const [medicaoForm, setMedicaoForm] = useState({
@@ -201,15 +206,28 @@ export default function ExecucaoPage() {
   const temContratoServico = podeEmitir && (currentUser?.isAdmin ? contratosServico.length > 0 || contratos.some(c => isServicoContrato(c.tipoContrato)) : contratosServico.length > 0);
   const temContratoAquisicao = podeEmitir && (currentUser?.isAdmin ? contratosAquisicao.length > 0 || contratos.some(c => isAquisicaoContrato(c.tipoContrato)) : contratosAquisicao.length > 0);
 
-  const handleOpenNovaOrdem = (tipo: 'ORDEM_SERVICO' | 'ORDEM_COMPRA') => {
+  const handleOpenNovaOrdem = async (tipo: 'ORDEM_SERVICO' | 'ORDEM_COMPRA') => {
     const listaCompativel = tipo === 'ORDEM_COMPRA' ? contratosAquisicao : contratosServico;
     const contratoInicial = listaCompativel.length > 0 ? listaCompativel[0] : (contratos.length > 0 ? contratos[0] : null);
 
+    const anoAtual = new Date().getFullYear().toString();
+    let numSugerido = '01';
+    try {
+      const resSeq = await fetch(`/api/documentos/sequencial?tipo=${tipo}&ano=${anoAtual}`);
+      const dataSeq = await resSeq.json();
+      if (dataSeq.numeroFormatado) {
+        numSugerido = dataSeq.numeroFormatado;
+      }
+    } catch (e) {
+      console.error('Erro ao consultar próximo sequencial:', e);
+    }
+
+    setEditarNumeroManual(false);
     setOsForm({
       contratoId: contratoInicial ? contratoInicial.id : '',
       tipoOrdem: tipo,
-      numeroOs: '',
-      ano: new Date().getFullYear().toString(),
+      numeroOs: numSugerido,
+      ano: anoAtual,
       processoSeiDespesa: '',
       referenciaMedicao: '',
       descricaoServico: '',
@@ -681,6 +699,7 @@ export default function ExecucaoPage() {
     const dataCriacao = ordem.createdAt ? new Date(ordem.createdAt) : new Date();
 
     return {
+      tipoOrdem: isOrdemCompra ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO',
       numeroOs: String(ordem.numeroOs || '01'),
       ano: ordem.ano || new Date().getFullYear(),
       tipoProcesso: isOrdemCompra ? 'Aquisição e Fornecimento de Bens' : 'Pagamento de fornecedor',
@@ -712,7 +731,8 @@ export default function ExecucaoPage() {
   const gerarPdfOs = (ordem: any) => {
     const dados = prepararDadosOsParaExportacao(ordem);
     const doc = gerarOrdemServicoPdf(dados);
-    doc.save(`Ordem_de_Servico_${dados.numeroOs}_${dados.ano}.pdf`);
+    const tipoPrefixo = dados.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem_de_Compra' : 'Ordem_de_Servico';
+    doc.save(`${tipoPrefixo}_${dados.numeroOs}_${dados.ano}_SGC.pdf`);
   };
 
   const gerarDocxOs = async (ordem: any) => {
@@ -720,7 +740,8 @@ export default function ExecucaoPage() {
     try {
       const dados = prepararDadosOsParaExportacao(ordem);
       const blob = await gerarOrdemServicoDocx(dados);
-      baixarBlobNoNavegador(blob, `Ordem_de_Servico_${dados.numeroOs}_${dados.ano}.docx`);
+      const tipoPrefixo = dados.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem_de_Compra' : 'Ordem_de_Servico';
+      baixarBlobNoNavegador(blob, `${tipoPrefixo}_${dados.numeroOs}_${dados.ano}_SGC.docx`);
     } catch (err: any) {
       alert(err.message || 'Erro ao gerar documento Word');
     } finally {
@@ -1124,12 +1145,13 @@ export default function ExecucaoPage() {
                           </span>
                         )}
                         <h3 className="font-bold text-slate-900 text-base mt-1">
-                          {ordem.hashAssinaturaEletronica?.includes('OC') ||
-                          ordem.numeroOs?.toUpperCase().includes('OC') ||
-                          isAquisicaoContrato(ordem.contrato?.tipoContrato)
-                            ? 'OC'
-                            : 'OS'}{' '}
-                          nº {ordem.numeroOs}/{ordem.ano}
+                          {formatarTextoDocumentoSgc(
+                            isAquisicaoContrato(ordem.contrato?.tipoContrato) || ordem.hashAssinaturaEletronica?.includes('OC')
+                              ? 'ORDEM_COMPRA'
+                              : 'ORDEM_SERVICO',
+                            ordem.numeroOs,
+                            ordem.ano
+                          )}
                         </h3>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -1304,31 +1326,64 @@ export default function ExecucaoPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Número da OC *' : 'Número da OS *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={osForm.numeroOs}
-                    onChange={(e) => setOsForm({ ...osForm, numeroOs: e.target.value })}
-                    placeholder="Ex: 216"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                  />
+              {/* Numeração Automática Padronizada SGC */}
+              <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    Numeração Oficial Padronizada SGC
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditarNumeroManual(!editarNumeroManual)}
+                    className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold underline flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    {editarNumeroManual ? 'Usar Numeração Automática SGC' : 'Editar Número para DOCX/Word'}
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Ano *</label>
-                  <input
-                    type="number"
-                    required
-                    value={osForm.ano}
-                    onChange={(e) => setOsForm({ ...osForm, ano: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                  />
+                <div className="text-xs text-blue-950 font-bold bg-white/90 border border-blue-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
+                  <span>{formatarTextoDocumentoSgc(osForm.tipoOrdem, osForm.numeroOs, osForm.ano)}</span>
+                  <span className="text-[10px] text-blue-600 font-normal">
+                    {editarNumeroManual ? 'Customizado (DOCX)' : 'Sequencial Automático'}
+                  </span>
                 </div>
+
+                {editarNumeroManual ? (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                        {osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Número da OC' : 'Número da OS'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={osForm.numeroOs}
+                        onChange={(e) => setOsForm({ ...osForm, numeroOs: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                        placeholder="Ex: 01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Ano</label>
+                      <input
+                        type="number"
+                        required
+                        value={osForm.ano}
+                        onChange={(e) => setOsForm({ ...osForm, ano: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                      />
+                    </div>
+                    <p className="col-span-2 text-[10px] text-slate-500">
+                      * Nota: Se você for assinar e emitir em PDF no SGC, a numeração sequencial é fixada automaticamente. Caso baixe o arquivo em DOCX para edição no Word, você pode customizar livremente o número.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-blue-700">
+                    Sequência anual automática iniciada em 01/{osForm.ano} gerada pelo SGC UERN com autenticação e assinatura eletrônica.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1444,7 +1499,7 @@ export default function ExecucaoPage() {
                   Conferência de Documento Institucional (Padrão SEI)
                 </span>
                 <h3 className="font-bold text-slate-900 text-base mt-0.5">
-                  Prévia da Ordem de Serviço nº {dadosPreviaOs.numeroOs}/{dadosPreviaOs.ano}
+                  Prévia da {formatarTextoDocumentoSgc(dadosPreviaOs.tipoOrdem || 'ORDEM_SERVICO', dadosPreviaOs.numeroOs, dadosPreviaOs.ano)}
                 </h3>
               </div>
 
@@ -1453,7 +1508,8 @@ export default function ExecucaoPage() {
                   type="button"
                   onClick={() => {
                     const doc = gerarOrdemServicoPdf(dadosPreviaOs);
-                    doc.save(`Ordem_de_Servico_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}.pdf`);
+                    const tipoPrefixo = dadosPreviaOs.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem_de_Compra' : 'Ordem_de_Servico';
+                    doc.save(`${tipoPrefixo}_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}_SGC.pdf`);
                   }}
                   className="inline-flex items-center space-x-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                   title="Baixar Prévia em arquivo PDF Oficial"
@@ -1469,9 +1525,10 @@ export default function ExecucaoPage() {
                     setGerandoDocx(true);
                     try {
                       const blob = await gerarOrdemServicoDocx(dadosPreviaOs);
+                      const tipoPrefixo = dadosPreviaOs.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem_de_Compra' : 'Ordem_de_Servico';
                       baixarBlobNoNavegador(
                         blob,
-                        `Ordem_de_Servico_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}.docx`
+                        `${tipoPrefixo}_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}_SGC.docx`
                       );
                     } catch (err: any) {
                       alert(err.message || 'Erro ao gerar Word');
@@ -1536,7 +1593,7 @@ export default function ExecucaoPage() {
 
                 {/* Título do Documento */}
                 <div className="text-center text-xs font-normal">
-                  Ordem de Serviço nº {dadosPreviaOs.numeroOs}/{dadosPreviaOs.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA
+                  {formatarTextoDocumentoSgc(dadosPreviaOs.tipoOrdem || 'ORDEM_SERVICO', dadosPreviaOs.numeroOs, dadosPreviaOs.ano)}
                 </div>
 
                 {/* Parágrafo de Abertura */}
@@ -1724,7 +1781,15 @@ export default function ExecucaoPage() {
                       <option value="">Selecione a Ordem de Serviço de referência...</option>
                       {ordensDisponiveis.map((o) => (
                         <option key={o.id} value={o.id}>
-                          OS nº {o.numeroOs}/{o.ano} {o.referenciaMedicao ? `(Ref: ${o.referenciaMedicao})` : ''} - Estimado: R$ {o.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {formatarTextoDocumentoSgc(
+                            isAquisicaoContrato(o.contrato?.tipoContrato) || o.hashAssinaturaEletronica?.includes('OC')
+                              ? 'ORDEM_COMPRA'
+                              : 'ORDEM_SERVICO',
+                            o.numeroOs,
+                            o.ano
+                          )}{' '}
+                          {o.referenciaMedicao ? `(Ref: ${o.referenciaMedicao})` : ''} - Estimado: R${' '}
+                          {o.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </option>
                       ))}
                     </select>

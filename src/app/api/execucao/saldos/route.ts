@@ -315,6 +315,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const {
       id,
+      ordemServicoId,
       numeroContratoRef,
       processoSeiDespesa,
       numeroNotaFiscal,
@@ -384,6 +385,7 @@ export async function PUT(request: NextRequest) {
     const updated = await prisma.despesaExecucao.update({
       where: { id },
       data: {
+        ...(ordemServicoId !== undefined && { ordemServicoId: ordemServicoId || null }),
         ...(numeroContratoRef !== undefined && { numeroContratoRef }),
         ...(processoSeiDespesa && { processoSeiDespesa }),
         ...(numeroNotaFiscal !== undefined && { numeroNotaFiscal }),

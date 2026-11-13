@@ -79,9 +79,12 @@ export async function POST(request: NextRequest) {
       motivoGlosa,
     } = body;
 
-    if (!contratoId || !referenciaMesAno || !processoSeiDespesa || !valorNotaFiscal) {
+    if (!contratoId || !ordemServicoId || !referenciaMesAno || !processoSeiDespesa || !valorNotaFiscal) {
       return NextResponse.json(
-        { error: 'Contrato, Referência (Mês/Ano), Processo SEI e Valor da NF são obrigatórios.' },
+        {
+          error:
+            'Contrato, Ordem de Serviço (OS) vinculada, Referência (Mês/Ano), Processo SEI e Valor da NF são obrigatórios.',
+        },
         { status: 400 }
       );
     }

@@ -62,7 +62,19 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
     const body = await request.json();
-    const { contratoId, numeroOs, ano, processoSeiDespesa, descricaoServico, valorEstimado, tipoOrdem } = body;
+    const {
+      contratoId,
+      numeroOs,
+      ano,
+      processoSeiDespesa,
+      descricaoServico,
+      valorEstimado,
+      tipoOrdem,
+      referenciaMedicao,
+      processoSeiMae,
+      codigoVerificadorSei,
+      codigoCrcSei,
+    } = body;
 
     if (!contratoId || !numeroOs || !processoSeiDespesa || !descricaoServico || !valorEstimado) {
       return NextResponse.json(
@@ -74,7 +86,14 @@ export async function POST(request: NextRequest) {
     // Buscar contrato e validar tipo (Bens vs Serviços/Obras)
     const contrato = await prisma.contrato.findUnique({
       where: { id: contratoId },
-      select: { id: true, tipoContrato: true, numeroContrato: true, numeroEmpenho: true },
+      select: {
+        id: true,
+        tipoContrato: true,
+        numeroContrato: true,
+        numeroEmpenho: true,
+        processoSeiMae: true,
+        fornecedor: true,
+      },
     });
 
     if (!contrato) {
@@ -140,6 +159,11 @@ export async function POST(request: NextRequest) {
     const hashData = `${contratoId}:${numeroOs}:${processoSeiDespesa}:${session.id}:${timestamp}`;
     const hashAssinatura = crypto.createHash('sha256').update(hashData).digest('hex').slice(0, 32).toUpperCase();
 
+    const codVerificador =
+      codigoVerificadorSei || Math.floor(10000000 + Math.random() * 90000000).toString();
+    const codCrc =
+      codigoCrcSei || Math.random().toString(36).substring(2, 10).toUpperCase();
+
     const ordem = await prisma.ordemServico.create({
       data: {
         contratoId,
@@ -149,6 +173,10 @@ export async function POST(request: NextRequest) {
         processoSeiDespesa,
         descricaoServico,
         valorEstimado: parseFloat(valorEstimado),
+        referenciaMedicao: referenciaMedicao || null,
+        processoSeiMae: processoSeiMae || contrato.processoSeiMae || null,
+        codigoVerificadorSei: codVerificador,
+        codigoCrcSei: codCrc,
         hashAssinaturaEletronica: `${prefixoDoc}-${hashAssinatura}`,
         status: 'EMITIDA',
       },

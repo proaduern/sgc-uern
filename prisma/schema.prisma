@@ -592,6 +592,10 @@ model OrdemServico {
   processoSeiDespesa       String
   descricaoServico         String
   valorEstimado            Float
+  referenciaMedicao        String?   // Mês/Ano da Medição ou Referência Operacional (ex: 08/2026)
+  processoSeiMae           String?   // Processo Mãe SEI da contratação (ex: 04410017.001048/2025-04)
+  codigoVerificadorSei     String?   // Código verificador numérico SEI (ex: 44391608)
+  codigoCrcSei             String?   // Código CRC SEI (ex: 5E1D9039)
   dataEmissao              DateTime  @default(now())
   hashAssinaturaEletronica String
   status                   String    @default("EMITIDA")
@@ -599,6 +603,7 @@ model OrdemServico {
   createdAt                DateTime  @default(now())
 
   medicoes                 MedicaoDespesa[]
+  despesas                 DespesaExecucao[]
 
   @@map("ordens_servico")
 }
@@ -706,6 +711,8 @@ model DespesaExecucao {
   id                    String    @id @default(uuid())
   contratoId            String
   contrato              Contrato  @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  ordemServicoId        String?
+  ordemServico          OrdemServico? @relation(fields: [ordemServicoId], references: [id])
   numeroContratoRef     String?
   processoSeiMaeRef     String?
   processoSeiDespesa    String    // Processo SEI da Despesa

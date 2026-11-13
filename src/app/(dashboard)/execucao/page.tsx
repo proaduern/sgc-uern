@@ -24,13 +24,26 @@ import {
   Edit3,
   Trash2,
   ShoppingCart,
-  Calendar
+  Calendar,
+  Eye,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { estamparAutenticacaoNoJsPdf } from '@/components/PdfAutenticacaoInit';
 import { normalizarCidadeCampus } from '@/lib/cidades-constantes';
+import {
+  gerarOrdemServicoPdf,
+  gerarOrdemServicoDocx,
+  baixarBlobNoNavegador,
+  numeroParaExtenso,
+  OrdemServicoDados,
+} from '@/lib/ordem-servico-generator';
+import {
+  BRASAO_RN_BASE64,
+  LOGO_UERN_SEI_BASE64,
+  QRCODE_SEI_BASE64,
+} from '@/lib/config/sei-assets';
 
 export default function ExecucaoPage() {
   const [activeTab, setActiveTab] = useState<'MEDICOES' | 'ORDENS_SERVICO' | 'SALDOS_DESPESAS'>('SALDOS_DESPESAS');
@@ -110,17 +123,24 @@ export default function ExecucaoPage() {
   // Form OS / OC
   const [osForm, setOsForm] = useState({
     contratoId: '',
-    tipoOrdem: 'ORDEM_SERVICO', // ORDEM_SERVICO ou ORDEM_COMPRA
+    tipoOrdem: 'ORDEM_SERVICO' as 'ORDEM_SERVICO' | 'ORDEM_COMPRA',
     numeroOs: '',
     ano: new Date().getFullYear().toString(),
     processoSeiDespesa: '',
+    referenciaMedicao: '',
     descricaoServico: '',
     valorEstimado: '',
+    processoSeiMae: '',
   });
+
+  const [showPreviaOsModal, setShowPreviaOsModal] = useState(false);
+  const [dadosPreviaOs, setDadosPreviaOs] = useState<OrdemServicoDados | null>(null);
+  const [gerandoDocx, setGerandoDocx] = useState(false);
 
   // Form Medição
   const [medicaoForm, setMedicaoForm] = useState({
     contratoId: '',
+    ordemServicoId: '',
     referenciaMesAno: '',
     processoSeiDespesa: '',
     numeroNotaFiscal: '',
@@ -183,16 +203,18 @@ export default function ExecucaoPage() {
 
   const handleOpenNovaOrdem = (tipo: 'ORDEM_SERVICO' | 'ORDEM_COMPRA') => {
     const listaCompativel = tipo === 'ORDEM_COMPRA' ? contratosAquisicao : contratosServico;
-    const contratoInicial = listaCompativel.length > 0 ? listaCompativel[0].id : '';
+    const contratoInicial = listaCompativel.length > 0 ? listaCompativel[0] : (contratos.length > 0 ? contratos[0] : null);
 
     setOsForm({
-      contratoId: contratoInicial,
+      contratoId: contratoInicial ? contratoInicial.id : '',
       tipoOrdem: tipo,
       numeroOs: '',
       ano: new Date().getFullYear().toString(),
       processoSeiDespesa: '',
+      referenciaMedicao: '',
       descricaoServico: '',
       valorEstimado: '',
+      processoSeiMae: contratoInicial?.processoSeiMae || '',
     });
     setShowNovaOsModal(true);
   };
@@ -308,30 +330,89 @@ export default function ExecucaoPage() {
     XLSX.writeFile(wb, `Saldos_Contratos_UERN_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const handleCreateOs = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAbrirPreviaOs = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!osForm.contratoId) {
       alert('Por favor, selecione um contrato válido compatível com o documento.');
       return;
     }
+    if (!osForm.numeroOs || !osForm.processoSeiDespesa || !osForm.valorEstimado) {
+      alert('Número da ordem, Processo SEI da Despesa e Valor Estimado são obrigatórios.');
+      return;
+    }
+
+    const contratoSel = contratos.find((c) => c.id === osForm.contratoId);
+    const fornecedor = contratoSel?.fornecedor;
+    const valorNum = parseFloat(osForm.valorEstimado) || 0;
+
+    const dados: OrdemServicoDados = {
+      numeroOs: String(osForm.numeroOs),
+      ano: osForm.ano || new Date().getFullYear(),
+      tipoProcesso: osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Aquisição e Fornecimento de Bens' : 'Pagamento de fornecedor',
+      origem: 'Diretoria de Administração e Serviços - PROAD',
+      interessado: fornecedor?.razaoSocial || fornecedor?.nomeFantasia || 'FORNECEDOR',
+      cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO CADASTRADO',
+      contratoNumero: contratoSel?.numeroContrato || contratoSel?.numeroEmpenho || 'S/N',
+      valor: valorNum,
+      valorExtenso: numeroParaExtenso(valorNum),
+      referencia: osForm.referenciaMedicao
+        ? (osForm.descricaoServico ? `${osForm.referenciaMedicao} - ${osForm.descricaoServico}` : osForm.referenciaMedicao)
+        : osForm.descricaoServico,
+      processoSeiVinculado: contratoSel?.processoSeiMae || osForm.processoSeiMae || '04410017.001048/2025-04',
+      processoSeiDespesa: osForm.processoSeiDespesa,
+      emissorNome: currentUser?.nome || 'Fiscal Administrativo',
+      emissorCargoMatricula: currentUser?.matricula ? `TNS - Matrícula ${currentUser.matricula}` : 'TNS - Fiscal Administrativo',
+      emissorNomeCompleto: currentUser?.nome || 'Fiscal Administrativo',
+      emissorCargoCompleto: currentUser?.isFiscalAdm
+        ? 'Fiscal Administrativo(a) da Unidade'
+        : (currentUser?.isGestor ? 'Gestor(a) do Contrato' : 'Técnico(a) Administrativo(a) da Unidade'),
+      dataAssinatura: new Date().toLocaleDateString('pt-BR'),
+      horaAssinatura: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setDadosPreviaOs(dados);
+    setShowNovaOsModal(false);
+    setShowPreviaOsModal(true);
+  };
+
+  const handleConfirmarEmissaoOs = async () => {
+    if (!dadosPreviaOs) return;
+    setSalvandoOs(true);
     try {
       const res = await fetch('/api/execucao/os', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(osForm),
+        body: JSON.stringify({
+          contratoId: osForm.contratoId,
+          tipoOrdem: osForm.tipoOrdem,
+          numeroOs: dadosPreviaOs.numeroOs,
+          ano: dadosPreviaOs.ano,
+          processoSeiDespesa: dadosPreviaOs.processoSeiDespesa,
+          referenciaMedicao: osForm.referenciaMedicao,
+          processoSeiMae: dadosPreviaOs.processoSeiVinculado,
+          codigoVerificadorSei: dadosPreviaOs.codigoVerificadorSei,
+          codigoCrcSei: dadosPreviaOs.codigoCrcSei,
+          descricaoServico: osForm.descricaoServico || dadosPreviaOs.referencia,
+          valorEstimado: dadosPreviaOs.valor,
+        }),
       });
+
       if (res.ok) {
-        setShowNovaOsModal(false);
+        setShowPreviaOsModal(false);
+        setDadosPreviaOs(null);
         setOsForm({
           contratoId: '',
           tipoOrdem: 'ORDEM_SERVICO',
           numeroOs: '',
           ano: new Date().getFullYear().toString(),
           processoSeiDespesa: '',
+          referenciaMedicao: '',
           descricaoServico: '',
           valorEstimado: '',
+          processoSeiMae: '',
         });
         carregarDados();
+        alert('Ordem emitida e assinada eletronicamente com sucesso!');
       } else {
         const d = await res.json();
         alert(d.error || 'Erro ao emitir ordem');
@@ -339,11 +420,17 @@ export default function ExecucaoPage() {
     } catch (e: any) {
       console.error(e);
       alert(e.message || 'Erro ao emitir ordem');
+    } finally {
+      setSalvandoOs(false);
     }
   };
 
   const handleCreateMedicao = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!medicaoForm.ordemServicoId) {
+      alert('Selecione a Ordem de Serviço (OS) de referência para vincular a esta medição.');
+      return;
+    }
     try {
       const res = await fetch('/api/execucao/medicoes', {
         method: 'POST',
@@ -354,6 +441,7 @@ export default function ExecucaoPage() {
         setShowNovaMedicaoModal(false);
         setMedicaoForm({
           contratoId: '',
+          ordemServicoId: '',
           referenciaMesAno: '',
           processoSeiDespesa: '',
           numeroNotaFiscal: '',
@@ -363,9 +451,13 @@ export default function ExecucaoPage() {
           motivoGlosa: '',
         });
         carregarDados();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Erro ao lançar medição');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert(e.message || 'Erro ao lançar medição');
     }
   };
 
@@ -578,104 +670,68 @@ export default function ExecucaoPage() {
     }
   };
 
-  // Gerar PDF da Ordem de Serviço ou Ordem de Compra com Assinatura Eletrônica Institucional
-  const gerarPdfOs = (ordem: any) => {
-    const doc = new jsPDF();
-
+  // Prepara os dados da Ordem de Serviço/Compra para visualização e exportação fiel ao SEI
+  const prepararDadosOsParaExportacao = (ordem: any): OrdemServicoDados => {
     const isOrdemCompra =
       ordem.hashAssinaturaEletronica?.includes('OC') ||
       ordem.numeroOs?.toUpperCase().includes('OC') ||
       ordem.contrato?.tipoContrato?.includes('FORNECIMENTO');
 
-    const tipoDocTitulo = isOrdemCompra
-      ? `ORDEM DE COMPRA E FORNECIMENTO Nº ${ordem.numeroOs}/${ordem.ano}`
-      : `ORDEM DE SERVIÇO Nº ${ordem.numeroOs}/${ordem.ano}`;
+    const fornecedor = ordem.contrato?.fornecedor;
+    const dataCriacao = ordem.createdAt ? new Date(ordem.createdAt) : new Date();
 
-    // Cabeçalho Oficial UERN
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(0, 51, 102); // #003366
-    doc.text('UNIVERSIDADE DO ESTADO DO RIO GRANDE DO NORTE - UERN', 105, 20, { align: 'center' });
-    
-    doc.setFontSize(11);
-    doc.setTextColor(60, 60, 60);
-    doc.text('PRÓ-REITORIA DE ADMINISTRAÇÃO - PROAD', 105, 26, { align: 'center' });
-    doc.text('DIRETORIA DE ADMINISTRAÇÃO E SERVIÇOS - DAS', 105, 31, { align: 'center' });
+    return {
+      numeroOs: String(ordem.numeroOs || '01'),
+      ano: ordem.ano || new Date().getFullYear(),
+      tipoProcesso: isOrdemCompra ? 'Aquisição e Fornecimento de Bens' : 'Pagamento de fornecedor',
+      origem: 'Diretoria de Administração e Serviços - PROAD',
+      interessado: fornecedor?.razaoSocial || fornecedor?.nomeFantasia || 'FORNECEDOR',
+      cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO INFORMADO',
+      contratoNumero: ordem.contrato?.numeroContrato || ordem.contrato?.numeroEmpenho || 'S/N',
+      valor: parseFloat(ordem.valorEstimado || 0),
+      valorExtenso: numeroParaExtenso(parseFloat(ordem.valorEstimado || 0)),
+      referencia: ordem.referenciaMedicao
+        ? (ordem.descricaoServico ? `${ordem.referenciaMedicao} - ${ordem.descricaoServico}` : ordem.referenciaMedicao)
+        : ordem.descricaoServico,
+      processoSeiVinculado: ordem.processoSeiMae || ordem.contrato?.processoSeiMae || '04410017.001048/2025-04',
+      processoSeiDespesa: ordem.processoSeiDespesa,
+      codigoVerificadorSei:
+        ordem.codigoVerificadorSei || ordem.hashAssinaturaEletronica?.replace(/\D/g, '').slice(0, 8) || '44391608',
+      codigoCrcSei: ordem.codigoCrcSei || ordem.hashAssinaturaEletronica?.slice(-8) || '5E1D9039',
+      emissorNome: ordem.fiscalAdm?.nome || currentUser?.nome || 'Fiscal Administrativo',
+      emissorCargoMatricula: ordem.fiscalAdm?.matricula
+        ? `TNS - Matrícula ${ordem.fiscalAdm.matricula}`
+        : 'TNS - Fiscal Administrativo',
+      emissorNomeCompleto: ordem.fiscalAdm?.nome || currentUser?.nome || 'Fiscal Administrativo',
+      emissorCargoCompleto: 'Técnico(a) Administrativo(a) da Unidade',
+      dataAssinatura: dataCriacao.toLocaleDateString('pt-BR'),
+      horaAssinatura: dataCriacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+  };
 
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.8);
-    doc.line(15, 36, 195, 36);
+  const gerarPdfOs = (ordem: any) => {
+    const dados = prepararDadosOsParaExportacao(ordem);
+    const doc = gerarOrdemServicoPdf(dados);
+    doc.save(`Ordem_de_Servico_${dados.numeroOs}_${dados.ano}.pdf`);
+  };
 
-    // Título do Documento
-    doc.setFontSize(13);
-    doc.setTextColor(0, 0, 0);
-    doc.text(tipoDocTitulo, 105, 46, { align: 'center' });
+  const gerarDocxOs = async (ordem: any) => {
+    setGerandoDocx(true);
+    try {
+      const dados = prepararDadosOsParaExportacao(ordem);
+      const blob = await gerarOrdemServicoDocx(dados);
+      baixarBlobNoNavegador(blob, `Ordem_de_Servico_${dados.numeroOs}_${dados.ano}.docx`);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao gerar documento Word');
+    } finally {
+      setGerandoDocx(false);
+    }
+  };
 
-    // Dados do Contrato e Empresa
-    autoTable(doc, {
-      startY: 52,
-      theme: 'grid',
-      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 9 },
-      head: [['Identificação Contratual', 'Dados de Referência']],
-      body: [
-        ['Contrato / Empenho', ordem.contrato.numeroContrato ? `Contrato nº ${ordem.contrato.numeroContrato}` : `Empenho nº ${ordem.contrato.numeroEmpenho}`],
-        ['Processo SEI da Despesa', ordem.processoSeiDespesa],
-        ['Processo SEI Mãe (Contratação)', ordem.contrato.processoSeiMae],
-        ['Empresa Contratada', ordem.contrato.fornecedor.razaoSocial],
-        ['CNPJ', ordem.contrato.fornecedor.cnpj],
-        ['Objeto Geral', ordem.contrato.objeto],
-        ['Valor Estimado da Execução', ordem.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
-        ['Data de Emissão', new Date(ordem.dataEmissao).toLocaleDateString('pt-BR')],
-      ],
-    });
-
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Descrição do Serviço / Bens
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text(
-      isOrdemCompra
-        ? '1. ESPECIFICAÇÃO DOS MATERIAIS / BENS AUTORIZADOS:'
-        : '1. DESCRIÇÃO DETALHADA DOS SERVIÇOS AUTORIZADOS:',
-      15,
-      finalY
-    );
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const splitDescricao = doc.splitTextToSize(ordem.descricaoServico, 180);
-    doc.text(splitDescricao, 15, finalY + 6);
-
-    const assinaturasY = finalY + 10 + splitDescricao.length * 5;
-
-    // Quadro de Assinatura Eletrônica Institucional
-    doc.setDrawColor(200, 200, 200);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(15, assinaturasY, 180, 45, 3, 3, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 51, 102);
-    doc.text('CHANCELA DE ASSINATURA ELETRÔNICA INSTITUCIONAL (IN nº 01/2026 - PROAD/UERN)', 20, assinaturasY + 8);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(50, 50, 50);
-    const cargoEmissor = ordem.fiscalAdm?.role?.replace(/_/g, ' ') || 'Gestor / Fiscal';
-    doc.text(`Emitido por: ${ordem.fiscalAdm.nome} (${cargoEmissor})`, 20, assinaturasY + 16);
-    doc.text(`E-mail: ${ordem.fiscalAdm.email} | Matrícula: ${ordem.fiscalAdm.matricula || 'Institucional'}`, 20, assinaturasY + 22);
-    doc.text(`Data/Hora da Emissão: ${new Date(ordem.createdAt).toLocaleString('pt-BR')}`, 20, assinaturasY + 28);
-    
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Código Verificador / Hash: ${ordem.hashAssinaturaEletronica}`, 20, assinaturasY + 36);
-
-    const nomeArquivoOs = `${isOrdemCompra ? 'OC' : 'OS'}_${ordem.numeroOs}_${ordem.ano}_UERN.pdf`;
-    estamparAutenticacaoNoJsPdf(doc, nomeArquivoOs, isOrdemCompra ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO');
-    doc.save(nomeArquivoOs);
+  const handleVisualizarPreviaOs = (ordem: any) => {
+    const dados = prepararDadosOsParaExportacao(ordem);
+    setDadosPreviaOs(dados);
+    setShowPreviaOsModal(true);
   };
 
   // Ordens filtradas para a visualização na aba correspondente
@@ -1103,12 +1159,31 @@ export default function ExecucaoPage() {
                         )}
                         <button
                           type="button"
+                          onClick={() => handleVisualizarPreviaOs(ordem)}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-slate-200"
+                          title="Visualizar Prévia Oficial da Ordem"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Prévia</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => gerarPdfOs(ordem)}
-                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-blue-200"
-                          title="Baixar PDF com Assinatura Eletrônica"
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-rose-200"
+                          title="Baixar PDF Oficial Padrão SEI"
                         >
                           <Printer className="w-3.5 h-3.5" />
-                          <span>PDF Oficial</span>
+                          <span>PDF</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={gerandoDocx}
+                          onClick={() => gerarDocxOs(ordem)}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-bold rounded-xl transition-colors cursor-pointer border border-blue-200"
+                          title="Baixar em formato Word (.docx) editável"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>DOCX</span>
                         </button>
                       </div>
                     </div>
@@ -1154,7 +1229,7 @@ export default function ExecucaoPage() {
       {/* Modal Nova Ordem de Serviço ou Compra */}
       {showNovaOsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-slate-800 text-base">
                 Emitir {osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem de Compra e Fornecimento (OC)' : 'Ordem de Serviço (OS)'}
@@ -1170,10 +1245,10 @@ export default function ExecucaoPage() {
             <p className="text-xs text-slate-500 mb-4">
               {osForm.tipoOrdem === 'ORDEM_COMPRA'
                 ? 'Autorização formal para aquisição e entrega de bens/materiais conforme IN nº 01/2026 - PROAD/UERN.'
-                : 'Autorização formal para execução de serviços e obras conforme modelo da DAS/PROAD com chancela eletrônica.'}
+                : 'Autorização formal para execução de serviços e obras conforme modelo padrão da DAS/PROAD espelhando o SEI UERN.'}
             </p>
 
-            <form onSubmit={handleCreateOs} className="space-y-4">
+            <form onSubmit={handleAbrirPreviaOs} className="space-y-3.5">
               {/* Identificação Clara e Exclusiva do Tipo de Documento Oficial */}
               {osForm.tipoOrdem === 'ORDEM_COMPRA' ? (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900 font-medium">
@@ -1204,7 +1279,15 @@ export default function ExecucaoPage() {
                 <select
                   required
                   value={osForm.contratoId}
-                  onChange={(e) => setOsForm({ ...osForm, contratoId: e.target.value })}
+                  onChange={(e) => {
+                    const cId = e.target.value;
+                    const c = contratos.find((item) => item.id === cId);
+                    setOsForm({
+                      ...osForm,
+                      contratoId: cId,
+                      processoSeiMae: c?.processoSeiMae || '',
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
                 >
                   <option value="">Selecione o contrato...</option>
@@ -1231,7 +1314,7 @@ export default function ExecucaoPage() {
                     required
                     value={osForm.numeroOs}
                     onChange={(e) => setOsForm({ ...osForm, numeroOs: e.target.value })}
-                    placeholder="Ex: 01"
+                    placeholder="Ex: 216"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
                   />
                 </div>
@@ -1256,7 +1339,7 @@ export default function ExecucaoPage() {
                     required
                     value={osForm.processoSeiDespesa}
                     onChange={(e) => setOsForm({ ...osForm, processoSeiDespesa: e.target.value })}
-                    placeholder="Ex: 04410022.001234/2026-11"
+                    placeholder="Ex: 04410035.002501/2026-54"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
                   />
                 </div>
@@ -1271,6 +1354,42 @@ export default function ExecucaoPage() {
                     onChange={(e) => setOsForm({ ...osForm, valorEstimado: e.target.value })}
                     placeholder="0,00"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Medição de Referência *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={osForm.referenciaMedicao}
+                    onChange={(e) => {
+                      const ref = e.target.value;
+                      setOsForm({
+                        ...osForm,
+                        referenciaMedicao: ref,
+                        descricaoServico: osForm.descricaoServico || `Prestação de serviços continuados referente à medição ${ref}`,
+                      });
+                    }}
+                    placeholder="Ex: 08/2026"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Processo SEI Vinculado (Mãe)
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={osForm.processoSeiMae || 'Puxado do contrato selecionado'}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-600 font-mono outline-none"
+                    title="Processo Mãe de contratação vinculado ao contrato"
                   />
                 </div>
               </div>
@@ -1297,15 +1416,16 @@ export default function ExecucaoPage() {
                 <button
                   type="button"
                   onClick={() => setShowNovaOsModal(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244]"
+                  className="px-5 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
                 >
-                  Emitir e Assinar Eletronicamente
+                  <Eye className="w-4 h-4" />
+                  <span>Visualizar Prévia Oficial (PDF / Word)</span>
                 </button>
               </div>
             </form>
@@ -1313,13 +1433,216 @@ export default function ExecucaoPage() {
         </div>
       )}
 
+      {/* MODAL DE PRÉVIA OFICIAL DA ORDEM DE SERVIÇO / COMPRA (PADRÃO SEI UERN) */}
+      {showPreviaOsModal && dadosPreviaOs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-slate-100 rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full my-6 flex flex-col max-h-[92vh]">
+            {/* Header da Barra de Ferramentas de Exportação e Ações */}
+            <div className="bg-white px-6 py-4 rounded-t-2xl border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 uppercase">
+                  Conferência de Documento Institucional (Padrão SEI)
+                </span>
+                <h3 className="font-bold text-slate-900 text-base mt-0.5">
+                  Prévia da Ordem de Serviço nº {dadosPreviaOs.numeroOs}/{dadosPreviaOs.ano}
+                </h3>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const doc = gerarOrdemServicoPdf(dadosPreviaOs);
+                    doc.save(`Ordem_de_Servico_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}.pdf`);
+                  }}
+                  className="inline-flex items-center space-x-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  title="Baixar Prévia em arquivo PDF Oficial"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={gerandoDocx}
+                  onClick={async () => {
+                    setGerandoDocx(true);
+                    try {
+                      const blob = await gerarOrdemServicoDocx(dadosPreviaOs);
+                      baixarBlobNoNavegador(
+                        blob,
+                        `Ordem_de_Servico_${dadosPreviaOs.numeroOs}_${dadosPreviaOs.ano}.docx`
+                      );
+                    } catch (err: any) {
+                      alert(err.message || 'Erro ao gerar Word');
+                    } finally {
+                      setGerandoDocx(false);
+                    }
+                  }}
+                  className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                  title="Baixar Prévia em arquivo Word (.docx) editável"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>{gerandoDocx ? 'Gerando...' : 'Baixar Word (.docx)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPreviaOsModal(false);
+                    setShowNovaOsModal(true);
+                  }}
+                  className="inline-flex items-center space-x-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  title="Retornar para ajustar os campos"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Ajustar Dados</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={salvandoOs}
+                  onClick={handleConfirmarEmissaoOs}
+                  className="inline-flex items-center space-x-1 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition-colors cursor-pointer disabled:opacity-50"
+                  title="Formalizar e emitir com chancela eletrônica"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{salvandoOs ? 'Emitindo...' : 'Confirmar e Emitir OS'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPreviaOsModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Folha A4 Renderizada com Fidelidade ao SEI */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="bg-white shadow-xl rounded-lg p-10 max-w-2xl mx-auto border border-slate-200 font-serif text-slate-900 text-sm space-y-6">
+                {/* Brasão RN no topo central */}
+                <div className="text-center">
+                  <div className="w-16 h-24 mx-auto flex items-center justify-center">
+                    <img
+                      src={`data:image/jpeg;base64,${BRASAO_RN_BASE64}`}
+                      alt="Brasão do Estado do Rio Grande do Norte"
+                      className="max-h-24 object-contain"
+                    />
+                  </div>
+                </div>
+
+                {/* Título do Documento */}
+                <div className="text-center text-xs font-normal">
+                  Ordem de Serviço nº {dadosPreviaOs.numeroOs}/{dadosPreviaOs.ano}/UERN - PROAD - DAS/UERN - PROAD/UERN - REITORIA
+                </div>
+
+                {/* Parágrafo de Abertura */}
+                <div className="font-bold text-xs leading-relaxed text-justify">
+                  DOU início ao processo de pagamento de fornecedor, o qual segue para trâmite de estilo, considerando as seguintes informações:
+                </div>
+
+                {/* Tabela de Informações Estruturadas */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Tipo do processo:</span>
+                    <span>{dadosPreviaOs.tipoProcesso}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Origem:</span>
+                    <span>{dadosPreviaOs.origem}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Interessado:</span>
+                    <span>{dadosPreviaOs.interessado}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">CNPJ/CPF:</span>
+                    <span>{dadosPreviaOs.cnpjCpf}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Contrato nº:</span>
+                    <span>{dadosPreviaOs.contratoNumero}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Valor:</span>
+                    <span>
+                      R$ {dadosPreviaOs.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dadosPreviaOs.valorExtenso})
+                    </span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Referência:</span>
+                    <span className="flex-1 text-justify">{dadosPreviaOs.referencia}</span>
+                  </div>
+                  <div className="flex">
+                    <span className="font-bold w-48 flex-shrink-0">Processo SEI Vinculado:</span>
+                    <span className="font-mono">{dadosPreviaOs.processoSeiVinculado}</span>
+                  </div>
+                </div>
+
+                {/* Observação em Itálico */}
+                <div className="italic text-[11px] text-slate-700 text-justify">
+                  OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível
+                </div>
+
+                {/* Identificação do Emissor à Direita */}
+                <div className="text-right text-xs space-y-0.5 pt-2">
+                  <div>{dadosPreviaOs.emissorNome}</div>
+                  <div>{dadosPreviaOs.emissorCargoMatricula}</div>
+                </div>
+
+                {/* Quadro de Assinatura Eletrônica Oficial SEI */}
+                <div className="border border-slate-300 rounded p-3 flex gap-3 text-[10px] text-slate-800 leading-tight">
+                  <div className="flex flex-col items-center justify-center space-y-1 w-16 flex-shrink-0">
+                    <img
+                      src={`data:image/jpeg;base64,${LOGO_UERN_SEI_BASE64}`}
+                      alt="Logo UERN"
+                      className="max-h-7 object-contain"
+                    />
+                    <img
+                      src={`data:image/jpeg;base64,${QRCODE_SEI_BASE64}`}
+                      alt="QR Code SEI"
+                      className="max-h-12 object-contain"
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <p>
+                      Documento assinado eletronicamente por <strong>{dadosPreviaOs.emissorNomeCompleto}</strong>, <strong>{dadosPreviaOs.emissorCargoCompleto}</strong>, em {dadosPreviaOs.dataAssinatura}, às {dadosPreviaOs.horaAssinatura}, conforme horário oficial de Brasília, com fundamento no art. 4º do Decreto nº 27.685, de 30 de janeiro de 2018.
+                    </p>
+                    <p>
+                      A autenticidade deste documento pode ser conferida no site{' '}
+                      <span className="text-blue-700 underline break-all">
+                        https://sei.rn.gov.br/sei/controlador_externo.php?acao=documento_conferir&id_orgao_acesso_externo=0
+                      </span>
+                      , informando o código verificador <strong>{dadosPreviaOs.codigoVerificadorSei}</strong> e o código CRC <strong>{dadosPreviaOs.codigoCrcSei}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Rodapé SEI */}
+                <div className="border-t border-slate-200 pt-3 flex justify-between text-[11px]">
+                  <div>
+                    <strong>Referência:</strong> Processo nº {dadosPreviaOs.processoSeiDespesa}
+                  </div>
+                  <div>
+                    SEI nº {dadosPreviaOs.codigoVerificadorSei}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Nova Medição */}
       {showNovaMedicaoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             <h3 className="font-bold text-slate-800 text-base mb-1">Lançar Nova Medição / Fatura</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Registro mensal de faturamento para conferência e fluxo de atestes.
+              Registro mensal de faturamento vinculado obrigatoriamente a uma Ordem de Serviço (OS) prévia.
             </p>
 
             <form onSubmit={handleCreateMedicao} className="space-y-4">
@@ -1328,7 +1651,17 @@ export default function ExecucaoPage() {
                 <select
                   required
                   value={medicaoForm.contratoId}
-                  onChange={(e) => setMedicaoForm({ ...medicaoForm, contratoId: e.target.value })}
+                  onChange={(e) => {
+                    const cId = e.target.value;
+                    const ordensDoC = ordens.filter((o) => o.contratoId === cId);
+                    setMedicaoForm({
+                      ...medicaoForm,
+                      contratoId: cId,
+                      ordemServicoId: '',
+                      referenciaMesAno: '',
+                      processoSeiDespesa: '',
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
                 >
                   <option value="">Selecione o contrato...</option>
@@ -1340,9 +1673,70 @@ export default function ExecucaoPage() {
                 </select>
               </div>
 
+              {/* Vinculação Obrigatória à Ordem de Serviço Prévia */}
+              {medicaoForm.contratoId && (() => {
+                const ordensDisponiveis = ordens.filter((o) => o.contratoId === medicaoForm.contratoId);
+                if (ordensDisponiveis.length === 0) {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        Nenhuma Ordem de Serviço emitida para este contrato
+                      </p>
+                      <p className="mt-1 text-[11px] text-amber-700">
+                        Conforme a norma institucional, é obrigatório emitir previamente a Ordem de Serviço antes de lançar medições e faturas.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNovaMedicaoModal(false);
+                          handleOpenNovaOrdem('ORDEM_SERVICO');
+                        }}
+                        className="mt-2.5 inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Emitir Ordem de Serviço Agora</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Ordem de Serviço Vinculada (Obrigatória) *
+                    </label>
+                    <select
+                      required
+                      value={medicaoForm.ordemServicoId}
+                      onChange={(e) => {
+                        const selId = e.target.value;
+                        const osObj = ordensDisponiveis.find((o) => o.id === selId);
+                        setMedicaoForm({
+                          ...medicaoForm,
+                          ordemServicoId: selId,
+                          referenciaMesAno: osObj ? (osObj.referenciaMedicao || osObj.descricaoServico || '') : '',
+                          processoSeiDespesa: osObj ? (osObj.processoSeiDespesa || '') : '',
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white font-medium"
+                    >
+                      <option value="">Selecione a Ordem de Serviço de referência...</option>
+                      {ordensDisponiveis.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          OS nº {o.numeroOs}/{o.ano} {o.referenciaMedicao ? `(Ref: ${o.referenciaMedicao})` : ''} - Estimado: R$ {o.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Referência (Mês/Ano) *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Referência (Mês/Ano) *
+                  </label>
                   <input
                     type="text"
                     required
@@ -1351,10 +1745,17 @@ export default function ExecucaoPage() {
                     placeholder="Ex: 03/2026"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
                   />
+                  {medicaoForm.ordemServicoId && (
+                    <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+                      ✓ Vinculado à OS selecionada
+                    </span>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Processo SEI da Despesa *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Processo SEI da Despesa *
+                  </label>
                   <input
                     type="text"
                     required
@@ -1363,6 +1764,11 @@ export default function ExecucaoPage() {
                     placeholder="04410022.001234/2026-11"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
                   />
+                  {medicaoForm.ordemServicoId && (
+                    <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+                      ✓ Vinculado à OS selecionada
+                    </span>
+                  )}
                 </div>
               </div>
 

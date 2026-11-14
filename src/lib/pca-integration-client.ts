@@ -13,7 +13,7 @@ interface NotificarPcaParams {
   fornecedorCnpj?: string;
   origemPcaConsolidacaoId?: string | null;
   itensOrigemPcaIds?: (string | null)[];
-  statusExecucao: "CONTRATADO" | "EM_EXECUCAO" | "RECEBIDO_PROVISORIO" | "RECEBIDO_DEFINITIVO" | "PAGO" | "REMETIDO_DEMANDANTE";
+  statusExecucao: "CONTRATADO" | "ORDEM_EMITIDA" | "EM_EXECUCAO" | "RECEBIDO_PROVISORIO" | "RECEBIDO_DEFINITIVO" | "PAGO" | "REMETIDO_DEMANDANTE";
   dataRecebimentoProv?: Date | string | null;
   dataRecebimentoDef?: Date | string | null;
   dataAtesto?: Date | string | null;
@@ -21,6 +21,10 @@ interface NotificarPcaParams {
   numeroOrdem?: string | null;
   tipoOrdem?: string | null;
   referencia?: string | null;
+  dataEnvioFornecedor?: Date | string | null;
+  prazoDiasEntrega?: number | null;
+  dataLimiteEntrega?: Date | string | null;
+  comprovanteEnvioSei?: string | null;
 }
 
 export async function notificarPcaExecucao(params: NotificarPcaParams): Promise<{ sucesso: boolean; error?: string }> {

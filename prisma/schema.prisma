@@ -138,7 +138,8 @@ model User {
 
   // Relações
   contratosDesignados ContratoResponsavel[]
-  ordensServico       OrdemServico[]
+  ordensServico       OrdemServico[]          @relation("OrdemFiscalAdm")
+  ordensFiscalTecnicoEnvio OrdemServico[]     @relation("OrdemFiscalTecnicoEnvio")
   normativosCriados   Normativo[]
   alertas             AlertaSistema[]
   atasGerenciadas     AtaRegistroPreco[]
@@ -580,15 +581,16 @@ model ContratoPlanilhaCusto {
   @@map("contratos_planilhas_custos")
 }
 
-// 10. Execução: Ordem de Serviço com Assinatura Eletrônica (IN 01/2026)
+// 10. Execução: Ordem de Serviço ou Compra com Assinatura Eletrônica (IN 01/2026)
 model OrdemServico {
   id                       String    @id @default(uuid())
   contratoId               String
   contrato                 Contrato  @relation(fields: [contratoId], references: [id], onDelete: Cascade)
   numeroOs                 String
   ano                      Int
+  tipoOrdem                String    @default("ORDEM_SERVICO") // ORDEM_SERVICO | ORDEM_COMPRA
   fiscalAdmId              String
-  fiscalAdm                User      @relation(fields: [fiscalAdmId], references: [id])
+  fiscalAdm                User      @relation("OrdemFiscalAdm", fields: [fiscalAdmId], references: [id])
   processoSeiDespesa       String
   descricaoServico         String
   valorEstimado            Float
@@ -596,9 +598,31 @@ model OrdemServico {
   processoSeiMae           String?   // Processo Mãe SEI da contratação (ex: 04410017.001048/2025-04)
   codigoVerificadorSei     String?   // Código verificador numérico SEI (ex: 44391608)
   codigoCrcSei             String?   // Código CRC SEI (ex: 5E1D9039)
+  
+  // Detalhes da Contratação e Origem (Ordem de Compra)
+  origemContratacao        String?   // PREGAO_SRP_ATA, PREGAO_DIRETO, DISPENSA, INEXIGIBILIDADE, CONTRATO_DIRETO, EMPENHO_DIRETO
+  numeroAtaRegistroPreco   String?   // Ex: "ARP nº 14/2026"
+  dataContratacao          DateTime? // Data de assinatura do contrato ou ata
+  
+  // Itens da Compra Estruturados (JSON contendo [{ numeroItem, descricao, unidade, quantidade, valorUnitario, valorTotal }])
+  itensSolicitadosJson     Json?
+  
+  // Condições de Fornecimento estipuladas na emissão
+  prazoDiasEntrega         Int?      // Prazo contratual de entrega em dias corridos (ex: 30)
+  localEntrega             String?   // Endereço e local de entrega completo
+  responsavelRecebimento   String?   // Fiscal Técnico / Almoxarife designado
+  
+  // Remessa ao Fornecedor pelo Fiscal Técnico
+  dataEnvioFornecedor      DateTime? // Registrado quando o Fiscal Técnico confirma o envio
+  dataLimiteEntrega        DateTime? // Calculado: dataEnvioFornecedor + prazoDiasEntrega
+  fiscalTecnicoEnvioId     String?
+  fiscalTecnicoEnvio       User?     @relation("OrdemFiscalTecnicoEnvio", fields: [fiscalTecnicoEnvioId], references: [id])
+  comprovanteEnvioSei      String?   // Ofício/Despacho/E-mail SEI que formalizou a remessa
+  observacoesEnvio         String?
+
   dataEmissao              DateTime  @default(now())
   hashAssinaturaEletronica String
-  status                   String    @default("EMITIDA")
+  status                   String    @default("EMITIDA") // EMITIDA, ENVIADA_FORNECEDOR, CONCLUIDA, CANCELADA
   arquivoPdfUrl            String?
   createdAt                DateTime  @default(now())
 

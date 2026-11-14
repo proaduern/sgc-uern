@@ -26,6 +26,9 @@ import {
   ShoppingCart,
   Calendar,
   Eye,
+  Send,
+  Truck,
+  PackageCheck,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,6 +41,7 @@ import {
   baixarBlobNoNavegador,
   numeroParaExtenso,
   OrdemServicoDados,
+  ItemCompraOrdem,
 } from '@/lib/ordem-servico-generator';
 import {
   BRASAO_RN_BASE64,
@@ -135,6 +139,36 @@ export default function ExecucaoPage() {
     descricaoServico: '',
     valorEstimado: '',
     processoSeiMae: '',
+    origemContratacao: 'Pregão Eletrônico Direto',
+    numeroAtaRegistroPreco: '',
+    dataContratacao: '',
+    prazoDiasEntrega: 30,
+    localEntrega: 'Almoxarifado Central da UERN - Campus Universitário Central, Mossoró/RN, CEP 59610-210',
+    responsavelRecebimento: 'Fiscal Técnico / Setor de Almoxarifado e Patrimônio',
+  });
+
+  // Itens específicos para Ordem de Compra
+  const [itensCompraForm, setItensCompraForm] = useState<
+    Array<{
+      itemContratoId?: string;
+      numeroItem: number;
+      descricao: string;
+      unidade: string;
+      quantidade: number;
+      valorUnitario: number;
+      valorTotal: number;
+      selecionado: boolean;
+    }>
+  >([]);
+
+  // Modal e controle de remessa formal ao fornecedor (Fiscal Técnico)
+  const [showRemessaModal, setShowRemessaModal] = useState(false);
+  const [ordemParaRemessa, setOrdemParaRemessa] = useState<any>(null);
+  const [salvandoRemessa, setSalvandoRemessa] = useState(false);
+  const [remessaForm, setRemessaForm] = useState({
+    dataEnvioFornecedor: new Date().toISOString().split('T')[0],
+    comprovanteEnvioSei: '',
+    observacoesEnvio: '',
   });
 
   const [showPreviaOsModal, setShowPreviaOsModal] = useState(false);
@@ -223,6 +257,32 @@ export default function ExecucaoPage() {
     }
 
     setEditarNumeroManual(false);
+
+    let origemInicial = 'Pregão Eletrônico Direto';
+    let numeroAtaInicial = '';
+    if (contratoInicial?.licitacaoProcedimento?.toLowerCase().includes('srp') || contratoInicial?.licitacaoProcedimento?.toLowerCase().includes('ata')) {
+      origemInicial = 'Ata de Registro de Preços (ARP)';
+      numeroAtaInicial = contratoInicial.numeroContrato || '';
+    }
+
+    let itensIniciais: any[] = [];
+    let valorEstimadoInicial = '';
+    if (tipo === 'ORDEM_COMPRA' && contratoInicial?.itens && contratoInicial.itens.length > 0) {
+      itensIniciais = contratoInicial.itens.map((it: any) => ({
+        itemContratoId: it.id,
+        numeroItem: it.numeroItem,
+        descricao: it.descricao,
+        unidade: it.unidade || 'UN',
+        quantidade: it.quantidadeAtual || 1,
+        valorUnitario: it.valorUnitarioAtual || 0,
+        valorTotal: (it.quantidadeAtual || 1) * (it.valorUnitarioAtual || 0),
+        selecionado: true,
+      }));
+      const totalItens = itensIniciais.reduce((acc, it) => acc + it.valorTotal, 0);
+      valorEstimadoInicial = totalItens.toFixed(2);
+    }
+    setItensCompraForm(itensIniciais);
+
     setOsForm({
       contratoId: contratoInicial ? contratoInicial.id : '',
       tipoOrdem: tipo,
@@ -231,10 +291,148 @@ export default function ExecucaoPage() {
       processoSeiDespesa: '',
       referenciaMedicao: '',
       descricaoServico: '',
-      valorEstimado: '',
+      valorEstimado: valorEstimadoInicial,
       processoSeiMae: contratoInicial?.processoSeiMae || '',
+      origemContratacao: origemInicial,
+      numeroAtaRegistroPreco: numeroAtaInicial,
+      dataContratacao: contratoInicial?.vigenciaInicio ? new Date(contratoInicial.vigenciaInicio).toISOString().split('T')[0] : '',
+      prazoDiasEntrega: 30,
+      localEntrega: 'Almoxarifado Central da UERN - Campus Universitário Central, Mossoró/RN, CEP 59610-210',
+      responsavelRecebimento: 'Fiscal Técnico / Setor de Almoxarifado e Patrimônio',
     });
     setShowNovaOsModal(true);
+  };
+
+  const handleContratoChangeInOs = (cId: string) => {
+    const c = contratos.find((cont) => cont.id === cId);
+    let origemInicial = osForm.origemContratacao;
+    let numeroAtaInicial = osForm.numeroAtaRegistroPreco;
+    if (c?.licitacaoProcedimento?.toLowerCase().includes('srp') || c?.licitacaoProcedimento?.toLowerCase().includes('ata')) {
+      origemInicial = 'Ata de Registro de Preços (ARP)';
+      numeroAtaInicial = c.numeroContrato || '';
+    }
+    let itensIniciais: any[] = [];
+    let valorEstimado = osForm.valorEstimado;
+    if (osForm.tipoOrdem === 'ORDEM_COMPRA' && c?.itens && c.itens.length > 0) {
+      itensIniciais = c.itens.map((it: any) => ({
+        itemContratoId: it.id,
+        numeroItem: it.numeroItem,
+        descricao: it.descricao,
+        unidade: it.unidade || 'UN',
+        quantidade: it.quantidadeAtual || 1,
+        valorUnitario: it.valorUnitarioAtual || 0,
+        valorTotal: (it.quantidadeAtual || 1) * (it.valorUnitarioAtual || 0),
+        selecionado: true,
+      }));
+      const totalItens = itensIniciais.reduce((acc, it) => acc + it.valorTotal, 0);
+      valorEstimado = totalItens.toFixed(2);
+    }
+    setItensCompraForm(itensIniciais);
+    setOsForm((prev) => ({
+      ...prev,
+      contratoId: cId,
+      processoSeiMae: c?.processoSeiMae || '',
+      origemContratacao: origemInicial,
+      numeroAtaRegistroPreco: numeroAtaInicial,
+      dataContratacao: c?.vigenciaInicio ? new Date(c.vigenciaInicio).toISOString().split('T')[0] : '',
+      valorEstimado,
+    }));
+  };
+
+  const handleToggleItemCompra = (index: number) => {
+    const updated = [...itensCompraForm];
+    updated[index].selecionado = !updated[index].selecionado;
+    setItensCompraForm(updated);
+    const total = updated.filter((i) => i.selecionado).reduce((acc, i) => acc + i.valorTotal, 0);
+    setOsForm((prev) => ({ ...prev, valorEstimado: total.toFixed(2) }));
+  };
+
+  const handleQtdItemCompraChange = (index: number, novaQtd: number) => {
+    const updated = [...itensCompraForm];
+    updated[index].quantidade = novaQtd;
+    updated[index].valorTotal = novaQtd * updated[index].valorUnitario;
+    setItensCompraForm(updated);
+    const total = updated.filter((i) => i.selecionado).reduce((acc, i) => acc + i.valorTotal, 0);
+    setOsForm((prev) => ({ ...prev, valorEstimado: total.toFixed(2) }));
+  };
+
+  const handleValorUnitItemCompraChange = (index: number, novoValor: number) => {
+    const updated = [...itensCompraForm];
+    updated[index].valorUnitario = novoValor;
+    updated[index].valorTotal = updated[index].quantidade * novoValor;
+    setItensCompraForm(updated);
+    const total = updated.filter((i) => i.selecionado).reduce((acc, i) => acc + i.valorTotal, 0);
+    setOsForm((prev) => ({ ...prev, valorEstimado: total.toFixed(2) }));
+  };
+
+  const handleDescItemCompraChange = (index: number, desc: string) => {
+    const updated = [...itensCompraForm];
+    updated[index].descricao = desc;
+    setItensCompraForm(updated);
+  };
+
+  const handleAdicionarItemCustomizado = () => {
+    const proximoNum = itensCompraForm.length + 1;
+    const novo = {
+      numeroItem: proximoNum,
+      descricao: '',
+      unidade: 'UN',
+      quantidade: 1,
+      valorUnitario: 0,
+      valorTotal: 0,
+      selecionado: true,
+    };
+    setItensCompraForm([...itensCompraForm, novo]);
+  };
+
+  const handleRemoverItemCompra = (index: number) => {
+    const updated = itensCompraForm.filter((_, i) => i !== index);
+    setItensCompraForm(updated);
+    const total = updated.filter((i) => i.selecionado).reduce((acc, i) => acc + i.valorTotal, 0);
+    setOsForm((prev) => ({ ...prev, valorEstimado: total.toFixed(2) }));
+  };
+
+  // Handlers para Registro de Remessa ao Fornecedor pelo Fiscal Técnico
+  const handleAbrirRemessaModal = (ordem: any) => {
+    setOrdemParaRemessa(ordem);
+    setRemessaForm({
+      dataEnvioFornecedor: new Date().toISOString().split('T')[0],
+      comprovanteEnvioSei: '',
+      observacoesEnvio: '',
+    });
+    setShowRemessaModal(true);
+  };
+
+  const handleConfirmarRemessa = async () => {
+    if (!ordemParaRemessa) return;
+    if (!remessaForm.dataEnvioFornecedor) {
+      alert('A data de envio formal ao fornecedor é obrigatória.');
+      return;
+    }
+    setSalvandoRemessa(true);
+    try {
+      const res = await fetch('/api/execucao/os', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'registrar_remessa',
+          ordemId: ordemParaRemessa.id,
+          dataEnvioFornecedor: remessaForm.dataEnvioFornecedor,
+          comprovanteEnvioSei: remessaForm.comprovanteEnvioSei,
+          observacoesEnvio: remessaForm.observacoesEnvio,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao registrar remessa');
+      setShowRemessaModal(false);
+      setOrdemParaRemessa(null);
+      carregarDados();
+      alert('Remessa formal ao fornecedor registrada com sucesso! A contagem do prazo de entrega está em andamento.');
+    } catch (err: any) {
+      alert(err.message || 'Erro ao registrar remessa');
+    } finally {
+      setSalvandoRemessa(false);
+    }
   };
 
   const carregarSaldos = async (cidadeParam?: string, contratoParam?: string) => {
@@ -354,30 +552,58 @@ export default function ExecucaoPage() {
       alert('Por favor, selecione um contrato válido compatível com o documento.');
       return;
     }
-    if (!osForm.numeroOs || !osForm.processoSeiDespesa || !osForm.valorEstimado) {
-      alert('Número da ordem, Processo SEI da Despesa e Valor Estimado são obrigatórios.');
+    if (!osForm.numeroOs || !osForm.processoSeiDespesa) {
+      alert('Número da ordem e Processo SEI da Despesa são obrigatórios.');
       return;
     }
 
     const contratoSel = contratos.find((c) => c.id === osForm.contratoId);
     const fornecedor = contratoSel?.fornecedor;
-    const valorNum = parseFloat(osForm.valorEstimado) || 0;
+
+    const itensCompraFiltrados = osForm.tipoOrdem === 'ORDEM_COMPRA'
+      ? itensCompraForm.filter((it) => it.selecionado).map((it) => ({
+          numeroItem: it.numeroItem,
+          descricao: it.descricao,
+          unidade: it.unidade,
+          quantidade: it.quantidade,
+          valorUnitario: it.valorUnitario,
+          valorTotal: it.valorTotal,
+        }))
+      : undefined;
+
+    const valorCalculado = itensCompraFiltrados && itensCompraFiltrados.length > 0
+      ? itensCompraFiltrados.reduce((acc, it) => acc + it.valorTotal, 0)
+      : (parseFloat(osForm.valorEstimado) || 0);
+
+    if (valorCalculado <= 0) {
+      alert('O valor estimado da ordem deve ser superior a zero.');
+      return;
+    }
 
     const dados: OrdemServicoDados = {
+      tipoOrdem: osForm.tipoOrdem,
       numeroOs: String(osForm.numeroOs),
       ano: osForm.ano || new Date().getFullYear(),
-      tipoProcesso: osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Aquisição e Fornecimento de Bens' : 'Pagamento de fornecedor',
+      tipoProcesso: osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Aquisição de bens e materiais' : 'Pagamento de fornecedor',
       origem: 'Diretoria de Administração e Serviços - PROAD',
+      origemContratacao: osForm.origemContratacao,
+      numeroAtaRegistroPreco: osForm.numeroAtaRegistroPreco || undefined,
+      dataContratacao: osForm.dataContratacao ? new Date(osForm.dataContratacao).toLocaleDateString('pt-BR') : undefined,
       interessado: fornecedor?.razaoSocial || fornecedor?.nomeFantasia || 'FORNECEDOR',
       cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO CADASTRADO',
+      enderecoFornecedor: fornecedor?.endereco || undefined,
       contratoNumero: contratoSel?.numeroContrato || contratoSel?.numeroEmpenho || 'S/N',
-      valor: valorNum,
-      valorExtenso: numeroParaExtenso(valorNum),
+      valor: valorCalculado,
+      valorExtenso: numeroParaExtenso(valorCalculado),
       referencia: osForm.referenciaMedicao
         ? (osForm.descricaoServico ? `${osForm.referenciaMedicao} - ${osForm.descricaoServico}` : osForm.referenciaMedicao)
         : osForm.descricaoServico,
       processoSeiVinculado: contratoSel?.processoSeiMae || osForm.processoSeiMae || '04410017.001048/2025-04',
       processoSeiDespesa: osForm.processoSeiDespesa,
+      itensCompra: itensCompraFiltrados,
+      prazoDiasEntrega: Number(osForm.prazoDiasEntrega) || 30,
+      localEntrega: osForm.localEntrega || undefined,
+      responsavelRecebimento: osForm.responsavelRecebimento || undefined,
       emissorNome: currentUser?.nome || 'Fiscal Administrativo',
       emissorCargoMatricula: currentUser?.matricula ? `TNS - Matrícula ${currentUser.matricula}` : 'TNS - Fiscal Administrativo',
       emissorNomeCompleto: currentUser?.nome || 'Fiscal Administrativo',
@@ -412,12 +638,20 @@ export default function ExecucaoPage() {
           codigoCrcSei: dadosPreviaOs.codigoCrcSei,
           descricaoServico: osForm.descricaoServico || dadosPreviaOs.referencia,
           valorEstimado: dadosPreviaOs.valor,
+          origemContratacao: osForm.origemContratacao,
+          numeroAtaRegistroPreco: osForm.numeroAtaRegistroPreco,
+          dataContratacao: osForm.dataContratacao,
+          itensSolicitadosJson: dadosPreviaOs.itensCompra,
+          prazoDiasEntrega: dadosPreviaOs.prazoDiasEntrega,
+          localEntrega: dadosPreviaOs.localEntrega,
+          responsavelRecebimento: dadosPreviaOs.responsavelRecebimento,
         }),
       });
 
       if (res.ok) {
         setShowPreviaOsModal(false);
         setDadosPreviaOs(null);
+        setItensCompraForm([]);
         setOsForm({
           contratoId: '',
           tipoOrdem: 'ORDEM_SERVICO',
@@ -428,6 +662,12 @@ export default function ExecucaoPage() {
           descricaoServico: '',
           valorEstimado: '',
           processoSeiMae: '',
+          origemContratacao: 'Pregão Eletrônico Direto',
+          numeroAtaRegistroPreco: '',
+          dataContratacao: '',
+          prazoDiasEntrega: 30,
+          localEntrega: 'Almoxarifado Central da UERN - Campus Universitário Central, Mossoró/RN, CEP 59610-210',
+          responsavelRecebimento: 'Fiscal Técnico / Setor de Almoxarifado e Patrimônio',
         });
         carregarDados();
         alert('Ordem emitida e assinada eletronicamente com sucesso!');
@@ -691,6 +931,7 @@ export default function ExecucaoPage() {
   // Prepara os dados da Ordem de Serviço/Compra para visualização e exportação fiel ao SEI
   const prepararDadosOsParaExportacao = (ordem: any): OrdemServicoDados => {
     const isOrdemCompra =
+      ordem.tipoOrdem === 'ORDEM_COMPRA' ||
       ordem.hashAssinaturaEletronica?.includes('OC') ||
       ordem.numeroOs?.toUpperCase().includes('OC') ||
       ordem.contrato?.tipoContrato?.includes('FORNECIMENTO');
@@ -698,14 +939,23 @@ export default function ExecucaoPage() {
     const fornecedor = ordem.contrato?.fornecedor;
     const dataCriacao = ordem.createdAt ? new Date(ordem.createdAt) : new Date();
 
+    let itensEstruturados: any[] | undefined = undefined;
+    if (ordem.itensSolicitadosJson && Array.isArray(ordem.itensSolicitadosJson)) {
+      itensEstruturados = ordem.itensSolicitadosJson;
+    }
+
     return {
       tipoOrdem: isOrdemCompra ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO',
       numeroOs: String(ordem.numeroOs || '01'),
       ano: ordem.ano || new Date().getFullYear(),
-      tipoProcesso: isOrdemCompra ? 'Aquisição e Fornecimento de Bens' : 'Pagamento de fornecedor',
+      tipoProcesso: isOrdemCompra ? 'Aquisição de bens e materiais' : 'Pagamento de fornecedor',
       origem: 'Diretoria de Administração e Serviços - PROAD',
+      origemContratacao: ordem.origemContratacao || (isOrdemCompra ? 'Pregão Eletrônico Direto' : undefined),
+      numeroAtaRegistroPreco: ordem.numeroAtaRegistroPreco || undefined,
+      dataContratacao: ordem.dataContratacao ? new Date(ordem.dataContratacao).toLocaleDateString('pt-BR') : undefined,
       interessado: fornecedor?.razaoSocial || fornecedor?.nomeFantasia || 'FORNECEDOR',
       cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO INFORMADO',
+      enderecoFornecedor: fornecedor?.endereco || undefined,
       contratoNumero: ordem.contrato?.numeroContrato || ordem.contrato?.numeroEmpenho || 'S/N',
       valor: parseFloat(ordem.valorEstimado || 0),
       valorExtenso: numeroParaExtenso(parseFloat(ordem.valorEstimado || 0)),
@@ -714,6 +964,10 @@ export default function ExecucaoPage() {
         : ordem.descricaoServico,
       processoSeiVinculado: ordem.processoSeiMae || ordem.contrato?.processoSeiMae || '04410017.001048/2025-04',
       processoSeiDespesa: ordem.processoSeiDespesa,
+      itensCompra: itensEstruturados,
+      prazoDiasEntrega: ordem.prazoDiasEntrega || 30,
+      localEntrega: ordem.localEntrega || undefined,
+      responsavelRecebimento: ordem.responsavelRecebimento || undefined,
       codigoVerificadorSei:
         ordem.codigoVerificadorSei || ordem.hashAssinaturaEletronica?.replace(/\D/g, '').slice(0, 8) || '44391608',
       codigoCrcSei: ordem.codigoCrcSei || ordem.hashAssinaturaEletronica?.slice(-8) || '5E1D9039',
@@ -1233,6 +1487,76 @@ export default function ExecucaoPage() {
                         {ordem.descricaoServico}
                       </p>
                     </div>
+
+                    {/* Gestão de Remessa e Prazo de Entrega (Exclusivo Ordem de Compra de Bens) */}
+                    {(ordem.tipoOrdem === 'ORDEM_COMPRA' || isAquisicaoContrato(ordem.contrato?.tipoContrato)) && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                        {!ordem.dataEnvioFornecedor ? (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 uppercase tracking-wider bg-amber-100/80 px-2 py-0.5 rounded-full">
+                                <Clock className="w-3 h-3 text-amber-700" />
+                                Aguardando Remessa ao Fornecedor
+                              </span>
+                              <p className="text-xs text-amber-900 font-medium">
+                                Prazo contratual de entrega: <strong>{ordem.prazoDiasEntrega || 30} dias corridos</strong> (inicia após a remessa).
+                              </p>
+                              <p className="text-[11px] text-amber-700">
+                                Competência: O <strong>Fiscal Técnico</strong> formaliza o envio ao fornecedor para iniciar a contagem.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirRemessaModal(ordem)}
+                              className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer flex-shrink-0"
+                              title="Registrar remessa formal ao fornecedor pelo Fiscal Técnico"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Registrar Envio</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 text-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-full uppercase">
+                                <Truck className="w-3 h-3 text-blue-700" />
+                                Demanda Remetida ao Fornecedor
+                              </span>
+                              {(() => {
+                                const dtLimite = new Date(ordem.dataLimiteEntrega);
+                                const hoje = new Date();
+                                const diffDias = Math.ceil((dtLimite.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+                                if (diffDias < 0) {
+                                  return (
+                                    <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-300 animate-pulse">
+                                      ATRASO / MORA ({Math.abs(diffDias)} dias - Venceu em {dtLimite.toLocaleDateString('pt-BR')})
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                                    {diffDias} dia(s) restantes (Vence em {dtLimite.toLocaleDateString('pt-BR')})
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>
+                                Enviado em: <strong>{new Date(ordem.dataEnvioFornecedor).toLocaleDateString('pt-BR')}</strong>
+                              </span>
+                              <span>
+                                Fiscal Técnico: <strong>{ordem.fiscalTecnicoEnvio?.nome || 'Fiscal Técnico'}</strong>
+                              </span>
+                              {ordem.comprovanteEnvioSei && (
+                                <span>
+                                  SEI: <strong className="font-mono text-blue-700">{ordem.comprovanteEnvioSei}</strong>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -1251,7 +1575,7 @@ export default function ExecucaoPage() {
       {/* Modal Nova Ordem de Serviço ou Compra */}
       {showNovaOsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+          <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto ${osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'max-w-2xl' : 'max-w-lg'}`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-slate-800 text-base">
                 Emitir {osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Ordem de Compra e Fornecimento (OC)' : 'Ordem de Serviço (OS)'}
@@ -1301,15 +1625,7 @@ export default function ExecucaoPage() {
                 <select
                   required
                   value={osForm.contratoId}
-                  onChange={(e) => {
-                    const cId = e.target.value;
-                    const c = contratos.find((item) => item.id === cId);
-                    setOsForm({
-                      ...osForm,
-                      contratoId: cId,
-                      processoSeiMae: c?.processoSeiMae || '',
-                    });
-                  }}
+                  onChange={(e) => handleContratoChangeInOs(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
                 >
                   <option value="">Selecione o contrato...</option>
@@ -1336,7 +1652,7 @@ export default function ExecucaoPage() {
                   <button
                     type="button"
                     onClick={() => setEditarNumeroManual(!editarNumeroManual)}
-                    className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold underline flex items-center gap-1"
+                    className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold underline flex items-center gap-1 cursor-pointer"
                   >
                     <Edit3 className="w-3 h-3" />
                     {editarNumeroManual ? 'Usar Numeração Automática SGC' : 'Editar Número para DOCX/Word'}
@@ -1350,7 +1666,7 @@ export default function ExecucaoPage() {
                   </span>
                 </div>
 
-                {editarNumeroManual ? (
+                {editarNumeroManual && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-[11px] font-medium text-slate-700 mb-1">
@@ -1375,97 +1691,342 @@ export default function ExecucaoPage() {
                         className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
                       />
                     </div>
-                    <p className="col-span-2 text-[10px] text-slate-500">
-                      * Nota: Se você for assinar e emitir em PDF no SGC, a numeração sequencial é fixada automaticamente. Caso baixe o arquivo em DOCX para edição no Word, você pode customizar livremente o número.
-                    </p>
                   </div>
-                ) : (
-                  <p className="text-[10px] text-blue-700">
-                    Sequência anual automática iniciada em 01/{osForm.ano} gerada pelo SGC UERN com autenticação e assinatura eletrônica.
-                  </p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Processo SEI da Despesa *</label>
-                  <input
-                    type="text"
-                    required
-                    value={osForm.processoSeiDespesa}
-                    onChange={(e) => setOsForm({ ...osForm, processoSeiDespesa: e.target.value })}
-                    placeholder="Ex: 04410035.002501/2026-54"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
-                  />
-                </div>
+              {osForm.tipoOrdem === 'ORDEM_COMPRA' ? (
+                <>
+                  {/* Bloco Origem da Contratação e Dados Institucionais */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-slate-600" />
+                      Origem da Contratação & Dados do Fornecedor
+                    </span>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Valor Estimado (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={osForm.valorEstimado}
-                    onChange={(e) => setOsForm({ ...osForm, valorEstimado: e.target.value })}
-                    placeholder="0,00"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-semibold"
-                  />
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Origem / Instrumento *
+                        </label>
+                        <select
+                          required
+                          value={osForm.origemContratacao}
+                          onChange={(e) => setOsForm({ ...osForm, origemContratacao: e.target.value })}
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                        >
+                          <option value="Ata de Registro de Preços (ARP)">Ata de Registro de Preços (ARP)</option>
+                          <option value="Pregão Eletrônico Direto">Pregão Eletrônico Direto (sem ARP)</option>
+                          <option value="Dispensa de Licitação">Dispensa de Licitação</option>
+                          <option value="Inexigibilidade">Inexigibilidade de Licitação</option>
+                          <option value="Contrato Administrativo Formal">Contrato Administrativo Formal</option>
+                          <option value="Nota de Empenho Direto">Nota de Empenho Direto</option>
+                        </select>
+                      </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Medição de Referência *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={osForm.referenciaMedicao}
-                    onChange={(e) => {
-                      const ref = e.target.value;
-                      setOsForm({
-                        ...osForm,
-                        referenciaMedicao: ref,
-                        descricaoServico: osForm.descricaoServico || `Prestação de serviços continuados referente à medição ${ref}`,
-                      });
-                    }}
-                    placeholder="Ex: 08/2026"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
-                  />
-                </div>
+                      {osForm.origemContratacao.includes('Ata') ? (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Nº da Ata de Registro de Preços *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={osForm.numeroAtaRegistroPreco}
+                            onChange={(e) => setOsForm({ ...osForm, numeroAtaRegistroPreco: e.target.value })}
+                            placeholder="Ex: ARP nº 14/2026"
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Data da Contratação / Assinatura
+                          </label>
+                          <input
+                            type="date"
+                            value={osForm.dataContratacao}
+                            onChange={(e) => setOsForm({ ...osForm, dataContratacao: e.target.value })}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                          />
+                        </div>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Processo SEI Vinculado (Mãe)
-                  </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={osForm.processoSeiMae || 'Puxado do contrato selecionado'}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-600 font-mono outline-none"
-                    title="Processo Mãe de contratação vinculado ao contrato"
-                  />
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Processo SEI da Despesa *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={osForm.processoSeiDespesa}
+                          onChange={(e) => setOsForm({ ...osForm, processoSeiDespesa: e.target.value })}
+                          placeholder="Ex: 04410035.002501/2026-54"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 font-mono bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Processo SEI Vinculado (Mãe)
+                        </label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={osForm.processoSeiMae || 'Puxado do contrato'}
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-600 font-mono outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Especificação dos Materiais / Bens a Fornecer *' : 'Descrição Detalhada do Serviço *'}
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={osForm.descricaoServico}
-                  onChange={(e) => setOsForm({ ...osForm, descricaoServico: e.target.value })}
-                  placeholder={
-                    osForm.tipoOrdem === 'ORDEM_COMPRA'
-                      ? 'Discriminação detalhada dos materiais, marcas, itens e local de entrega...'
-                      : 'Instruções para execução dos serviços pelo fornecedor...'
-                  }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
-                />
-              </div>
+                  {/* Bloco de Itens Solicitados na Compra */}
+                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
+                        Itens Solicitados nesta Compra
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAdicionarItemCustomizado}
+                        className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <PlusCircle className="w-3 h-3" />
+                        Adicionar Item Avulso
+                      </button>
+                    </div>
+
+                    {itensCompraForm.length > 0 ? (
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {itensCompraForm.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-2.5 rounded-lg border text-xs transition-colors ${
+                              it.selecionado ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                checked={it.selecionado}
+                                onChange={() => handleToggleItemCompra(idx)}
+                                className="mt-1 cursor-pointer"
+                              />
+                              <div className="flex-1 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-slate-800">Item {it.numeroItem}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoverItemCompra(idx)}
+                                    className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                                    title="Remover item da ordem"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={it.descricao}
+                                  onChange={(e) => handleDescItemCompraChange(idx, e.target.value)}
+                                  placeholder="Descrição do material / bem..."
+                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white"
+                                />
+                                <div className="grid grid-cols-4 gap-2 pt-1">
+                                  <div>
+                                    <span className="text-[10px] text-slate-500 block">Unidade</span>
+                                    <input
+                                      type="text"
+                                      value={it.unidade}
+                                      onChange={(e) => {
+                                        const up = [...itensCompraForm];
+                                        up[idx].unidade = e.target.value;
+                                        setItensCompraForm(up);
+                                      }}
+                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-slate-500 block">Qtd Solicitada</span>
+                                    <input
+                                      type="number"
+                                      step="1"
+                                      min="1"
+                                      value={it.quantidade}
+                                      onChange={(e) => handleQtdItemCompraChange(idx, parseFloat(e.target.value) || 0)}
+                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs font-semibold bg-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-slate-500 block">Valor Unit. (R$)</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={it.valorUnitario}
+                                      onChange={(e) => handleValorUnitItemCompraChange(idx, parseFloat(e.target.value) || 0)}
+                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-slate-500 block">Total (R$)</span>
+                                    <span className="font-bold text-slate-900 block py-0.5">
+                                      {it.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 italic">
+                        Nenhum item adicionado. Clique no botão acima para discriminar os materiais solicitados.
+                      </p>
+                    )}
+
+                    <div className="p-2.5 bg-emerald-50 rounded-lg flex items-center justify-between border border-emerald-200">
+                      <span className="text-xs font-bold text-emerald-900">Valor Total Estimado da Compra:</span>
+                      <span className="text-sm font-extrabold text-emerald-900">
+                        R$ {parseFloat(osForm.valorEstimado || '0').toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bloco de Condições de Entrega */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                      Condições e Local de Entrega
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Prazo de Entrega (dias corridos) *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={osForm.prazoDiasEntrega}
+                          onChange={(e) => setOsForm({ ...osForm, prazoDiasEntrega: parseInt(e.target.value, 10) || 30 })}
+                          placeholder="30"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white font-semibold"
+                        />
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          Inicia quando o Fiscal Técnico remeter ao fornecedor.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Responsável pelo Recebimento
+                        </label>
+                        <input
+                          type="text"
+                          value={osForm.responsavelRecebimento}
+                          onChange={(e) => setOsForm({ ...osForm, responsavelRecebimento: e.target.value })}
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Endereço e Local de Entrega *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={osForm.localEntrega}
+                        onChange={(e) => setOsForm({ ...osForm, localEntrega: e.target.value })}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 bg-white"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Formulário Streamlined de ORDEM DE SERVIÇO */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Processo SEI da Despesa *</label>
+                      <input
+                        type="text"
+                        required
+                        value={osForm.processoSeiDespesa}
+                        onChange={(e) => setOsForm({ ...osForm, processoSeiDespesa: e.target.value })}
+                        placeholder="Ex: 04410035.002501/2026-54"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Valor Estimado (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={osForm.valorEstimado}
+                        onChange={(e) => setOsForm({ ...osForm, valorEstimado: e.target.value })}
+                        placeholder="0,00"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Medição de Referência *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={osForm.referenciaMedicao}
+                        onChange={(e) => {
+                          const ref = e.target.value;
+                          setOsForm({
+                            ...osForm,
+                            referenciaMedicao: ref,
+                            descricaoServico: osForm.descricaoServico || `Prestação de serviços continuados referente à medição ${ref}`,
+                          });
+                        }}
+                        placeholder="Ex: 08/2026"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Processo SEI Vinculado (Mãe)
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={osForm.processoSeiMae || 'Puxado do contrato selecionado'}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-600 font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Descrição Detalhada do Serviço *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={osForm.descricaoServico}
+                      onChange={(e) => setOsForm({ ...osForm, descricaoServico: e.target.value })}
+                      placeholder="Instruções para execução dos serviços pelo fornecedor..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
@@ -1596,48 +2157,176 @@ export default function ExecucaoPage() {
                   {formatarTextoDocumentoSgc(dadosPreviaOs.tipoOrdem || 'ORDEM_SERVICO', dadosPreviaOs.numeroOs, dadosPreviaOs.ano)}
                 </div>
 
-                {/* Parágrafo de Abertura */}
-                <div className="font-bold text-xs leading-relaxed text-justify">
-                  DOU início ao processo de pagamento de fornecedor, o qual segue para trâmite de estilo, considerando as seguintes informações:
-                </div>
+                {dadosPreviaOs.tipoOrdem === 'ORDEM_COMPRA' ? (
+                  <>
+                    {/* Parágrafo de Abertura Ordem de Compra */}
+                    <div className="font-bold text-xs leading-relaxed text-justify">
+                      DOU início ao processo de aquisição e fornecimento de bens/materiais, vinculado à contratação supra, com as seguintes condições, prazos e itens:
+                    </div>
 
-                {/* Tabela de Informações Estruturadas */}
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Tipo do processo:</span>
-                    <span>{dadosPreviaOs.tipoProcesso}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Origem:</span>
-                    <span>{dadosPreviaOs.origem}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Interessado:</span>
-                    <span>{dadosPreviaOs.interessado}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">CNPJ/CPF:</span>
-                    <span>{dadosPreviaOs.cnpjCpf}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Contrato nº:</span>
-                    <span>{dadosPreviaOs.contratoNumero}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Valor:</span>
-                    <span>
-                      R$ {dadosPreviaOs.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dadosPreviaOs.valorExtenso})
-                    </span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Referência:</span>
-                    <span className="flex-1 text-justify">{dadosPreviaOs.referencia}</span>
-                  </div>
-                  <div className="flex">
-                    <span className="font-bold w-48 flex-shrink-0">Processo SEI Vinculado:</span>
-                    <span className="font-mono">{dadosPreviaOs.processoSeiVinculado}</span>
-                  </div>
-                </div>
+                    {/* Dados da Contratação e Fornecedor */}
+                    <div className="space-y-1 text-xs bg-slate-50 p-2.5 rounded border border-slate-200">
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Tipo de Processo:</span>
+                        <span>Aquisição de Bens / Entrega de Materiais</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Origem da Contratação:</span>
+                        <span>
+                          {dadosPreviaOs.origemContratacao || 'Pregão Eletrônico'}
+                          {dadosPreviaOs.numeroAtaRegistroPreco ? ` (Ata SRP nº ${dadosPreviaOs.numeroAtaRegistroPreco})` : ''}
+                        </span>
+                      </div>
+                      {dadosPreviaOs.dataContratacao && (
+                        <div className="flex">
+                          <span className="font-bold w-44 flex-shrink-0">Data da Contratação:</span>
+                          <span>{dadosPreviaOs.dataContratacao}</span>
+                        </div>
+                      )}
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Fornecedor / Interessado:</span>
+                        <span>{dadosPreviaOs.interessado}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">CNPJ:</span>
+                        <span>{dadosPreviaOs.cnpjCpf}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Contrato / Empenho:</span>
+                        <span>{dadosPreviaOs.contratoNumero}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Processo SEI da Despesa:</span>
+                        <span className="font-mono">{dadosPreviaOs.processoSeiDespesa}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Processo Mãe SEI:</span>
+                        <span className="font-mono">{dadosPreviaOs.processoSeiVinculado}</span>
+                      </div>
+                    </div>
+
+                    {/* Tabela de Itens Solicitados */}
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wide mb-1">
+                        Itens Solicitados para Fornecimento
+                      </div>
+                      <table className="w-full text-xs border border-slate-300">
+                        <thead className="bg-slate-100 border-b border-slate-300 text-[10px] uppercase">
+                          <tr>
+                            <th className="p-1 border-r border-slate-300 text-center w-10">Item</th>
+                            <th className="p-1 border-r border-slate-300 text-left">Especificação</th>
+                            <th className="p-1 border-r border-slate-300 text-center w-12">Unid</th>
+                            <th className="p-1 border-r border-slate-300 text-right w-14">Qtd</th>
+                            <th className="p-1 border-r border-slate-300 text-right w-20">Unitário</th>
+                            <th className="p-1 text-right w-24">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {dadosPreviaOs.itensCompra && dadosPreviaOs.itensCompra.length > 0 ? (
+                            dadosPreviaOs.itensCompra.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-1 border-r border-slate-300 text-center">{item.numeroItem || idx + 1}</td>
+                                <td className="p-1 border-r border-slate-300">{item.descricao}</td>
+                                <td className="p-1 border-r border-slate-300 text-center">{item.unidade || 'UN'}</td>
+                                <td className="p-1 border-r border-slate-300 text-right">{item.quantidade}</td>
+                                <td className="p-1 border-r border-slate-300 text-right">
+                                  R$ {Number(item.valorUnitario || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="p-1 text-right font-semibold">
+                                  R$ {Number(item.valorTotal || (item.quantidade * (item.valorUnitario || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="p-2 text-center text-slate-400 italic">
+                                Nenhum item discriminado individualmente.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-50 border-t-2 border-slate-300 font-bold">
+                          <tr>
+                            <td colSpan={5} className="p-1.5 text-right border-r border-slate-300">
+                              VALOR TOTAL DA COMPRA:
+                            </td>
+                            <td className="p-1.5 text-right">
+                              R$ {dadosPreviaOs.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Condições e Local de Entrega */}
+                    <div className="space-y-1 text-xs border border-blue-200 bg-blue-50/50 p-2.5 rounded">
+                      <div className="text-[11px] font-bold text-blue-900 uppercase">
+                        Condições de Execução e Entrega
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Prazo de Entrega:</span>
+                        <span>
+                          {dadosPreviaOs.prazoDiasEntrega || 30} dias corridos (a contar do envio formal pelo Fiscal Técnico)
+                        </span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-44 flex-shrink-0">Local de Entrega:</span>
+                        <span>{dadosPreviaOs.localEntrega || 'Almoxarifado Central / Campus Universitário'}</span>
+                      </div>
+                      {dadosPreviaOs.responsavelRecebimento && (
+                        <div className="flex">
+                          <span className="font-bold w-44 flex-shrink-0">Responsável Recebimento:</span>
+                          <span>{dadosPreviaOs.responsavelRecebimento}</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Parágrafo de Abertura */}
+                    <div className="font-bold text-xs leading-relaxed text-justify">
+                      DOU início ao processo de pagamento de fornecedor, o qual segue para trâmite de estilo, considerando as seguintes informações:
+                    </div>
+
+                    {/* Tabela de Informações Estruturadas */}
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Tipo do processo:</span>
+                        <span>{dadosPreviaOs.tipoProcesso}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Origem:</span>
+                        <span>{dadosPreviaOs.origem}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Interessado:</span>
+                        <span>{dadosPreviaOs.interessado}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">CNPJ/CPF:</span>
+                        <span>{dadosPreviaOs.cnpjCpf}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Contrato nº:</span>
+                        <span>{dadosPreviaOs.contratoNumero}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Valor:</span>
+                        <span>
+                          R$ {dadosPreviaOs.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dadosPreviaOs.valorExtenso})
+                        </span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Referência:</span>
+                        <span className="flex-1 text-justify">{dadosPreviaOs.referencia}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-48 flex-shrink-0">Processo SEI Vinculado:</span>
+                        <span className="font-mono">{dadosPreviaOs.processoSeiVinculado}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Observação em Itálico */}
                 <div className="italic text-[11px] text-slate-700 text-justify">
@@ -2936,6 +3625,96 @@ export default function ExecucaoPage() {
                   className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
                 >
                   {salvandoOs ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REGISTRO DE REMESSA AO FORNECEDOR PELO FISCAL TÉCNICO */}
+      {showRemessaModal && ordemParaRemessa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center space-x-2 text-blue-700 mb-2">
+              <Send className="w-5 h-5 text-blue-600" />
+              <h3 className="font-bold text-slate-800 text-base">Registrar Remessa ao Fornecedor</h3>
+            </div>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Como <strong>Fiscal Técnico</strong>, ao registrar o envio formal da Ordem de Compra ao fornecedor, a contagem do prazo de entrega ({ordemParaRemessa.prazoDiasEntrega || 30} dias corridos) se inicia formalmente e a timeline da demanda no PCA será atualizada.
+            </p>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1 mb-4">
+              <div><strong>Documento:</strong> {formatarTextoDocumentoSgc(ordemParaRemessa.tipoOrdem || 'ORDEM_COMPRA', ordemParaRemessa.numeroOs, ordemParaRemessa.ano)}</div>
+              <div><strong>Fornecedor:</strong> {ordemParaRemessa.contrato?.fornecedor?.razaoSocial || ordemParaRemessa.contrato?.fornecedor?.nomeFantasia}</div>
+              <div><strong>Prazo Contratual:</strong> {ordemParaRemessa.prazoDiasEntrega || 30} dias corridos</div>
+              <div><strong>Local de Entrega:</strong> {ordemParaRemessa.localEntrega || 'Almoxarifado Central'}</div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmarRemessa();
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Data Efetiva de Envio ao Fornecedor *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={remessaForm.dataEnvioFornecedor}
+                  onChange={(e) => setRemessaForm({ ...remessaForm, dataEnvioFornecedor: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  A data limite de entrega será calculada a partir desta data.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Comprovante de Envio SEI / E-mail
+                </label>
+                <input
+                  type="text"
+                  value={remessaForm.comprovanteEnvioSei}
+                  onChange={(e) => setRemessaForm({ ...remessaForm, comprovanteEnvioSei: e.target.value })}
+                  placeholder="Ex: Ofício nº 42/2026-DMAT ou SEI nº 4512398"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Observações do Envio
+                </label>
+                <textarea
+                  rows={2}
+                  value={remessaForm.observacoesEnvio}
+                  onChange={(e) => setRemessaForm({ ...remessaForm, observacoesEnvio: e.target.value })}
+                  placeholder="Ex: Remetido por e-mail com confirmação de leitura em..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRemessaModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoRemessa}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{salvandoRemessa ? 'Registrando...' : 'Confirmar Envio e Iniciar Prazo'}</span>
                 </button>
               </div>
             </form>

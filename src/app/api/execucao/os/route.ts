@@ -47,6 +47,9 @@ export async function GET(request: NextRequest) {
         fiscalAdm: {
           select: { id: true, nome: true, email: true, matricula: true, role: true },
         },
+        fiscalTecnicoEnvio: {
+          select: { id: true, nome: true, email: true, matricula: true, role: true },
+        },
         medicoes: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -76,6 +79,13 @@ export async function POST(request: NextRequest) {
       processoSeiMae,
       codigoVerificadorSei,
       codigoCrcSei,
+      origemContratacao,
+      numeroAtaRegistroPreco,
+      dataContratacao,
+      itensSolicitadosJson,
+      prazoDiasEntrega,
+      localEntrega,
+      responsavelRecebimento,
     } = body;
 
     if (!contratoId || !numeroOs || !processoSeiDespesa || !descricaoServico || !valorEstimado) {
@@ -184,6 +194,7 @@ export async function POST(request: NextRequest) {
         contratoId,
         numeroOs: numFinal,
         ano: anoDoc,
+        tipoOrdem: tipoDoc,
         fiscalAdmId: session.id,
         processoSeiDespesa,
         descricaoServico,
@@ -192,6 +203,13 @@ export async function POST(request: NextRequest) {
         processoSeiMae: processoSeiMae || contrato.processoSeiMae || null,
         codigoVerificadorSei: codVerificador,
         codigoCrcSei: codCrc,
+        origemContratacao: origemContratacao || null,
+        numeroAtaRegistroPreco: numeroAtaRegistroPreco || null,
+        dataContratacao: dataContratacao ? new Date(dataContratacao) : null,
+        itensSolicitadosJson: itensSolicitadosJson ? itensSolicitadosJson : null,
+        prazoDiasEntrega: prazoDiasEntrega ? parseInt(String(prazoDiasEntrega), 10) : (tipoDoc === 'ORDEM_COMPRA' ? 30 : null),
+        localEntrega: localEntrega || null,
+        responsavelRecebimento: responsavelRecebimento || null,
         hashAssinaturaEletronica: `${prefixoDoc}-${hashAssinatura}`,
         status: 'EMITIDA',
       },
@@ -211,6 +229,9 @@ export async function POST(request: NextRequest) {
         contratoCompleto &&
         (contratoCompleto.origemPcaConsolidacaoId || contratoCompleto.itens.some((i) => i.origemPcaItemId))
       ) {
+        // Se for ORDEM_COMPRA, o status inicial é ORDEM_EMITIDA (aguardando envio ao fornecedor pelo FT)
+        // Se for ORDEM_SERVICO, já vai como EM_EXECUCAO diretamente
+        const statusExecParaPca = tipoDoc === 'ORDEM_COMPRA' ? 'ORDEM_EMITIDA' : 'EM_EXECUCAO';
         await notificarPcaExecucao({
           contratoId: contratoCompleto.id,
           numeroContrato: contratoCompleto.numeroContrato || (contratoCompleto.numeroEmpenho ? `NE ${contratoCompleto.numeroEmpenho}` : undefined),
@@ -218,10 +239,11 @@ export async function POST(request: NextRequest) {
           fornecedorCnpj: contratoCompleto.fornecedor?.cnpj,
           origemPcaConsolidacaoId: contratoCompleto.origemPcaConsolidacaoId,
           itensOrigemPcaIds: contratoCompleto.itens.map((i) => i.origemPcaItemId),
-          statusExecucao: 'EM_EXECUCAO',
+          statusExecucao: statusExecParaPca,
           numeroOrdem: numFinal,
           tipoOrdem: tipoDoc,
           referencia: referenciaMedicao || undefined,
+          prazoDiasEntrega: prazoDiasEntrega ? parseInt(String(prazoDiasEntrega), 10) : 30,
         });
       }
     } catch (e) {
@@ -350,6 +372,106 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao excluir OS/OC:', error);
     return NextResponse.json({ error: error.message || 'Erro ao excluir ordem' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+    const body = await request.json();
+    const { action, ordemId, dataEnvioFornecedor, comprovanteEnvioSei, observacoesEnvio } = body;
+
+    if (action === 'registrar_remessa') {
+      if (!ordemId) {
+        return NextResponse.json({ error: 'ID da ordem é obrigatório.' }, { status: 400 });
+      }
+
+      const ordem = await prisma.ordemServico.findUnique({
+        where: { id: ordemId },
+        include: {
+          contrato: {
+            include: { itens: true, fornecedor: true },
+          },
+        },
+      });
+
+      if (!ordem) {
+        return NextResponse.json({ error: 'Ordem não encontrada.' }, { status: 404 });
+      }
+
+      // Validar se usuário tem permissão para registrar remessa (Fiscal Técnico, Gestor ou Admin)
+      if (!isAdminRole(session.role)) {
+        const resp = await prisma.contratoResponsavel.findFirst({
+          where: {
+            contratoId: ordem.contratoId,
+            userId: session.id,
+            ativo: true,
+          },
+        });
+
+        if (!resp) {
+          return NextResponse.json(
+            { error: 'Apenas Gestores ou Fiscais vinculados a este contrato podem registrar a remessa ao fornecedor.' },
+            { status: 403 }
+          );
+        }
+      }
+
+      const dtEnvio = dataEnvioFornecedor ? new Date(dataEnvioFornecedor) : new Date();
+      const prazoDias = ordem.prazoDiasEntrega || 30;
+      const dtLimite = new Date(dtEnvio.getTime() + prazoDias * 24 * 60 * 60 * 1000);
+
+      const ordemAtualizada = await prisma.ordemServico.update({
+        where: { id: ordemId },
+        data: {
+          status: 'ENVIADA_FORNECEDOR',
+          dataEnvioFornecedor: dtEnvio,
+          dataLimiteEntrega: dtLimite,
+          fiscalTecnicoEnvioId: session.id,
+          comprovanteEnvioSei: comprovanteEnvioSei || null,
+          observacoesEnvio: observacoesEnvio || null,
+        },
+        include: {
+          contrato: true,
+          fiscalAdm: true,
+          fiscalTecnicoEnvio: true,
+        },
+      });
+
+      // Notificar PCA em tempo real sobre a remessa formal ao fornecedor (início do prazo de entrega)
+      try {
+        const c = ordem.contrato;
+        if (c && (c.origemPcaConsolidacaoId || c.itens.some((i) => i.origemPcaItemId))) {
+          await notificarPcaExecucao({
+            contratoId: c.id,
+            numeroContrato: c.numeroContrato || (c.numeroEmpenho ? `NE ${c.numeroEmpenho}` : undefined),
+            fornecedorNome: c.fornecedor?.razaoSocial,
+            fornecedorCnpj: c.fornecedor?.cnpj,
+            origemPcaConsolidacaoId: c.origemPcaConsolidacaoId,
+            itensOrigemPcaIds: c.itens.map((i) => i.origemPcaItemId),
+            statusExecucao: 'EM_EXECUCAO',
+            numeroOrdem: ordem.numeroOs,
+            tipoOrdem: ordem.tipoOrdem,
+            referencia: ordem.referenciaMedicao || undefined,
+            dataEnvioFornecedor: dtEnvio,
+            prazoDiasEntrega: prazoDias,
+            dataLimiteEntrega: dtLimite,
+            comprovanteEnvioSei: comprovanteEnvioSei || undefined,
+          });
+        }
+      } catch (e) {
+        console.warn('Aviso ao notificar PCA sobre remessa da ordem:', e);
+      }
+
+      return NextResponse.json({ success: true, ordem: ordemAtualizada });
+    }
+
+    return NextResponse.json({ error: 'Ação não suportada.' }, { status: 400 });
+  } catch (error: any) {
+    console.error('Erro ao atualizar remessa da ordem:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao processar remessa' }, { status: 500 });
   }
 }
 

@@ -256,14 +256,31 @@ export default function ExecucaoPage() {
       console.error('Erro ao consultar próximo sequencial:', e);
     }
 
+    // Helper para inferir modalidade e número de ata/origem automaticamente
+    const inferirOrigemContratacao = (c: any) => {
+      let origem = 'Pregão Eletrônico Direto';
+      let numeroAta = '';
+      const proc = (c?.licitacaoProcedimento || '').toLowerCase();
+      if (proc.includes('srp') || proc.includes('ata')) {
+        origem = 'Ata de Registro de Preços (ARP)';
+        numeroAta = c?.numeroContrato || '';
+      } else if (proc.includes('dispensa')) {
+        origem = 'Dispensa de Licitação';
+      } else if (proc.includes('inexig')) {
+        origem = 'Inexigibilidade';
+      } else if (c?.empenhoSubstituiContrato || proc.includes('empenho')) {
+        origem = 'Nota de Empenho Direto';
+      } else if (c?.tipoContrato === 'FORNECIMENTO_CONTINUADO' || c?.numeroContrato) {
+        origem = 'Contrato Administrativo Formal';
+      } else if (proc.includes('pregão') || proc.includes('pregao')) {
+        origem = 'Pregão Eletrônico Direto';
+      }
+      return { origem, numeroAta };
+    };
+
     setEditarNumeroManual(false);
 
-    let origemInicial = 'Pregão Eletrônico Direto';
-    let numeroAtaInicial = '';
-    if (contratoInicial?.licitacaoProcedimento?.toLowerCase().includes('srp') || contratoInicial?.licitacaoProcedimento?.toLowerCase().includes('ata')) {
-      origemInicial = 'Ata de Registro de Preços (ARP)';
-      numeroAtaInicial = contratoInicial.numeroContrato || '';
-    }
+    const { origem: origemInicial, numeroAta: numeroAtaInicial } = inferirOrigemContratacao(contratoInicial);
 
     let itensIniciais: any[] = [];
     let valorEstimadoInicial = '';
@@ -307,9 +324,22 @@ export default function ExecucaoPage() {
     const c = contratos.find((cont) => cont.id === cId);
     let origemInicial = osForm.origemContratacao;
     let numeroAtaInicial = osForm.numeroAtaRegistroPreco;
-    if (c?.licitacaoProcedimento?.toLowerCase().includes('srp') || c?.licitacaoProcedimento?.toLowerCase().includes('ata')) {
-      origemInicial = 'Ata de Registro de Preços (ARP)';
-      numeroAtaInicial = c.numeroContrato || '';
+    if (c) {
+      const proc = (c.licitacaoProcedimento || '').toLowerCase();
+      if (proc.includes('srp') || proc.includes('ata')) {
+        origemInicial = 'Ata de Registro de Preços (ARP)';
+        numeroAtaInicial = c.numeroContrato || '';
+      } else if (proc.includes('dispensa')) {
+        origemInicial = 'Dispensa de Licitação';
+      } else if (proc.includes('inexig')) {
+        origemInicial = 'Inexigibilidade';
+      } else if (c.empenhoSubstituiContrato || proc.includes('empenho')) {
+        origemInicial = 'Nota de Empenho Direto';
+      } else if (c.tipoContrato === 'FORNECIMENTO_CONTINUADO' || c.numeroContrato) {
+        origemInicial = 'Contrato Administrativo Formal';
+      } else if (proc.includes('pregão') || proc.includes('pregao')) {
+        origemInicial = 'Pregão Eletrônico Direto';
+      }
     }
     let itensIniciais: any[] = [];
     let valorEstimado = osForm.valorEstimado;
@@ -1642,6 +1672,52 @@ export default function ExecucaoPage() {
                 )}
               </div>
 
+              {/* Card Resumo do Fornecedor e Contratação (Alimentado Automaticamente) */}
+              {osForm.contratoId && (() => {
+                const cSel = contratos.find((c) => c.id === osForm.contratoId);
+                if (!cSel) return null;
+                return (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5 animate-in fade-in">
+                    <div className="flex items-center justify-between text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                      <span className="flex items-center gap-1 text-slate-700">
+                        <Building className="w-3.5 h-3.5 text-blue-600" />
+                        Fornecedor & Contratação Vinculados (Automático)
+                      </span>
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
+                        Pré-Alimentado
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 text-slate-700">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Razão Social / Credor:</span>
+                        <span className="font-bold text-slate-900 block truncate" title={cSel.fornecedor?.razaoSocial || cSel.fornecedor?.nomeFantasia || '-'}>
+                          {cSel.fornecedor?.razaoSocial || cSel.fornecedor?.nomeFantasia || 'Não informado'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">CNPJ / CPF:</span>
+                        <span className="font-mono font-semibold text-slate-900 block">
+                          {cSel.fornecedor?.cnpj || 'Não cadastrado'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Licitação / Modalidade de Origem:</span>
+                        <span className="font-medium text-slate-800 block truncate" title={cSel.licitacaoProcedimento || '-'}>
+                          {cSel.licitacaoProcedimento || 'Não especificado'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Processo Mãe SEI (Contratação):</span>
+                        <span className="font-mono font-semibold text-slate-900 block truncate">
+                          {cSel.processoSeiMae || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Numeração Automática Padronizada SGC */}
               <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
@@ -1701,7 +1777,7 @@ export default function ExecucaoPage() {
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Building className="w-3.5 h-3.5 text-slate-600" />
-                      Origem da Contratação & Dados do Fornecedor
+                      Origem da Contratação & Dados Institucionais
                     </span>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1766,6 +1842,9 @@ export default function ExecucaoPage() {
                           placeholder="Ex: 04410035.002501/2026-54"
                           className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-600 font-mono bg-white"
                         />
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          Processo específico para liquidação desta remessa.
+                        </span>
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1777,6 +1856,9 @@ export default function ExecucaoPage() {
                           value={osForm.processoSeiMae || 'Puxado do contrato'}
                           className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-600 font-mono outline-none"
                         />
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          Processo mãe da contratação (automático).
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1784,10 +1866,15 @@ export default function ExecucaoPage() {
                   {/* Bloco de Itens Solicitados na Compra */}
                   <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
-                        Itens Solicitados nesta Compra
-                      </span>
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
+                          Itens Solicitados nesta Compra
+                        </span>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          Itens contratuais já possuem descrição e valores fixados. Indique a quantidade a solicitar.
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={handleAdicionarItemCustomizado}
@@ -1813,64 +1900,103 @@ export default function ExecucaoPage() {
                                 checked={it.selecionado}
                                 onChange={() => handleToggleItemCompra(idx)}
                                 className="mt-1 cursor-pointer"
+                                title="Marcar/desmarcar para esta ordem"
                               />
                               <div className="flex-1 space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                  <span className="font-bold text-slate-800">Item {it.numeroItem}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoverItemCompra(idx)}
-                                    className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                                    title="Remover item da ordem"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800">Item {it.numeroItem}</span>
+                                    {it.itemContratoId ? (
+                                      <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-medium">
+                                        Licitado / Contrato
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                                        Avulso
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!it.itemContratoId && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoverItemCompra(idx)}
+                                      className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                                      title="Remover item avulso"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
-                                <input
-                                  type="text"
-                                  value={it.descricao}
-                                  onChange={(e) => handleDescItemCompraChange(idx, e.target.value)}
-                                  placeholder="Descrição do material / bem..."
-                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white"
-                                />
+
+                                {it.itemContratoId ? (
+                                  <div className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-slate-100 text-slate-800 font-medium select-none">
+                                    {it.descricao}
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={it.descricao}
+                                    onChange={(e) => handleDescItemCompraChange(idx, e.target.value)}
+                                    placeholder="Descrição do material / bem..."
+                                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white"
+                                  />
+                                )}
+
                                 <div className="grid grid-cols-4 gap-2 pt-1">
                                   <div>
                                     <span className="text-[10px] text-slate-500 block">Unidade</span>
-                                    <input
-                                      type="text"
-                                      value={it.unidade}
-                                      onChange={(e) => {
-                                        const up = [...itensCompraForm];
-                                        up[idx].unidade = e.target.value;
-                                        setItensCompraForm(up);
-                                      }}
-                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white"
-                                    />
+                                    {it.itemContratoId ? (
+                                      <div className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-slate-100 text-slate-700 text-center font-medium select-none">
+                                        {it.unidade}
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={it.unidade}
+                                        onChange={(e) => {
+                                          const up = [...itensCompraForm];
+                                          up[idx].unidade = e.target.value;
+                                          setItensCompraForm(up);
+                                        }}
+                                        className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white text-center"
+                                      />
+                                    )}
                                   </div>
+
                                   <div>
-                                    <span className="text-[10px] text-slate-500 block">Qtd Solicitada</span>
+                                    <span className="text-[10px] font-bold text-emerald-800 block">
+                                      Qtd Solicitada *
+                                    </span>
                                     <input
                                       type="number"
                                       step="1"
                                       min="1"
                                       value={it.quantidade}
                                       onChange={(e) => handleQtdItemCompraChange(idx, parseFloat(e.target.value) || 0)}
-                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs font-semibold bg-white"
+                                      className="w-full px-2 py-0.5 border-2 border-emerald-500 rounded text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
                                     />
                                   </div>
+
                                   <div>
                                     <span className="text-[10px] text-slate-500 block">Valor Unit. (R$)</span>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={it.valorUnitario}
-                                      onChange={(e) => handleValorUnitItemCompraChange(idx, parseFloat(e.target.value) || 0)}
-                                      className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white"
-                                    />
+                                    {it.itemContratoId ? (
+                                      <div className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-slate-100 text-slate-700 text-right font-medium select-none">
+                                        {it.valorUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={it.valorUnitario}
+                                        onChange={(e) => handleValorUnitItemCompraChange(idx, parseFloat(e.target.value) || 0)}
+                                        className="w-full px-2 py-0.5 border border-slate-200 rounded text-xs bg-white text-right"
+                                      />
+                                    )}
                                   </div>
+
                                   <div>
                                     <span className="text-[10px] text-slate-500 block">Total (R$)</span>
-                                    <span className="font-bold text-slate-900 block py-0.5">
+                                    <span className="font-bold text-slate-900 block py-1 text-right">
                                       {it.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                   </div>

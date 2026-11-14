@@ -275,13 +275,13 @@ export async function PATCH(request: NextRequest) {
       });
       if (contrato && (contrato.origemPcaConsolidacaoId || contrato.itens.some((i) => i.origemPcaItemId))) {
         let statusExecucao: "RECEBIDO_PROVISORIO" | "RECEBIDO_DEFINITIVO" | "PAGO" | "EM_EXECUCAO" = "EM_EXECUCAO";
-        if (acao === "ATESTE_PROVISORIO") statusExecucao = "RECEBIDO_PROVISORIO";
-        else if (acao === "ATESTE_DEFINITIVO") statusExecucao = "RECEBIDO_DEFINITIVO";
-        else if (acao === "LIQUIDAR") statusExecucao = "PAGO";
+        if (acao === "ATESTE_PROVISORIO" || acao === "RECEBIMENTO_PROVISORIO_TECNICO") statusExecucao = "RECEBIDO_PROVISORIO";
+        else if (acao === "ATESTE_DEFINITIVO" || acao === "RECEBIMENTO_DEFINITIVO") statusExecucao = "RECEBIDO_DEFINITIVO";
+        else if (acao === "LIQUIDAR" || acao === "ENVIAR_PAGAMENTO") statusExecucao = "PAGO";
 
         notificarPcaExecucao({
           contratoId: contrato.id,
-          numeroContrato: contrato.numeroContrato || undefined,
+          numeroContrato: contrato.numeroContrato || (contrato.numeroEmpenho ? `NE ${contrato.numeroEmpenho}` : undefined),
           fornecedorNome: contrato.fornecedor.razaoSocial,
           fornecedorCnpj: contrato.fornecedor.cnpj,
           origemPcaConsolidacaoId: contrato.origemPcaConsolidacaoId,

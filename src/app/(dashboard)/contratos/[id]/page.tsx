@@ -387,6 +387,42 @@ export default function DetalhesContratoPage() {
         </div>
       )}
 
+      {/* Banner / Acesso Direto à Execução, Ordens e Medições */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-5 rounded-2xl shadow-sm border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start space-x-3.5">
+          <div className="p-3 bg-blue-500/20 text-blue-300 rounded-xl border border-blue-400/30 shrink-0">
+            <FileSpreadsheet className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500 text-white">
+                Execução Contratual (SGC)
+              </span>
+              <span className="text-[11px] text-blue-200">
+                {contrato.tipoContrato === 'FORNECIMENTO_SIMPLES' || contrato.tipoContrato === 'FORNECIMENTO_CONTINUADO'
+                  ? 'Aquisição de Bens / Materiais'
+                  : 'Prestação de Serviços / Obras'}
+              </span>
+            </div>
+            <h3 className="text-base font-bold text-white mt-1">
+              Ordens de {contrato.tipoContrato === 'FORNECIMENTO_SIMPLES' || contrato.tipoContrato === 'FORNECIMENTO_CONTINUADO' ? 'Compra (OC)' : 'Serviço (OS)'}, Conferência e Medições
+            </h3>
+            <p className="text-xs text-blue-100/90 mt-1 max-w-xl leading-relaxed">
+              Emita ordens, registre termos de recebimento provisório, atestos definitivos de faturas e acompanhe saldos por campus com retroalimentação em tempo real ao PCA.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+          <Link
+            href={`/execucao?contratoId=${contrato.id}`}
+            className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Acessar Execução & Medições</span>
+          </Link>
+        </div>
+      </div>
+
       {/* Grid de Informações Chave */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card Fornecedor */}

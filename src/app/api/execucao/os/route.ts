@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { isAdminRole, canIssueOrder, getUserDesignatedContext } from '@/lib/rbac';
 import { reservarProximoSequencial } from '@/lib/sequencial-documento';
+import { notificarPcaExecucao } from '@/lib/pca-integration-client';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
@@ -199,6 +200,33 @@ export async function POST(request: NextRequest) {
         fiscalAdm: true,
       },
     });
+
+    // Retroalimentação em tempo real para a timeline do PCA (Interoperabilidade SGC -> PCA)
+    try {
+      const contratoCompleto = await prisma.contrato.findUnique({
+        where: { id: contratoId },
+        include: { itens: true, fornecedor: true },
+      });
+      if (
+        contratoCompleto &&
+        (contratoCompleto.origemPcaConsolidacaoId || contratoCompleto.itens.some((i) => i.origemPcaItemId))
+      ) {
+        await notificarPcaExecucao({
+          contratoId: contratoCompleto.id,
+          numeroContrato: contratoCompleto.numeroContrato || (contratoCompleto.numeroEmpenho ? `NE ${contratoCompleto.numeroEmpenho}` : undefined),
+          fornecedorNome: contratoCompleto.fornecedor?.razaoSocial,
+          fornecedorCnpj: contratoCompleto.fornecedor?.cnpj,
+          origemPcaConsolidacaoId: contratoCompleto.origemPcaConsolidacaoId,
+          itensOrigemPcaIds: contratoCompleto.itens.map((i) => i.origemPcaItemId),
+          statusExecucao: 'EM_EXECUCAO',
+          numeroOrdem: numFinal,
+          tipoOrdem: tipoDoc,
+          referencia: referenciaMedicao || undefined,
+        });
+      }
+    } catch (e) {
+      console.warn('Aviso ao notificar PCA sobre emissão da Ordem:', e);
+    }
 
     return NextResponse.json({ success: true, ordem }, { status: 201 });
   } catch (error: any) {

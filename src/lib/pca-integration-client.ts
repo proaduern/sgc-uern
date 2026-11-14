@@ -18,6 +18,9 @@ interface NotificarPcaParams {
   dataRecebimentoDef?: Date | string | null;
   dataAtesto?: Date | string | null;
   numeroNotaFiscal?: string | null;
+  numeroOrdem?: string | null;
+  tipoOrdem?: string | null;
+  referencia?: string | null;
 }
 
 export async function notificarPcaExecucao(params: NotificarPcaParams): Promise<{ sucesso: boolean; error?: string }> {

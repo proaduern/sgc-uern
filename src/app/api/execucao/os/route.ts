@@ -195,56 +195,128 @@ export async function POST(request: NextRequest) {
     const tipoDoc = tipoOrdem === 'ORDEM_COMPRA' ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO';
     const anoDoc = ano ? parseInt(String(ano), 10) : new Date().getFullYear();
 
-    // Sincroniza e reserva o número sequencial no SGC se for número
-    let numFinal = (numeroOs || '').trim();
-    const matchNumero = numFinal.match(/^(\d+)$/);
-    if (matchNumero) {
-      const seq = await reservarProximoSequencial(tipoDoc, anoDoc, parseInt(matchNumero[1], 10));
-      numFinal = seq.numeroFormatado;
-    } else if (!numFinal) {
-      const seq = await reservarProximoSequencial(tipoDoc, anoDoc);
-      numFinal = seq.numeroFormatado;
-    }
+    // Transação atômica com lock de contrato, verificação de saldo de itens e reserva de sequencial
+    let erroSaldoItem: string | null = null;
+    const ordem = await prisma.$transaction(
+      async (tx) => {
+        // Lock de linha no contrato para serializar emissões concorrentes sobre o mesmo contrato
+        await tx.$queryRaw`SELECT id FROM "contratos" WHERE id = ${contratoId} FOR UPDATE`;
 
-    // Gerar Hash Criptográfico de Assinatura Eletrônica Institucional
-    const timestamp = new Date().toISOString();
-    const hashData = `${contratoId}:${numFinal}:${processoSeiDespesa}:${session.id}:${timestamp}`;
-    const hashAssinatura = crypto.createHash('sha256').update(hashData).digest('hex').slice(0, 32).toUpperCase();
+        // Validação atômica de saldo de itens em Ordens de Compra
+        if (Array.isArray(itensSolicitadosJson) && itensSolicitadosJson.length > 0) {
+          const itensContrato = await tx.contratoItem.findMany({
+            where: { contratoId },
+          });
+          const ordensAtivas = await tx.ordemServico.findMany({
+            where: {
+              contratoId,
+              status: { notIn: ['CANCELADA', 'RECUSADA'] },
+            },
+            select: { itensSolicitadosJson: true },
+          });
 
-    const codVerificador =
-      codigoVerificadorSei || Math.floor(10000000 + Math.random() * 90000000).toString();
-    const codCrc =
-      codigoCrcSei || Math.random().toString(36).substring(2, 10).toUpperCase();
+          const consumoPorItem = new Map<string, number>();
+          for (const ord of ordensAtivas) {
+            if (Array.isArray(ord.itensSolicitadosJson)) {
+              for (const it of ord.itensSolicitadosJson as any[]) {
+                const key = String(it.itemId || it.numeroItem || '');
+                const qtd = Number(it.quantidadeSolicitada || it.quantidade || 0);
+                if (key && qtd > 0) {
+                  consumoPorItem.set(key, (consumoPorItem.get(key) || 0) + qtd);
+                }
+              }
+            }
+          }
 
-    const ordem = await prisma.ordemServico.create({
-      data: {
-        contratoId,
-        numeroOs: numFinal,
-        ano: anoDoc,
-        tipoOrdem: tipoDoc,
-        fiscalAdmId: session.id,
-        processoSeiDespesa,
-        descricaoServico,
-        valorEstimado: parseFloat(valorEstimado),
-        referenciaMedicao: referenciaMedicao || null,
-        processoSeiMae: processoSeiMae || contrato.processoSeiMae || null,
-        codigoVerificadorSei: codVerificador,
-        codigoCrcSei: codCrc,
-        origemContratacao: origemContratacao || null,
-        numeroAtaRegistroPreco: numeroAtaRegistroPreco || null,
-        dataContratacao: dataContratacao ? new Date(dataContratacao) : null,
-        itensSolicitadosJson: itensSolicitadosJson ? itensSolicitadosJson : null,
-        prazoDiasEntrega: prazoDiasEntrega ? parseInt(String(prazoDiasEntrega), 10) : (tipoDoc === 'ORDEM_COMPRA' ? 30 : null),
-        localEntrega: localEntrega || null,
-        responsavelRecebimento: responsavelRecebimento || null,
-        hashAssinaturaEletronica: `${prefixoDoc}-${hashAssinatura}`,
-        status: 'EMITIDA',
+          for (const reqItem of itensSolicitadosJson as any[]) {
+            const key = String(reqItem.itemId || reqItem.numeroItem || '');
+            const qtdSol = Number(reqItem.quantidadeSolicitada || reqItem.quantidade || 0);
+            if (!key || qtdSol <= 0) continue;
+
+            const itemDb = itensContrato.find(
+              (ic) => ic.id === key || String(ic.numeroItem) === key
+            );
+            const qtdContratada = Number(itemDb?.quantidadeAtual ?? itemDb?.quantidadeOriginal ?? 0);
+            if (itemDb && qtdContratada > 0) {
+              const jaConsumido =
+                (consumoPorItem.get(itemDb.id) || 0) +
+                (itemDb.id !== String(itemDb.numeroItem)
+                  ? consumoPorItem.get(String(itemDb.numeroItem)) || 0
+                  : 0);
+              const saldoDisponivel = qtdContratada - jaConsumido;
+              if (qtdSol > saldoDisponivel + 0.0001) {
+                erroSaldoItem = `Quantidade solicitada (${qtdSol}) para o item "${itemDb.descricao}" excede o saldo contratual disponível (${saldoDisponivel}).`;
+                throw new Error(erroSaldoItem);
+              }
+            }
+          }
+        }
+
+        let numFinal = (numeroOs || '').trim();
+        const matchNumero = numFinal.match(/^(\d+)$/);
+        if (matchNumero) {
+          const seq = await reservarProximoSequencial(
+            tipoDoc,
+            anoDoc,
+            parseInt(matchNumero[1], 10),
+            tx
+          );
+          numFinal = seq.numeroFormatado;
+        } else if (!numFinal) {
+          const seq = await reservarProximoSequencial(tipoDoc, anoDoc, undefined, tx);
+          numFinal = seq.numeroFormatado;
+        }
+
+        const timestamp = new Date().toISOString();
+        const hashData = `${contratoId}:${numFinal}:${processoSeiDespesa}:${session.id}:${timestamp}`;
+        const hashAssinatura = crypto
+          .createHash('sha256')
+          .update(hashData)
+          .digest('hex')
+          .slice(0, 32)
+          .toUpperCase();
+
+        const codVerificador =
+          codigoVerificadorSei || Math.floor(10000000 + Math.random() * 90000000).toString();
+        const codCrc =
+          codigoCrcSei || Math.random().toString(36).substring(2, 10).toUpperCase();
+
+        return await tx.ordemServico.create({
+          data: {
+            contratoId,
+            numeroOs: numFinal,
+            ano: anoDoc,
+            tipoOrdem: tipoDoc,
+            fiscalAdmId: session.id,
+            processoSeiDespesa,
+            descricaoServico,
+            valorEstimado: parseFloat(valorEstimado),
+            referenciaMedicao: referenciaMedicao || null,
+            processoSeiMae: processoSeiMae || contrato.processoSeiMae || null,
+            codigoVerificadorSei: codVerificador,
+            codigoCrcSei: codCrc,
+            origemContratacao: origemContratacao || null,
+            numeroAtaRegistroPreco: numeroAtaRegistroPreco || null,
+            dataContratacao: dataContratacao ? new Date(dataContratacao) : null,
+            itensSolicitadosJson: itensSolicitadosJson ? itensSolicitadosJson : null,
+            prazoDiasEntrega: prazoDiasEntrega
+              ? parseInt(String(prazoDiasEntrega), 10)
+              : tipoDoc === 'ORDEM_COMPRA'
+              ? 30
+              : null,
+            localEntrega: localEntrega || null,
+            responsavelRecebimento: responsavelRecebimento || null,
+            hashAssinaturaEletronica: `${prefixoDoc}-${hashAssinatura}`,
+            status: 'EMITIDA',
+          },
+          include: {
+            contrato: true,
+            fiscalAdm: true,
+          },
+        });
       },
-      include: {
-        contrato: true,
-        fiscalAdm: true,
-      },
-    });
+      { timeout: 15000 }
+    );
 
     // Retroalimentação em tempo real para a timeline do PCA (Interoperabilidade SGC -> PCA)
     try {
@@ -267,7 +339,7 @@ export async function POST(request: NextRequest) {
           origemPcaConsolidacaoId: contratoCompleto.origemPcaConsolidacaoId,
           itensOrigemPcaIds: contratoCompleto.itens.map((i) => i.origemPcaItemId),
           statusExecucao: statusExecParaPca,
-          numeroOrdem: numFinal,
+          numeroOrdem: ordem.numeroOs,
           tipoOrdem: tipoDoc,
           referencia: referenciaMedicao || undefined,
           prazoDiasEntrega: prazoDiasEntrega ? parseInt(String(prazoDiasEntrega), 10) : 30,

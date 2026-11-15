@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import crypto from 'crypto';
 
 export type TipoDocumentoSgc = 'ORDEM_SERVICO' | 'ORDEM_COMPRA' | 'OFICIO' | 'MEMORANDO';
 
@@ -44,7 +45,6 @@ export function formatarTextoDocumentoSgc(
   if (typeof numero === 'number') {
     numInt = numero;
   } else {
-    // Extrai o primeiro bloco numérico
     const match = String(numero || '').match(/(\d+)/);
     if (match) {
       numInt = parseInt(match[1], 10);
@@ -56,7 +56,7 @@ export function formatarTextoDocumentoSgc(
 }
 
 /**
- * Formata apenas a fração "01/2026 - SGC UERN" ou "01/2026-SGC"
+ * Formata apenas a fração "01/2026 - SGC UERN"
  */
 export function formatarNumeroAnoSgc(numero: number | string, ano?: number | string): string {
   const anoAtual = ano ? parseInt(String(ano), 10) : new Date().getFullYear();
@@ -101,51 +101,41 @@ export async function obterProximoSequencial(tipo: string, anoParam?: number) {
 }
 
 /**
- * Reserva e incrementa atômica e definitivamente o sequencial no banco
+ * Reserva e incrementa ATÔMICA e definitivamente o sequencial no PostgreSQL.
+ * Usa INSERT ... ON CONFLICT DO UPDATE RETURNING nativo do PostgreSQL para impedir
+ * condição de corrida (Race Condition) mesmo sob centenas de requisições simultâneas.
  */
 export async function reservarProximoSequencial(
   tipo: string,
   anoParam?: number,
-  numeroEspecifico?: number
+  numeroEspecifico?: number,
+  dbClient: any = prisma
 ) {
   const t = normalizarTipoDocumento(tipo);
   const ano = anoParam || new Date().getFullYear();
+  const minFloor = numeroEspecifico && numeroEspecifico > 0 ? numeroEspecifico : 1;
+  const newId = crypto.randomUUID();
 
-  return await prisma.$transaction(async (tx) => {
-    const registro = await tx.sequencialDocumento.findUnique({
-      where: {
-        tipo_ano: { tipo: t, ano },
-      },
-    });
+  const rows = await dbClient.$queryRaw<Array<{ ultimoNumero: number }>>`
+    INSERT INTO "sequenciais_documentos" ("id", "tipo", "ano", "ultimoNumero", "updatedAt")
+    VALUES (${newId}, ${t}, ${ano}, ${minFloor}, NOW())
+    ON CONFLICT ("tipo", "ano")
+    DO UPDATE SET
+      "ultimoNumero" = GREATEST("sequenciais_documentos"."ultimoNumero" + 1, ${minFloor}),
+      "updatedAt" = NOW()
+    RETURNING "ultimoNumero"
+  `;
 
-    let novoNumero = (registro?.ultimoNumero || 0) + 1;
-    if (numeroEspecifico && numeroEspecifico > (registro?.ultimoNumero || 0)) {
-      novoNumero = numeroEspecifico;
-    }
+  const numeroReservado = rows?.[0]?.ultimoNumero ?? minFloor;
+  const numFormatado = String(numeroReservado).padStart(2, '0');
 
-    const atualizado = await tx.sequencialDocumento.upsert({
-      where: {
-        tipo_ano: { tipo: t, ano },
-      },
-      create: {
-        tipo: t,
-        ano,
-        ultimoNumero: novoNumero,
-      },
-      update: {
-        ultimoNumero: novoNumero,
-      },
-    });
-
-    const numFormatado = String(atualizado.ultimoNumero).padStart(2, '0');
-    return {
-      tipo: t,
-      rotuloTipo: obterRotuloTipoDocumento(t),
-      ano,
-      numero: atualizado.ultimoNumero,
-      numeroFormatado: numFormatado,
-      identificador: `${numFormatado}/${ano} - SGC UERN`,
-      tituloCompleto: formatarTextoDocumentoSgc(t, atualizado.ultimoNumero, ano),
-    };
-  });
+  return {
+    tipo: t,
+    rotuloTipo: obterRotuloTipoDocumento(t),
+    ano,
+    numero: numeroReservado,
+    numeroFormatado: numFormatado,
+    identificador: `${numFormatado}/${ano} - SGC UERN`,
+    tituloCompleto: formatarTextoDocumentoSgc(t, numeroReservado, ano),
+  };
 }

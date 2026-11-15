@@ -16,15 +16,42 @@ export async function GET(request: NextRequest) {
 
     const whereClause: any = {};
 
+    const isEquipeBensPatrimonioAlmox = Boolean(
+      (session.unidadeSigla &&
+        (session.unidadeSigla.toUpperCase().includes('PATRIMONIO') ||
+          session.unidadeSigla.toUpperCase().includes('ALMOX'))) ||
+        session.role === 'FISCAL_TECNICO'
+    );
+
     if (!isAdminRole(session.role)) {
       const { contractIds } = await getUserDesignatedContext(session.id);
       if (contratoId) {
         if (!contractIds.includes(contratoId)) {
-          return NextResponse.json({ ordens: [] });
+          if (isEquipeBensPatrimonioAlmox) {
+            const cAq = await prisma.contrato.findFirst({
+              where: {
+                id: contratoId,
+                tipoContrato: { in: ['FORNECIMENTO_SIMPLES', 'FORNECIMENTO_CONTINUADO'] },
+              },
+            });
+            if (!cAq) return NextResponse.json({ ordens: [] });
+            whereClause.contratoId = contratoId;
+          } else {
+            return NextResponse.json({ ordens: [] });
+          }
+        } else {
+          whereClause.contratoId = contratoId;
         }
-        whereClause.contratoId = contratoId;
       } else {
-        whereClause.contratoId = { in: contractIds };
+        if (isEquipeBensPatrimonioAlmox) {
+          whereClause.OR = [
+            { contratoId: { in: contractIds } },
+            { tipoOrdem: 'ORDEM_COMPRA' },
+            { contrato: { tipoContrato: { in: ['FORNECIMENTO_SIMPLES', 'FORNECIMENTO_CONTINUADO'] } } },
+          ];
+        } else {
+          whereClause.contratoId = { in: contractIds };
+        }
       }
     } else if (contratoId) {
       whereClause.contratoId = contratoId;
@@ -401,7 +428,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Ordem não encontrada.' }, { status: 404 });
       }
 
-      // Validar se usuário tem permissão para registrar remessa (Fiscal Técnico, Gestor ou Admin)
+      // Validar se usuário tem permissão para registrar remessa (Fiscal Técnico, Equipe de Bens Patrimônio/Almoxarifado, Gestor ou Admin)
       if (!isAdminRole(session.role)) {
         const resp = await prisma.contratoResponsavel.findFirst({
           where: {
@@ -411,9 +438,16 @@ export async function PATCH(request: NextRequest) {
           },
         });
 
-        if (!resp) {
+        const isEquipeBens = Boolean(
+          (session.unidadeSigla &&
+            (session.unidadeSigla.toUpperCase().includes('PATRIMONIO') ||
+              session.unidadeSigla.toUpperCase().includes('ALMOX'))) ||
+            session.role === 'FISCAL_TECNICO'
+        );
+
+        if (!resp && !isEquipeBens) {
           return NextResponse.json(
-            { error: 'Apenas Gestores ou Fiscais vinculados a este contrato podem registrar a remessa ao fornecedor.' },
+            { error: 'Apenas Gestores ou Fiscais vinculados a este contrato (ou equipe técnica de bens) podem registrar a remessa ao fornecedor.' },
             { status: 403 }
           );
         }

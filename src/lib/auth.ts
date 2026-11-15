@@ -16,6 +16,9 @@ export interface UserSession {
   deveTrocarSenha: boolean;
   empresaCnpj?: string | null;
   empresaNome?: string | null;
+  unidadeId?: string | null;
+  unidadeSigla?: string | null;
+  unidadeNome?: string | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {

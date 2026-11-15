@@ -18,31 +18,53 @@ export async function GET(request: NextRequest) {
       session.role !== 'ADMIN_PROAD' &&
       session.role !== 'ADMIN_PARCIAL';
 
-    const whereClause: any = {};
+    const isEquipeBensPatrimonioAlmox = Boolean(
+      (session.unidadeSigla &&
+        (session.unidadeSigla.toUpperCase().includes('PATRIMONIO') ||
+          session.unidadeSigla.toUpperCase().includes('ALMOX'))) ||
+        session.role === 'FISCAL_TECNICO'
+    );
+
+    const conditions: any[] = [];
 
     if (status) {
-      whereClause.status = status;
+      conditions.push({ status });
     }
 
     if (search) {
-      whereClause.OR = [
-        { numeroContrato: { contains: search, mode: 'insensitive' } },
-        { numeroEmpenho: { contains: search, mode: 'insensitive' } },
-        { processoSeiMae: { contains: search, mode: 'insensitive' } },
-        { objeto: { contains: search, mode: 'insensitive' } },
-        { fornecedor: { razaoSocial: { contains: search, mode: 'insensitive' } } },
-        { fornecedor: { cnpj: { contains: search } } },
-      ];
+      conditions.push({
+        OR: [
+          { numeroContrato: { contains: search, mode: 'insensitive' } },
+          { numeroEmpenho: { contains: search, mode: 'insensitive' } },
+          { processoSeiMae: { contains: search, mode: 'insensitive' } },
+          { objeto: { contains: search, mode: 'insensitive' } },
+          { fornecedor: { razaoSocial: { contains: search, mode: 'insensitive' } } },
+          { fornecedor: { cnpj: { contains: search } } },
+        ],
+      });
     }
 
     if (isRestrictedFiscal) {
-      whereClause.responsaveis = {
-        some: {
-          userId: session.id,
-          ativo: true,
-        },
-      };
+      if (isEquipeBensPatrimonioAlmox) {
+        conditions.push({
+          OR: [
+            { responsaveis: { some: { userId: session.id, ativo: true } } },
+            { tipoContrato: { in: ['FORNECIMENTO_SIMPLES', 'FORNECIMENTO_CONTINUADO'] } },
+          ],
+        });
+      } else {
+        conditions.push({
+          responsaveis: {
+            some: {
+              userId: session.id,
+              ativo: true,
+            },
+          },
+        });
+      }
     }
+
+    const whereClause = conditions.length > 0 ? { AND: conditions } : {};
 
     const contratos = await prisma.contrato.findMany({
       where: whereClause,

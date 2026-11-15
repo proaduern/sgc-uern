@@ -85,6 +85,12 @@ export async function GET(request: NextRequest) {
       sgcRole = Role.FORNECEDOR;
     } else if (roleUpper.includes('GESTOR_ATA')) {
       sgcRole = Role.GESTOR_ATA;
+    } else if (roleUpper.includes('FISCAL_TECNICO')) {
+      sgcRole = Role.FISCAL_TECNICO;
+    } else if (roleUpper.includes('FISCAL_ADM')) {
+      sgcRole = Role.FISCAL_ADMINISTRATIVO;
+    } else if (roleUpper.includes('GESTOR')) {
+      sgcRole = Role.GESTOR;
     } else {
       sgcRole = Role.USUARIO;
     }
@@ -152,6 +158,9 @@ export async function GET(request: NextRequest) {
       matricula: usuarioSgc.matricula,
       role: usuarioSgc.role,
       deveTrocarSenha: false,
+      unidadeId: usuarioSgc.unidadeId,
+      unidadeSigla: usuarioSgc.unidadeSigla,
+      unidadeNome: usuarioSgc.unidadeNome,
     });
 
     const isTreino = searchParams.get('treinamento') === '1';

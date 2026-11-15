@@ -116,6 +116,8 @@ export default function BarraImpersonacaoAdmin({
         return 'Administrador Setorial';
       case 'GESTOR':
         return 'Gestor de Contrato';
+      case 'SUPLENTE':
+        return 'Suplente de Gestor';
       case 'FISCAL_ADMINISTRATIVO':
         return 'Fiscal Administrativo';
       case 'FISCAL_TECNICO':

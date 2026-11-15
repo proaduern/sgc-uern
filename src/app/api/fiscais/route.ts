@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
             numeroEmpenho: true,
             objeto: true,
             processoSeiMae: true,
+            tipoContrato: true,
           },
         },
       },

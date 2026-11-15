@@ -89,6 +89,10 @@ export async function GET(request: NextRequest) {
       sgcRole = Role.FISCAL_TECNICO;
     } else if (roleUpper.includes('FISCAL_ADM')) {
       sgcRole = Role.FISCAL_ADMINISTRATIVO;
+    } else if (roleUpper.includes('SUPLENTE')) {
+      sgcRole = Role.SUPLENTE;
+    } else if (roleUpper.includes('FISCAL_SETORIAL')) {
+      sgcRole = Role.FISCAL_SETORIAL;
     } else if (roleUpper.includes('GESTOR')) {
       sgcRole = Role.GESTOR;
     } else {

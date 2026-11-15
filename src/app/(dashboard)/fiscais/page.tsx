@@ -71,6 +71,7 @@ interface Designacao {
     numeroEmpenho: string | null;
     objeto: string;
     processoSeiMae: string;
+    tipoContrato?: string | null;
     itens?: Array<{ id: string; cidade?: string; descricao: string }>;
   };
 }
@@ -459,6 +460,38 @@ export default function FiscaisPage() {
     }
   };
 
+  const getTipoContratoBadge = (tipo?: string | null) => {
+    switch (tipo) {
+      case 'SERVICO_COM_DEDICACAO_TERCEIRIZACAO':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            🛠️ Serviços Contínuos (Mão de Obra)
+          </span>
+        );
+      case 'SERVICO_SEM_DEDICACAO':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+            🛠️ Serviços Gerais
+          </span>
+        );
+      case 'FORNECIMENTO_SIMPLES':
+      case 'FORNECIMENTO_CONTINUADO':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            📦 Aquisição de Bens / Empenho
+          </span>
+        );
+      case 'OBRA':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            🏗️ Obras / Engenharia
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
   const filtered = designacoes.filter(
     (d) =>
       d.user.nome.toLowerCase().includes(search.toLowerCase()) ||
@@ -634,8 +667,11 @@ export default function FiscaisPage() {
                     </td>
 
                     <td className="py-3 px-4 max-w-xs">
-                      <div className="font-semibold text-slate-800 truncate">
-                        {d.contrato.numeroContrato ? `Contrato nº ${d.contrato.numeroContrato}` : `Empenho: ${d.contrato.numeroEmpenho}`}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                        <span className="font-semibold text-slate-800 truncate">
+                          {d.contrato.numeroContrato ? `Contrato nº ${d.contrato.numeroContrato}` : `Empenho: ${d.contrato.numeroEmpenho}`}
+                        </span>
+                        {getTipoContratoBadge(d.contrato.tipoContrato)}
                       </div>
                       <div className="text-[11px] text-slate-500 line-clamp-1" title={d.contrato.objeto}>
                         {d.contrato.objeto}

@@ -42,6 +42,7 @@ export interface OrdemServicoDados {
   enderecoFornecedor?: string;
   contatoFornecedor?: string;
   contratoNumero: string;
+  empenhoSubstituiContrato?: boolean;
   valor: number;
   valorExtenso?: string;
   referencia: string; // Medição de referência / Objeto
@@ -404,13 +405,17 @@ export function gerarOrdemServicoPdf(dadosEntrada: OrdemServicoDados): jsPDF {
 
     currentY += 4;
   } else {
-    // 4. Campos Estruturados (Ordem de Serviço Padrão)
+    // 4. Campos Estruturados (Ordem de Serviço Padrão — Contrato ou Nota de Empenho)
+    const isEmpenho = Boolean(
+      dadosEntrada.empenhoSubstituiContrato ||
+      /^(\d{4}NE|NE\s)/i.test(String(dados.contratoNumero || '').trim())
+    );
     const campos = [
       { label: 'Tipo do processo:', valor: dados.tipoProcesso },
       { label: 'Origem:', valor: dados.origem },
       { label: 'Interessado:', valor: dados.interessado },
       { label: 'CNPJ/CPF:', valor: dados.cnpjCpf },
-      { label: 'Contrato nº:', valor: dados.contratoNumero },
+      { label: isEmpenho ? 'Nota de Empenho nº:' : 'Contrato nº:', valor: dados.contratoNumero },
       {
         label: 'Valor:',
         valor: `R$ ${dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${dados.valorExtenso})`,
@@ -441,8 +446,9 @@ export function gerarOrdemServicoPdf(dadosEntrada: OrdemServicoDados): jsPDF {
     currentY += 2;
     doc.setFont('times', 'italic');
     doc.setFontSize(9.5);
-    const textoObs =
-      'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível';
+    const textoObs = isEmpenho
+      ? 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites da Nota de Empenho (Art. 95 da Lei nº 14.133/2021), vigência e saldo disponível'
+      : 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível';
     const obsLines = doc.splitTextToSize(textoObs, contentWidth);
     doc.text(obsLines, marginX, currentY);
     currentY += obsLines.length * 4.5 + 8;
@@ -555,6 +561,10 @@ export async function gerarOrdemServicoDocx(dadosEntrada: OrdemServicoDados): Pr
   };
 
   const isCompra = dados.tipoOrdem === 'ORDEM_COMPRA';
+  const isEmpenhoDocx = Boolean(
+    dadosEntrada.empenhoSubstituiContrato ||
+    /^(\d{4}NE|NE\s)/i.test(String(dados.contratoNumero || '').trim())
+  );
 
   const bordaTabelaItens = {
     top: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
@@ -577,7 +587,7 @@ export async function gerarOrdemServicoDocx(dadosEntrada: OrdemServicoDados): Pr
         { label: 'Origem:', valor: dados.origem },
         { label: 'Interessado:', valor: dados.interessado },
         { label: 'CNPJ/CPF:', valor: dados.cnpjCpf },
-        { label: 'Contrato nº:', valor: dados.contratoNumero },
+        { label: isEmpenhoDocx ? 'Nota de Empenho nº:' : 'Contrato nº:', valor: dados.contratoNumero },
         {
           label: 'Valor:',
           valor: `R$ ${dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${dados.valorExtenso})`,
@@ -797,7 +807,9 @@ export async function gerarOrdemServicoDocx(dadosEntrada: OrdemServicoDados): Pr
                   alignment: AlignmentType.LEFT,
                   children: [
                     new TextRun({
-                      text: 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível',
+                      text: isEmpenhoDocx
+                        ? 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites da Nota de Empenho (Art. 95 da Lei nº 14.133/2021), vigência e saldo disponível'
+                        : 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível',
                       italics: true,
                       font: 'Times New Roman',
                       size: 20, // 10pt

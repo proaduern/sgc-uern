@@ -419,7 +419,7 @@ export default function EsteiraPosHomologacaoSection({
                     Exige elaboração de Contrato formal?
                   </span>
                   <span className="text-[11px] text-indigo-800/90 block mt-0.5">
-                    Se marcado, após aprovação da UCI o processo irá ao <strong>Setor de Contratos</strong> para formalização do instrumento. Se desmarcado (Art. 95 da Lei 14.133/2021), seguirá apenas com a <strong>Nota de Empenho para execução direta</strong> pelo Gestor e Fiscais após a UCI.
+                    Se marcado, após aprovação da UCI o processo irá ao <strong>Setor de Contratos</strong> para formalização do instrumento. Se desmarcado (Art. 95 da Lei 14.133/2021 — aplicável tanto a <strong>bens de entrega única</strong> quanto a <strong>serviços pontuais sem obrigações futuras, como capacitações e cursos</strong>), seguirá apenas com a <strong>Nota de Empenho para execução direta</strong> pelo Gestor e Fiscais após a UCI.
                   </span>
                 </div>
               </label>
@@ -753,7 +753,7 @@ export default function EsteiraPosHomologacaoSection({
                 </div>
                 <p className="text-xs text-emerald-800 leading-relaxed">
                   Conforme definido na 1ª Etapa (Art. 95 da Lei nº 14.133/2021), a{' '}
-                  <strong>Nota de Empenho ({contrato.numeroEmpenho || 'Pendente'})</strong> substitui o termo de contrato. Após a aprovação da UCI, a contratação encontra-se liberada diretamente para emissão de Ordens de Fornecimento/Serviço e Atesto de Notas Fiscais pelo Gestor e Fiscais designados na Portaria{' '}
+                  <strong>Nota de Empenho ({contrato.numeroEmpenho || 'Pendente'})</strong> substitui o termo de contrato (aplicável a bens de entrega única ou prestação pontual de serviços, como capacitações). Após a aprovação da UCI, a contratação encontra-se liberada para a <strong>emissão obrigatória da Ordem de Compra (OC) ou Ordem de Serviço (OS)</strong> e posterior lançamento de medição/atesto da Nota Fiscal pelo Gestor e Fiscais designados na Portaria{' '}
                   <strong>{contrato.portariaDesignacaoGestor || 'PROAD'}</strong>.
                 </p>
               </div>

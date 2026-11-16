@@ -623,6 +623,10 @@ export default function ExecucaoPage() {
       cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO CADASTRADO',
       enderecoFornecedor: fornecedor?.endereco || undefined,
       contratoNumero: contratoSel?.numeroContrato || contratoSel?.numeroEmpenho || 'S/N',
+      empenhoSubstituiContrato: Boolean(
+        contratoSel?.empenhoSubstituiContrato ||
+        (!contratoSel?.numeroContrato && contratoSel?.numeroEmpenho)
+      ),
       valor: valorCalculado,
       valorExtenso: numeroParaExtenso(valorCalculado),
       referencia: osForm.referenciaMedicao
@@ -987,6 +991,10 @@ export default function ExecucaoPage() {
       cnpjCpf: fornecedor?.cnpj || fornecedor?.cnpjCpf || 'CNPJ NÃO INFORMADO',
       enderecoFornecedor: fornecedor?.endereco || undefined,
       contratoNumero: ordem.contrato?.numeroContrato || ordem.contrato?.numeroEmpenho || 'S/N',
+      empenhoSubstituiContrato: Boolean(
+        ordem.contrato?.empenhoSubstituiContrato ||
+        (!ordem.contrato?.numeroContrato && ordem.contrato?.numeroEmpenho)
+      ),
       valor: parseFloat(ordem.valorEstimado || 0),
       valorExtenso: numeroParaExtenso(parseFloat(ordem.valorEstimado || 0)),
       referencia: ordem.referenciaMedicao
@@ -1642,7 +1650,7 @@ export default function ExecucaoPage() {
                   <div>
                     <span className="font-bold">Documento Oficial: Ordem de Serviço (OS)</span>
                     <span className="block text-[11px] text-blue-700 mt-0.5">
-                      Exclusivo para prestação de serviços continuados, técnicos e obras.
+                      Exclusivo para prestação de serviços continuados, técnicos, capacitações/cursos (por Contrato ou Nota de Empenho) e obras.
                     </span>
                   </div>
                 </div>
@@ -1650,7 +1658,9 @@ export default function ExecucaoPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Contrato Vinculado ({osForm.tipoOrdem === 'ORDEM_COMPRA' ? 'Apenas Aquisição de Bens' : 'Apenas Serviços e Obras'}) *
+                  {osForm.tipoOrdem === 'ORDEM_COMPRA'
+                    ? 'Contrato ou Nota de Empenho Vinculado (Aquisição de Bens) *'
+                    : 'Contrato ou Nota de Empenho Vinculado (Serviços / Capacitações / Obras) *'}
                 </label>
                 <select
                   required
@@ -2106,7 +2116,7 @@ export default function ExecucaoPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Medição de Referência *
+                        Medição / Parcela de Referência *
                       </label>
                       <input
                         type="text"
@@ -2114,13 +2124,22 @@ export default function ExecucaoPage() {
                         value={osForm.referenciaMedicao}
                         onChange={(e) => {
                           const ref = e.target.value;
+                          const cSel = contratos.find((c) => c.id === osForm.contratoId);
+                          const isEmpOuPontual = Boolean(
+                            cSel?.empenhoSubstituiContrato ||
+                            (!cSel?.numeroContrato && cSel?.numeroEmpenho) ||
+                            cSel?.tipoMedicao === 'ENTREGA_UNICA'
+                          );
+                          const descSugerida = isEmpOuPontual
+                            ? `Execução de serviço contratado via ${cSel?.numeroContrato ? `Contrato nº ${cSel.numeroContrato}` : `Nota de Empenho nº ${cSel?.numeroEmpenho || 'S/N'}`} (${cSel?.objeto || 'Serviço'}) — Referência: ${ref}`
+                            : `Prestação de serviços continuados referente à medição ${ref}`;
                           setOsForm({
                             ...osForm,
                             referenciaMedicao: ref,
-                            descricaoServico: osForm.descricaoServico || `Prestação de serviços continuados referente à medição ${ref}`,
+                            descricaoServico: osForm.descricaoServico || descSugerida,
                           });
                         }}
-                        placeholder="Ex: 08/2026"
+                        placeholder="Ex: 08/2026 ou Parcela Única"
                         className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 font-mono"
                       />
                     </div>
@@ -2433,7 +2452,9 @@ export default function ExecucaoPage() {
                         <span>{dadosPreviaOs.cnpjCpf}</span>
                       </div>
                       <div className="flex">
-                        <span className="font-bold w-48 flex-shrink-0">Contrato nº:</span>
+                        <span className="font-bold w-48 flex-shrink-0">
+                          {dadosPreviaOs.empenhoSubstituiContrato ? 'Nota de Empenho nº:' : 'Contrato nº:'}
+                        </span>
                         <span>{dadosPreviaOs.contratoNumero}</span>
                       </div>
                       <div className="flex">
@@ -2456,7 +2477,9 @@ export default function ExecucaoPage() {
 
                 {/* Observação em Itálico */}
                 <div className="italic text-[11px] text-slate-700 text-justify">
-                  OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível
+                  {dadosPreviaOs.empenhoSubstituiContrato
+                    ? 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites da Nota de Empenho (Art. 95 da Lei nº 14.133/2021), vigência e saldo disponível'
+                    : 'OBS: Os valores são estimados, e podem variar conforme a execução, respeitando os limites do Contrato, vigência e saldo disponível'}
                 </div>
 
                 {/* Identificação do Emissor à Direita */}
@@ -2514,18 +2537,19 @@ export default function ExecucaoPage() {
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             <h3 className="font-bold text-slate-800 text-base mb-1">Lançar Nova Medição / Fatura</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Registro mensal de faturamento vinculado obrigatoriamente a uma Ordem de Serviço (OS) prévia.
+              Registro de faturamento vinculado <strong>obrigatoriamente</strong> a uma Ordem de Serviço (OS) ou Ordem de Compra (OC) previamente emitida (inclusive em contratações de parcela única por Nota de Empenho).
             </p>
 
             <form onSubmit={handleCreateMedicao} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Contrato Vinculado *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Contrato ou Nota de Empenho Vinculado *
+                </label>
                 <select
                   required
                   value={medicaoForm.contratoId}
                   onChange={(e) => {
                     const cId = e.target.value;
-                    const ordensDoC = ordens.filter((o) => o.contratoId === cId);
                     setMedicaoForm({
                       ...medicaoForm,
                       contratoId: cId,
@@ -2536,7 +2560,7 @@ export default function ExecucaoPage() {
                   }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600 bg-white"
                 >
-                  <option value="">Selecione o contrato...</option>
+                  <option value="">Selecione o contrato ou nota de empenho...</option>
                   {contratos.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.numeroContrato ? `Contrato nº ${c.numeroContrato}` : `Empenho: ${c.numeroEmpenho}`} - {c.objeto.slice(0, 40)}...
@@ -2552,17 +2576,21 @@ export default function ExecucaoPage() {
                 const tipoNomeDoc = isAq ? 'Ordem de Compra' : 'Ordem de Serviço';
                 const siglaDoc = isAq ? 'OC' : 'OS';
                 const tipoEnum = isAq ? 'ORDEM_COMPRA' : 'ORDEM_SERVICO';
-                const ordensDisponiveis = ordens.filter((o) => o.contratoId === medicaoForm.contratoId);
+                const ordensDisponiveis = ordens.filter(
+                  (o) =>
+                    o.contratoId === medicaoForm.contratoId &&
+                    !['CANCELADA', 'RECUSADA'].includes(String(o.status || ''))
+                );
 
                 if (ordensDisponiveis.length === 0) {
                   return (
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
                       <p className="font-bold flex items-center gap-1.5">
                         <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                        Nenhuma {tipoNomeDoc} ({siglaDoc}) emitida para este contrato
+                        Nenhuma {tipoNomeDoc} ({siglaDoc}) emitida para {cSel?.empenhoSubstituiContrato ? 'esta Nota de Empenho' : 'este Contrato'}
                       </p>
                       <p className="mt-1 text-[11px] text-amber-700">
-                        Conforme a norma institucional, é obrigatório emitir previamente a {tipoNomeDoc} antes de lançar medições, recebimentos ou faturas.
+                        Conforme a norma institucional, mesmo em contratações de entrega/execução única ou por Nota de Empenho, é <strong>estritamente obrigatório emitir previamente a {tipoNomeDoc} ({siglaDoc})</strong> antes de lançar medições, recebimentos ou faturas.
                       </p>
                       <button
                         type="button"
@@ -2729,7 +2757,13 @@ export default function ExecucaoPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244]"
+                  disabled={!medicaoForm.contratoId || !medicaoForm.ordemServicoId}
+                  title={
+                    !medicaoForm.ordemServicoId
+                      ? 'É obrigatório selecionar uma Ordem de Serviço (OS) ou Ordem de Compra (OC) prévia para cadastrar a medição.'
+                      : 'Cadastrar medição vinculada à Ordem selecionada'
+                  }
+                  className="px-5 py-2 bg-[#003366] text-white text-xs font-semibold rounded-lg hover:bg-[#002244] disabled:opacity-40 disabled:cursor-not-allowed transition"
                 >
                   Cadastrar Medição
                 </button>

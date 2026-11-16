@@ -1098,14 +1098,26 @@ export default function EditarContratoPage() {
             </div>
 
             <div className="flex items-center pt-6">
-              <label className="flex items-center space-x-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <label className="flex items-start space-x-2 text-xs font-medium text-slate-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={empenhoSubstituiContrato}
-                  onChange={(e) => setEmpenhoSubstituiContrato(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEmpenhoSubstituiContrato(checked);
+                    if (checked) {
+                      setTipoMedicao('ENTREGA_UNICA');
+                      setTipoVigencia('NAO_CONTINUADO');
+                    }
+                  }}
+                  className="mt-0.5 w-4 h-4 text-blue-600 rounded"
                 />
-                <span>Nota de Empenho substitui o Contrato</span>
+                <span>
+                  <strong className="text-blue-900">Nota de Empenho substitui o Contrato</strong>
+                  <span className="block text-[10px] text-slate-500">
+                    Bens de entrega única ou serviços pontuais (ex.: capacitações — Art. 95, Lei 14.133/21)
+                  </span>
+                </span>
               </label>
             </div>
           </div>

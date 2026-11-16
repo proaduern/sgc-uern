@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
             tipoVigencia: "NAO_CONTINUADO",
             tipoContrato: tipoContrato || (eServico ? "SERVICO_SEM_DEDICACAO" : "FORNECIMENTO_SIMPLES"),
             tipoEmpreitada: "PRECO_UNITARIO",
-            tipoMedicao: "MENSAL",
+            tipoMedicao: Boolean(empenhoSubstituiContrato) ? "ENTREGA_UNICA" : "MENSAL",
             status: "ATIVO",
             etapaFluxoPosHomologacao: "AGUARDANDO_EMPENHO",
             exigeContratoFormal: exigeFormal,

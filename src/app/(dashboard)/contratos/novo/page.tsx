@@ -1360,11 +1360,18 @@ function NovoContratoForm() {
               type="checkbox"
               id="empenhoSubstitui"
               checked={empenhoSubstituiContrato}
-              onChange={(e) => setEmpenhoSubstituiContrato(e.target.checked)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setEmpenhoSubstituiContrato(checked);
+                if (checked) {
+                  setTipoMedicao('ENTREGA_UNICA');
+                  setTipoVigencia('NAO_CONTINUADO');
+                }
+              }}
               className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
             />
             <label htmlFor="empenhoSubstitui" className="text-xs text-slate-700 cursor-pointer select-none">
-              <span className="font-bold text-blue-900">O empenho substitui o termo de contrato?</span> (Exclusivo para bens/serviços de entrega única, dispensando termo formal).
+              <span className="font-bold text-blue-900">O empenho substitui o termo de contrato? (Art. 95 da Lei 14.133/2021)</span> — Aplicável tanto para <strong>aquisição de bens de entrega única</strong> quanto para <strong>prestação pontual de serviços sem obrigações futuras</strong> (ex.: cursos de capacitação, treinamentos, palestras), dispensando termo formal de contrato.
             </label>
           </div>
 

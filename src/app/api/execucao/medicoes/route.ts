@@ -83,7 +83,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Contrato, Ordem de Serviço (OS) vinculada, Referência (Mês/Ano), Processo SEI e Valor da NF são obrigatórios.',
+            'Contrato/Empenho, Ordem de Serviço (OS) ou Ordem de Compra (OC) prévia vinculada, Referência, Processo SEI e Valor da NF são obrigatórios. Não é permitido lançar medição sem emissão prévia da Ordem.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validação estrita no banco: a Ordem de Serviço (OS) ou Ordem de Compra (OC) deve existir, pertencer ao Contrato/Empenho e estar ativa
+    const ordemVinculada = await prisma.ordemServico.findUnique({
+      where: { id: String(ordemServicoId) },
+    });
+
+    if (!ordemVinculada || ordemVinculada.contratoId !== contratoId) {
+      return NextResponse.json(
+        {
+          error:
+            'A Ordem de Serviço (OS) ou Ordem de Compra (OC) informada não existe ou não pertence a este Contrato/Nota de Empenho. Emita previamente a Ordem correspondente antes de lançar a medição.',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (['CANCELADA', 'RECUSADA'].includes(String(ordemVinculada.status || ''))) {
+      return NextResponse.json(
+        {
+          error: `A Ordem nº ${ordemVinculada.numeroOs}/${ordemVinculada.ano} encontra-se ${ordemVinculada.status} e não pode ser utilizada para lançamento de medição.`,
         },
         { status: 400 }
       );

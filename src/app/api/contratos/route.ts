@@ -19,10 +19,9 @@ export async function GET(request: NextRequest) {
       session.role !== 'ADMIN_PARCIAL';
 
     const isEquipeBensPatrimonioAlmox = Boolean(
-      (session.unidadeSigla &&
+      session.unidadeSigla &&
         (session.unidadeSigla.toUpperCase().includes('PATRIMONIO') ||
-          session.unidadeSigla.toUpperCase().includes('ALMOX'))) ||
-        session.role === 'FISCAL_TECNICO'
+          session.unidadeSigla.toUpperCase().includes('ALMOX'))
     );
 
     const conditions: any[] = [];

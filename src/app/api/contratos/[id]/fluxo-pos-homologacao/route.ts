@@ -70,6 +70,7 @@ async function handleFluxoPosHomologacao(
           dataRegistroEmpenho: new Date(),
           exigeContratoFormal: exigeFormalBool,
           empenhoSubstituiContrato: !exigeFormalBool,
+          ...(!exigeFormalBool ? { tipoMedicao: "ENTREGA_UNICA" } : {}),
           etapaFluxoPosHomologacao: "AGUARDANDO_DESIGNACAO_PROAD",
         },
         include: {

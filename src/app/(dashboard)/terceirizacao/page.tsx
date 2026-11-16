@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -72,7 +72,13 @@ function TerceirizacaoContent() {
   const [convencoes, setConvencoes] = useState<any[]>([]);
   const [frequencias, setFrequencias] = useState<any[]>([]);
   const [movimentacoesCV, setMovimentacoesCV] = useState<any[]>([]);
-  const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>('03/2026');
+  const [medicoesContrato, setMedicoesContrato] = useState<any[]>([]);
+  const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>(() => {
+    const agora = new Date();
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const ano = agora.getFullYear();
+    return `${mes}/${ano}`;
+  });
   const [filtroCampus, setFiltroCampus] = useState<string>('');
   const [filtroStatus, setFiltroStatus] = useState<string>('TODOS');
   const [buscaTrabalhador, setBuscaTrabalhador] = useState<string>('');
@@ -185,12 +191,17 @@ function TerceirizacaoContent() {
   const [showOficioLiberacaoModal, setShowOficioLiberacaoModal] = useState(false);
   const [showOficioCadastroModal, setShowOficioCadastroModal] = useState(false);
   const [showRetencaoModal, setShowRetencaoModal] = useState(false);
-  const [retencaoForm, setRetencaoForm] = useState({
-    competenciaMesAno: '03/2026',
-    rubrica: 'FERIAS_8_33',
-    valor: '',
-    trabalhadorId: '',
-    numeroOficio: '',
+  const [retencaoForm, setRetencaoForm] = useState(() => {
+    const agora = new Date();
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const ano = agora.getFullYear();
+    return {
+      competenciaMesAno: `${mes}/${ano}`,
+      rubrica: 'FERIAS_8_33',
+      valor: '',
+      trabalhadorId: '',
+      numeroOficio: '',
+    };
   });
 
   // Carregar Dados Iniciais
@@ -225,12 +236,13 @@ function TerceirizacaoContent() {
       setTrabalhadores(dataT.trabalhadores || []);
       setConvencoes(dataCCT.convencoes || []);
 
-      // Se tem contrato selecionado, busca frequências e conta vinculada
+      // Se tem contrato selecionado, busca frequências, conta vinculada e medições reais
       if (selectedContratoId || listaContratos[0]?.id) {
         const cId = selectedContratoId || listaContratos[0]?.id;
-        const [resFreq, resCV] = await Promise.all([
+        const [resFreq, resCV, resMed] = await Promise.all([
           fetch(`/api/terceirizacao/frequencias?contratoId=${cId}&competencia=${competenciaSelecionada}`),
           fetch(`/api/conta-vinculada?contratoId=${cId}`),
+          fetch(`/api/execucao/medicoes?contratoId=${cId}`),
         ]);
         if (resFreq.ok) {
           const dFreq = await resFreq.json();
@@ -239,6 +251,10 @@ function TerceirizacaoContent() {
         if (resCV.ok) {
           const dCV = await resCV.json();
           setMovimentacoesCV(dCV.movimentacoes || []);
+        }
+        if (resMed.ok) {
+          const dMed = await resMed.json();
+          setMedicoesContrato(dMed.medicoes || []);
         }
       }
     } catch (e) {
@@ -308,6 +324,67 @@ function TerceirizacaoContent() {
 
   const totalGlosasApuradas = frequencias.reduce((acc, f) => acc + (f.valorGlosaSugerida || 0), 0);
   const totalFaltasMes = frequencias.reduce((acc, f) => acc + (f.faltasInjustificadas || 0), 0);
+
+  // Lista de competências dinâmicas para o seletor da aba de Frequência & Glosas
+  const opcoesCompetencia = useMemo(() => {
+    const mesesNomes = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+
+    const cAtual = contratos.find((c) => c.id === selectedContratoId) || contratos[0];
+
+    const agora = new Date();
+    const anoAtual = agora.getFullYear();
+    let anoInicio = anoAtual;
+    let anoFim = anoAtual;
+
+    if (cAtual?.vigenciaInicio) {
+      const dIni = new Date(cAtual.vigenciaInicio);
+      if (!isNaN(dIni.getTime())) anoInicio = dIni.getFullYear();
+    }
+    if (cAtual?.vigenciaFim) {
+      const dFim = new Date(cAtual.vigenciaFim);
+      if (!isNaN(dFim.getTime())) anoFim = dFim.getFullYear();
+    }
+
+    if (anoFim < anoInicio) anoFim = anoInicio;
+
+    const comps: Array<{ valor: string; label: string; faturado: boolean; numNF?: string }> = [];
+
+    for (let ano = anoInicio; ano <= anoFim; ano++) {
+      for (let mes = 1; mes <= 12; mes++) {
+        const mesStr = String(mes).padStart(2, '0');
+        const valorComp = `${mesStr}/${ano}`;
+        const nomeMes = mesesNomes[mes - 1];
+
+        // Verifica se há medição registrada/faturada para esta competência no contrato selecionado
+        const med = medicoesContrato.find(
+          (m: any) =>
+            (m.competenciaMesAno === valorComp || m.referenciaMesAno === valorComp) &&
+            (m.status === 'LIQUIDADO_PAGO' || m.status === 'ATESTADO_DEFINITIVO' || m.status === 'PAGA' || m.status === 'MEDICAO_CONCLUIDA')
+        );
+
+        if (med) {
+          const nfInfo = med.numeroNotaFiscal ? ` (NF nº ${med.numeroNotaFiscal})` : '';
+          comps.push({
+            valor: valorComp,
+            label: `${valorComp} (${nomeMes}) - Faturado${nfInfo}`,
+            faturado: true,
+            numNF: med.numeroNotaFiscal,
+          });
+        } else {
+          comps.push({
+            valor: valorComp,
+            label: `${valorComp} (${nomeMes})`,
+            faturado: false,
+          });
+        }
+      }
+    }
+
+    return comps;
+  }, [contratos, selectedContratoId, medicoesContrato]);
 
   // Handlers Trabalhador
   const handleSaveNovoTrabalhador = async (e: React.FormEvent) => {
@@ -849,34 +926,10 @@ function TerceirizacaoContent() {
                         <td className="p-3">
                           <div className="font-bold text-slate-900">{t.nomeCompleto}</div>
                           <div className="text-[11px] text-slate-400 font-mono">CPF: {t.cpf}</div>
-                          {t.cpf === '124.400.384-07' && (
+                          {t.status === 'SUBSTITUIDO' && (
                             <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
                               <Clock className="w-3 h-3 text-purple-600 shrink-0" />
-                              <span>Substituído em 31/08/2026 por Ryan Miqueias</span>
-                            </div>
-                          )}
-                          {t.cpf === '124.466.594-03' && (
-                            <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-purple-600 shrink-0" />
-                              <span>Substituído em 31/07/2026 por Domício de Paula</span>
-                            </div>
-                          )}
-                          {t.status === 'SUBSTITUIDO' && t.cpf !== '124.400.384-07' && t.cpf !== '124.466.594-03' && (
-                            <div className="text-[10px] text-purple-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-purple-600 shrink-0" />
-                              <span>Substituído</span>
-                            </div>
-                          )}
-                          {t.cpf === '701.180.294-14' && (
-                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Substituiu Ícaro Patrick em 01/09/2026</span>
-                            </div>
-                          )}
-                          {t.cpf === '094.853.144-42' && (
-                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Substituiu Lucas Matheus em 01/08/2026</span>
+                              <span>Substituído{t.dataDemissao ? ` em ${new Date(t.dataDemissao).toLocaleDateString('pt-BR')}` : ''}</span>
                             </div>
                           )}
                         </td>
@@ -1114,18 +1167,11 @@ function TerceirizacaoContent() {
                 onChange={(e) => setCompetenciaSelecionada(e.target.value)}
                 className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-slate-800"
               >
-                <option value="01/2026">01/2026 (Janeiro)</option>
-                <option value="02/2026">02/2026 (Fevereiro) - Faturado</option>
-                <option value="03/2026">03/2026 (Março) - Faturado</option>
-                <option value="04/2026">04/2026 (Abril) - Faturado</option>
-                <option value="05/2026">05/2026 (Maio) - Faturado</option>
-                <option value="06/2026">06/2026 (Junho) - Faturado</option>
-                <option value="07/2026">07/2026 (Julho) - Faturado</option>
-                <option value="08/2026">08/2026 (Agosto) - Faturado</option>
-                <option value="09/2026">09/2026 (Setembro) - Faturado</option>
-                <option value="10/2026">10/2026 (Outubro)</option>
-                <option value="11/2026">11/2026 (Novembro)</option>
-                <option value="12/2026">12/2026 (Dezembro)</option>
+                {opcoesCompetencia.map((opt) => (
+                  <option key={opt.valor} value={opt.valor}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

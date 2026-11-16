@@ -81,7 +81,12 @@ function ContaVinculadaContent() {
   const [editingLancamento, setEditingLancamento] = useState<any | null>(null);
 
   // Competência form para retenção automática
-  const [competenciaAutomatica, setCompetenciaAutomatica] = useState('09/2026');
+  const [competenciaAutomatica, setCompetenciaAutomatica] = useState(() => {
+    const agora = new Date();
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const ano = agora.getFullYear();
+    return `${mes}/${ano}`;
+  });
 
   const carregarContratos = async () => {
     try {
@@ -225,7 +230,7 @@ function ContaVinculadaContent() {
     doc.setFontSize(8);
     doc.setTextColor(40, 40, 40);
     doc.text(
-      `Contrato nº: ${contratoConfig?.numeroContrato || '035/2025'} • Contratada: ${contratoConfig?.fornecedor?.razaoSocial || 'LCL FACILITIES LTDA'} (CNPJ: ${contratoConfig?.fornecedor?.cnpj || '-'})`,
+      `Contrato nº: ${contratoConfig?.numeroContrato || '-'} • Contratada: ${contratoConfig?.fornecedor?.razaoSocial || '-'} (CNPJ: ${contratoConfig?.fornecedor?.cnpj || '-'})`,
       14,
       33
     );
@@ -407,7 +412,7 @@ function ContaVinculadaContent() {
       );
     }
     doc.text(
-      `Contrato nº ${contratoConfig?.numeroContrato || '035/2025'} • Contratada: ${contratoConfig?.fornecedor?.razaoSocial || 'LCL Facilities'}`,
+      `Contrato nº ${contratoConfig?.numeroContrato || '-'} • Contratada: ${contratoConfig?.fornecedor?.razaoSocial || '-'}`,
       14,
       54
     );
@@ -1229,29 +1234,9 @@ function ContaVinculadaContent() {
                             <td className="py-3 px-4">
                               <div className="font-bold text-slate-800">{t.nomeCompleto}</div>
                               <div className="text-[10px] text-slate-400 font-mono">CPF: {t.cpf}</div>
-                              {t.cpf === '124.400.384-07' && (
+                              {t.status === 'SUBSTITUIDO' && (
                                 <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
-                                  Substituído em 31/08/2026 por Ryan Miqueias
-                                </div>
-                              )}
-                              {t.cpf === '124.466.594-03' && (
-                                <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
-                                  Substituído em 31/07/2026 por Domício de Paula
-                                </div>
-                              )}
-                              {t.status === 'SUBSTITUIDO' && t.cpf !== '124.400.384-07' && t.cpf !== '124.466.594-03' && (
-                                <div className="text-[9px] text-purple-700 font-semibold mt-0.5">
-                                  Substituído
-                                </div>
-                              )}
-                              {t.cpf === '701.180.294-14' && (
-                                <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
-                                  Substituiu Ícaro Patrick em 01/09/2026
-                                </div>
-                              )}
-                              {t.cpf === '094.853.144-42' && (
-                                <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
-                                  Substituiu Lucas Matheus em 01/08/2026
+                                  Substituído{t.dataDemissao ? ` em ${new Date(t.dataDemissao).toLocaleDateString('pt-BR')}` : ''}
                                 </div>
                               )}
                             </td>

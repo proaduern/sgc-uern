@@ -165,3 +165,92 @@ export function parseImrSpreadsheet(buffer: Buffer): ImrResultadoCalculado {
     itens,
   };
 }
+
+/**
+ * Gera uma pasta de trabalho Excel (.xlsx) 100% fiel ao layout oficial "IMR - ZELO.xlsx" (Anexo I - PROAD/DAS/UERN)
+ */
+export function gerarWorkbookImrZelo(dados: ImrResultadoCalculado): XLSX.WorkBook {
+  const rows: any[][] = [
+    [
+      'UNIVERSIDADE DO ESTADO DO RIO GRANDE DO NORTE - UERN\nPRÓ-REITORIA DE ADMINISTRAÇÃO - PROAD\nDIRETORIA DE ADMINISTRAÇÃO E SERVIÇOS - DAS',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ],
+    ['Anexo I – Modelo de Instrumento de Medição de Resultado – IMR', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', ''],
+    ['INSTRUMENTO DE MEDIÇÃO DE RESULTADO – IMR', '', '', '', '', '', ''],
+    ['Objeto contratual:', dados.objetoContratual || 'Prestação de serviços terceirizados de limpeza, conservação, copeiragem, jardinagem, recepção e apoio ao almoxarifado', '', '', '', '', ''],
+    ['Contrato nº:', dados.contratoNumero || '24/2026', '', '', '', '', ''],
+    ['Contratada:', dados.contratada || 'ZELO RECURSOS HUMANOS LTDA', '', '', '', '', ''],
+    ['Mês de competência:', dados.mesCompetencia || '', '', '', '', '', ''],
+    ['Local/Campus:', dados.localCampus || 'Todos os Campi', '', '', '', '', ''],
+    [
+      'Indicador',
+      'Serviço',
+      'Descrição da ocorrência',
+      'Pontuação prevista',
+      'SIM ou NÃO',
+      'Pontuação aplicada',
+      'Documentação comprobatória/Registro da ocorrência (Id. do documento SEI)',
+    ],
+  ];
+
+  let ultimoIndicador = '';
+  let ultimoServico = '';
+
+  for (const it of dados.itens || []) {
+    const mostrarIndicador = it.indicador !== ultimoIndicador ? it.indicador : '';
+    const mostrarServico = it.servico !== ultimoServico || it.indicador !== ultimoIndicador ? it.servico : '';
+    ultimoIndicador = it.indicador;
+    ultimoServico = it.servico;
+
+    const ptsFmt = Number(it.pontuacaoPrevista || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: Number(it.pontuacaoPrevista) % 1 !== 0 || it.pontuacaoPrevista === 1 || it.pontuacaoPrevista === 2 || it.pontuacaoPrevista === 10 || it.pontuacaoPrevista === 15 || it.pontuacaoPrevista === 20 ? 1 : 0,
+      maximumFractionDigits: 1,
+    });
+    const sufixoPonto = Number(it.pontuacaoPrevista) > 1 ? 'pontos' : 'ponto';
+
+    rows.push([
+      mostrarIndicador,
+      mostrarServico,
+      it.descricao,
+      `${ptsFmt} ${sufixoPonto}`,
+      it.ocorreu ? 'SIM' : 'NÃO',
+      it.ocorreu ? Number(it.pontuacaoAplicada || it.pontuacaoPrevista || 0) : 0,
+      it.documentoSei || '',
+    ]);
+  }
+
+  rows.push([
+    'Total de pontos:',
+    '',
+    '',
+    '',
+    '',
+    Number(dados.totalPontos || 0),
+    `${dados.grauAceitacao || ''} (Glosa: ${dados.percentualGlosa || 0}%)`,
+  ]);
+  rows.push(['Observações:', dados.observacoes || '', '', '', '', '', '']);
+  rows.push(['Fiscal (Nome e matrícula):', dados.fiscalNome || '', '', '', '', '', '']);
+  rows.push(['Local/Data:', dados.dataAvaliacao || new Date().toLocaleDateString('pt-BR'), '', '', '', '', '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 34 },
+    { wch: 24 },
+    { wch: 68 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 48 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
+  return wb;
+}
+

@@ -22,8 +22,11 @@ import {
   HelpCircle,
   Calculator
 } from 'lucide-react';
-import ImrLeituraModal from '@/components/penalidades/ImrLeituraModal';
+import * as XLSX from 'xlsx';
+import ImrLeituraModal, { exportarImrPdfOficial } from '@/components/penalidades/ImrLeituraModal';
 import NotificacaoModal from '@/components/penalidades/NotificacaoModal';
+import { gerarWorkbookImrZelo, calcularGlosaImr, ImrResultadoCalculado } from '@/lib/imr-parser';
+import templateZeloPadrao from '@/lib/imr-zelo-template.json';
 
 export default function PenalidadesPage() {
   const [penalidades, setPenalidades] = useState<any[]>([]);
@@ -462,28 +465,85 @@ export default function PenalidadesPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {imr.percentualGlosa > 0 ? (
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => {
-                                setNotificacaoDadosIniciais({
-                                  contratoId: imr.contratoId,
-                                  assunto: `Aplicação de Glosa do IMR - Competência ${imr.mesCompetencia}`,
-                                  descricaoFatos: `No Instrumento de Medição de Resultado (IMR) referente ao mês ${imr.mesCompetencia} no Campus ${imr.localCampus}, a Contratada somou ${imr.totalPontos} pontos de ocorrências registradas pela fiscalização, ensejando a glosa de ${imr.percentualGlosa}% sobre o valor mensal faturado.`,
-                                  clausulaDescumprida: `Anexo de IMR do Contrato e Art. 44 da IN 01/2026 - PROAD/UERN`,
-                                  penalidadeProposta: `Glosa de ${imr.percentualGlosa}% na fatura e Advertência`,
-                                });
-                                setShowNotificacaoModal(true);
+                                const glosaInfo = calcularGlosaImr(Number(imr.totalPontos || 0));
+                                const dadosExport: ImrResultadoCalculado = {
+                                  contratoNumero: imr.contrato?.numeroContrato || imr.contrato?.numeroEmpenho || '24/2026',
+                                  objetoContratual: imr.contrato?.objeto || 'Prestação de serviços terceirizados',
+                                  contratada: imr.contrato?.fornecedor?.razaoSocial || 'ZELO RECURSOS HUMANOS LTDA',
+                                  mesCompetencia: imr.mesCompetencia,
+                                  localCampus: imr.localCampus || 'Todos os Campi',
+                                  totalPontos: Number(imr.totalPontos || 0),
+                                  percentualGlosa: Number(imr.percentualGlosa || 0),
+                                  grauAceitacao: glosaInfo.grau,
+                                  requerProcessoSancionatorio: glosaInfo.sancionatorio,
+                                  observacoes: imr.observacoes || '',
+                                  fiscalNome: imr.fiscalNome || '',
+                                  dataAvaliacao: imr.createdAt ? new Date(imr.createdAt).toLocaleDateString('pt-BR') : '',
+                                  itens: Array.isArray(imr.itens) && imr.itens.length > 0 ? imr.itens : (templateZeloPadrao as any),
+                                };
+                                const wb = gerarWorkbookImrZelo(dadosExport);
+                                XLSX.writeFile(wb, `IMR_ZELO_${(imr.mesCompetencia || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`);
                               }}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                              title="Instaurar Notificação"
+                              className="inline-flex items-center space-x-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                              title="Baixar Planilha .XLSX no padrão IMR - ZELO.xlsx"
                             >
-                              <Send className="w-3 h-3" />
-                              <span>Notificar</span>
+                              <Download className="w-3 h-3" />
+                              <span>.XLSX</span>
                             </button>
-                          ) : (
-                            <span className="text-slate-400 text-[11px] italic">Regular</span>
-                          )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const glosaInfo = calcularGlosaImr(Number(imr.totalPontos || 0));
+                                const dadosExport: ImrResultadoCalculado = {
+                                  contratoNumero: imr.contrato?.numeroContrato || imr.contrato?.numeroEmpenho || '24/2026',
+                                  objetoContratual: imr.contrato?.objeto || 'Prestação de serviços terceirizados',
+                                  contratada: imr.contrato?.fornecedor?.razaoSocial || 'ZELO RECURSOS HUMANOS LTDA',
+                                  mesCompetencia: imr.mesCompetencia,
+                                  localCampus: imr.localCampus || 'Todos os Campi',
+                                  totalPontos: Number(imr.totalPontos || 0),
+                                  percentualGlosa: Number(imr.percentualGlosa || 0),
+                                  grauAceitacao: glosaInfo.grau,
+                                  requerProcessoSancionatorio: glosaInfo.sancionatorio,
+                                  observacoes: imr.observacoes || '',
+                                  fiscalNome: imr.fiscalNome || '',
+                                  dataAvaliacao: imr.createdAt ? new Date(imr.createdAt).toLocaleDateString('pt-BR') : '',
+                                  itens: Array.isArray(imr.itens) && imr.itens.length > 0 ? imr.itens : (templateZeloPadrao as any),
+                                };
+                                exportarImrPdfOficial(dadosExport);
+                              }}
+                              className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                              title="Baixar Relatório .PDF Oficial para o SEI"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>.PDF</span>
+                            </button>
+
+                            {imr.percentualGlosa > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNotificacaoDadosIniciais({
+                                    contratoId: imr.contratoId,
+                                    assunto: `Aplicação de Glosa do IMR - Competência ${imr.mesCompetencia}`,
+                                    descricaoFatos: `No Instrumento de Medição de Resultado (IMR) referente ao mês ${imr.mesCompetencia} no Campus ${imr.localCampus}, a Contratada somou ${imr.totalPontos} pontos de ocorrências registradas pela fiscalização, ensejando a glosa de ${imr.percentualGlosa}% sobre o valor mensal faturado.`,
+                                    clausulaDescumprida: `Anexo de IMR do Contrato e Art. 44 da IN 01/2026 - PROAD/UERN`,
+                                    penalidadeProposta: `Glosa de ${imr.percentualGlosa}% na fatura e Advertência`,
+                                  });
+                                  setShowNotificacaoModal(true);
+                                }}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                                title="Instaurar Notificação"
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>Notificar</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

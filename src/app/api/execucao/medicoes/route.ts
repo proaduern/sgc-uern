@@ -10,6 +10,7 @@ import {
 } from '@/lib/rbac';
 import { registrarAuditoria } from '@/lib/auditClient';
 import { notificarPcaExecucao } from '@/lib/pca-integration-client';
+import { notificarPatrimonioEstoque } from '@/lib/patrimonio-integration-client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -316,9 +317,30 @@ export async function PATCH(request: NextRequest) {
           dataAtesto: updated.dataRecebimentoDefinitivo || updated.dataRecebimentoProvisorio,
           numeroNotaFiscal: updated.numeroNotaFiscal,
         }).catch((e) => console.warn("Aviso ao notificar PCA:", e));
+
+        // Retroalimentação automática para o Controle de Estoque e Entregas (Patrimônio - DMP)
+        if (acao === "ATESTE_PROVISORIO" || acao === "RECEBIMENTO_PROVISORIO_TECNICO") {
+          notificarPatrimonioEstoque({
+            tipoEvento: 'RECEBIMENTO_PROVISORIO_TRP',
+            processoSei: contrato.processoSeiMae || updated.numeroNotaFiscal || '-',
+            itemDescricao: contrato.objeto || `Bens do Contrato ${contrato.numeroContrato || ''}`,
+            quantidade: 1,
+            destino: '11.01.70 - PROAD - SPAT - SETOR DE PATRIMÔNIO (Quarentena/Conferência)',
+            termoNumero: updated.numeroNotaFiscal || undefined,
+          }).catch((e) => console.warn("Aviso ao notificar Patrimônio:", e));
+        } else if (acao === "ATESTE_DEFINITIVO" || acao === "RECEBIMENTO_DEFINITIVO") {
+          notificarPatrimonioEstoque({
+            tipoEvento: 'RECEBIMENTO_DEFINITIVO_TRD',
+            processoSei: contrato.processoSeiMae || updated.numeroNotaFiscal || '-',
+            itemDescricao: contrato.objeto || `Bens do Contrato ${contrato.numeroContrato || ''}`,
+            quantidade: 1,
+            destino: '11.01 - PROAD - Almoxarifado Central (Incorporado/Disponível)',
+            termoNumero: updated.numeroNotaFiscal || undefined,
+          }).catch((e) => console.warn("Aviso ao notificar Patrimônio:", e));
+        }
       }
     } catch (e) {
-      console.warn("Falha silenciosa ao sincronizar execução com o PCA:", e);
+      console.warn("Falha silenciosa ao sincronizar execução com o PCA / Patrimônio:", e);
     }
 
     return NextResponse.json({ success: true, medicao: updated });

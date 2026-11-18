@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { encryptFieldsInData, decryptFieldsInResult } from './crypto-pii';
 
 function otimizarDatabaseUrl(rawUrl?: string): string | undefined {
   if (!rawUrl) return undefined;
@@ -19,18 +20,58 @@ function otimizarDatabaseUrl(rawUrl?: string): string | undefined {
   }
 }
 
-declare global {
-  var prisma: PrismaClient | undefined;
-}
+const PII_RANDOM = ['matricula'];
 
-const pooledUrl = otimizarDatabaseUrl(process.env.DATABASE_URL);
-
-export const prisma =
-  globalThis.prisma ||
-  new PrismaClient({
+function createPrismaClient() {
+  const pooledUrl = otimizarDatabaseUrl(process.env.DATABASE_URL);
+  const baseClient = new PrismaClient({
     ...(pooledUrl ? { datasources: { db: { url: pooledUrl } } } : {}),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
+
+  return baseClient.$extends({
+    query: {
+      user: {
+        async findUnique({ args, query }) {
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async findUniqueOrThrow({ args, query }) {
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async findFirst({ args, query }) {
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async findFirstOrThrow({ args, query }) {
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async findMany({ args, query }) {
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async create({ args, query }) {
+          args.data = encryptFieldsInData(args.data, [], PII_RANDOM);
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async update({ args, query }) {
+          args.data = encryptFieldsInData(args.data, [], PII_RANDOM);
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+        async upsert({ args, query }) {
+          args.create = encryptFieldsInData(args.create, [], PII_RANDOM);
+          args.update = encryptFieldsInData(args.update, [], PII_RANDOM);
+          return decryptFieldsInResult(await query(args), PII_RANDOM);
+        },
+      },
+    },
+  });
+}
+
+export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
+
+declare global {
+  var prisma: ExtendedPrismaClient | undefined;
+}
+
+export const prisma = globalThis.prisma || createPrismaClient();
 
 globalThis.prisma = prisma;
 export default prisma;

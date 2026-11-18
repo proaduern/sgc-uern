@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { createSessionToken } from '@/lib/auth';
 import { Role } from '@prisma/client';
@@ -121,12 +123,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (!usuarioSgc) {
+      const randomSecret = crypto.randomBytes(32).toString('hex');
+      const ssoRandomHash = await bcrypt.hash(randomSecret, 12);
       usuarioSgc = await prisma.user.create({
         data: {
           nome: nome || emailLimpo.split('@')[0],
           email: emailLimpo,
           matricula: matricula || null,
-          senhaHash: 'SSO_CENTRAL_UERN_AUTHENTICATED',
+          senhaHash: ssoRandomHash,
           role: sgcRole,
           unidadeId: unidadeId || null,
           unidadeSigla: unidadeSigla || null,

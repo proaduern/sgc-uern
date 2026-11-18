@@ -5,6 +5,7 @@ import { jwtVerify } from 'jose';
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'uern_contratos_secret_key_proad_2026_default';
 const SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
 const COOKIE_NAME = 'sgc_uern_token';
+const SERVICE_KEY = process.env.PROAD_SERVICE_KEY || 'proad_interop_internal_service_key_2026_uern';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,9 +15,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/sso-callback') ||
-    pathname.startsWith('/api/integracao/') ||
-    pathname.startsWith('/api/chat') ||
-    pathname.startsWith('/api/modelos-planilhas') ||
     pathname.startsWith('/docs/') ||
     pathname.startsWith('/favicon.ico') ||
     pathname === '/login'
@@ -25,6 +23,21 @@ export async function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get(COOKIE_NAME)?.value;
+
+  // Rotas de integração exigem chave de serviço PROAD OU sessão válida
+  if (pathname.startsWith('/api/integracao/')) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader === `Bearer ${SERVICE_KEY}`) {
+      return NextResponse.next();
+    }
+    if (token) {
+      try {
+        await jwtVerify(token, SECRET);
+        return NextResponse.next();
+      } catch {}
+    }
+    return NextResponse.json({ error: 'Não autorizado. Chave de serviço PROAD ou sessão obrigatória.' }, { status: 401 });
+  }
 
   if (!token) {
     if (pathname.startsWith('/api/')) {

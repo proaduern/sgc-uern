@@ -246,13 +246,23 @@ export default function DetalhesContratoPage() {
         </div>
 
         {/* Botões de Ação Principal */}
-        <div className="flex items-center space-x-2.5 self-end sm:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+          <a
+            href={`/api/contratos/${contrato.id}/docx`}
+            download
+            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-semibold rounded-xl transition-all shadow-xs"
+            title="Exportar Termo de Contrato no Modelo Oficial AGU (DOCX)"
+          >
+            <Download className="w-4 h-4 text-blue-600" />
+            <span>Contrato AGU (.DOCX)</span>
+          </a>
+
           <Link
             href={`/contratos/${contrato.id}/editar`}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-md transition-all cursor-pointer"
+            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-[#003366] hover:bg-[#002244] text-white text-xs font-semibold rounded-xl shadow-md transition-all cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
-            <span>Editar Contrato</span>
+            <span>Editar</span>
           </Link>
 
           {currentUser?.isAdmin && (

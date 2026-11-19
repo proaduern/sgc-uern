@@ -25,7 +25,8 @@ import {
   Printer,
   TrendingUp,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Download
 } from 'lucide-react';
 
 export default function AtasPage() {
@@ -777,6 +778,16 @@ export default function AtasPage() {
                           {(ata.valorGlobalAtual ?? ata.valorGlobalOriginal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </span>
                       </div>
+
+                      <a
+                        href={`/api/atas/${ata.id}/docx`}
+                        download
+                        className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold rounded-xl transition-all shadow-xs"
+                        title="Exportar Ata de Registro de Preços no Modelo Oficial AGU (DOCX)"
+                      >
+                        <Download className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Ata AGU (.DOCX)</span>
+                      </a>
 
                       <button
                         onClick={() => handleOpenReajuste(ata)}
